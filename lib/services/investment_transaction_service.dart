@@ -134,6 +134,179 @@ class InvestmentTransactionService {
     return createdId;
   }
 
+  static Future<void> updateTransaction({
+    required int transactionId,
+    required int investmentAccountId,
+    required int cashAccountId,
+    required String symbol,
+    required String type,
+    required double quantity,
+    required double unitPrice,
+    required double total,
+    required DateTime date,
+  }) async {
+    if (investmentAccountId == cashAccountId) {
+      throw Exception('Yatırım hesabı ve kaynak/hedef hesap aynı olamaz.');
+    }
+    if (type != 'buy' && type != 'sell') {
+      throw Exception('Geçersiz işlem türü.');
+    }
+    if (quantity <= 0 || unitPrice <= 0 || total <= 0) {
+      throw Exception('Miktar, fiyat ve tutar sıfırdan büyük olmalıdır.');
+    }
+
+    final isar = IsarService.isar;
+    await isar.writeTxn(() async {
+      final existing = await isar.investmentTransactions.get(transactionId);
+      if (existing == null) {
+        throw Exception('Yatırım işlemi bulunamadı.');
+      }
+
+      final accountIds = <int>{
+        existing.investmentAccountId,
+        existing.cashAccountId,
+        investmentAccountId,
+        cashAccountId,
+      };
+      final accountById = <int, Account>{};
+      for (final id in accountIds) {
+        final account = await isar.accounts.get(id);
+        if (account == null) {
+          throw Exception('Hesap bulunamadı.');
+        }
+        accountById[id] = account;
+      }
+
+      final oldInvestment = accountById[existing.investmentAccountId]!;
+      final oldCash = accountById[existing.cashAccountId]!;
+      if (existing.type == 'buy') {
+        oldCash.balance += existing.total;
+        oldInvestment.balance -= existing.quantity;
+      } else {
+        oldInvestment.balance += existing.quantity;
+        oldCash.balance -= existing.total;
+      }
+
+      if (existing.type == 'sell' && existing.realizedPnl.abs() > 1e-9) {
+        final oldFinance = await _findLinkedPnlFinanceTx(
+          isar: isar,
+          tx: existing,
+        );
+        if (oldFinance != null) {
+          await isar.financeTransactions.delete(oldFinance.id);
+        }
+      }
+
+      final newInvestment = accountById[investmentAccountId]!;
+      final newCash = accountById[cashAccountId]!;
+      if (newInvestment.type != 'investment') {
+        throw Exception('Seçilen yatırım hesabı geçersiz.');
+      }
+      if (newCash.type == 'investment') {
+        throw Exception('Kaynak/Hedef hesap yatırım türünde olamaz.');
+      }
+      if (!newInvestment.isActive || !newCash.isActive) {
+        throw Exception('Pasif hesapta işlem yapılamaz.');
+      }
+      if (type == 'buy' && newCash.balance < total) {
+        throw Exception('Kaynak hesap bakiyesi yetersiz.');
+      }
+      if (type == 'sell' && newInvestment.balance < quantity) {
+        throw Exception('Satış miktarı yatırım bakiyesinden büyük olamaz.');
+      }
+
+      FifoSellPreview? sellPreview;
+      if (type == 'sell') {
+        sellPreview = await _calculateFifoSellPreview(
+          isar: isar,
+          investmentAccountId: investmentAccountId,
+          symbol: symbol,
+          sellQuantity: quantity,
+          sellUnitPrice: unitPrice,
+          excludeTransactionId: existing.id,
+        );
+      }
+
+      existing
+        ..investmentAccountId = investmentAccountId
+        ..cashAccountId = cashAccountId
+        ..symbol = symbol.trim().toUpperCase()
+        ..type = type
+        ..quantity = quantity
+        ..unitPrice = unitPrice
+        ..total = total
+        ..costBasisTotal = sellPreview?.costBasisTotal ?? 0
+        ..realizedPnl = sellPreview?.realizedPnl ?? 0
+        ..date = date;
+
+      if (type == 'buy') {
+        newCash.balance -= total;
+        newInvestment.balance += quantity;
+      } else {
+        newInvestment.balance -= quantity;
+        newCash.balance += total;
+
+        final pnl = sellPreview?.realizedPnl ?? 0;
+        if (pnl.abs() > 1e-9) {
+          final pair = await InvestmentOutcomeCategoryService.ensurePairForSymbol(
+            isar: isar,
+            symbol: existing.symbol,
+          );
+          final financeTx = FinanceTransaction()
+            ..accountId = cashAccountId
+            ..categoryId = pnl >= 0 ? pair.income.id : pair.expense.id
+            ..type = pnl >= 0 ? 'income' : 'expense'
+            ..amount = pnl.abs()
+            ..description = 'Yatirim satis K/Z • ${existing.symbol}'
+            ..incomePlanId = null
+            ..expensePlanId = null
+            ..date = date
+            ..createdAt = DateTime.now();
+          await isar.financeTransactions.put(financeTx);
+        }
+      }
+
+      await isar.accounts.putAll(accountById.values.toList());
+      await isar.investmentTransactions.put(existing);
+    });
+  }
+
+  static Future<void> deleteAndReturn(int transactionId) async {
+    final isar = IsarService.isar;
+    await isar.writeTxn(() async {
+      final existing = await isar.investmentTransactions.get(transactionId);
+      if (existing == null) return;
+
+      final investmentAccount = await isar.accounts.get(existing.investmentAccountId);
+      final cashAccount = await isar.accounts.get(existing.cashAccountId);
+      if (investmentAccount == null || cashAccount == null) {
+        throw Exception('Bağlı hesap bulunamadı.');
+      }
+
+      if (existing.type == 'buy') {
+        cashAccount.balance += existing.total;
+        investmentAccount.balance -= existing.quantity;
+      } else {
+        investmentAccount.balance += existing.quantity;
+        cashAccount.balance -= existing.total;
+      }
+
+      if (existing.type == 'sell' && existing.realizedPnl.abs() > 1e-9) {
+        final pnlFinance = await _findLinkedPnlFinanceTx(
+          isar: isar,
+          tx: existing,
+        );
+        if (pnlFinance != null) {
+          await isar.financeTransactions.delete(pnlFinance.id);
+        }
+      }
+
+      await isar.accounts.put(cashAccount);
+      await isar.accounts.put(investmentAccount);
+      await isar.investmentTransactions.delete(existing.id);
+    });
+  }
+
   static Future<FifoSellPreview> previewSell({
     required int investmentAccountId,
     required String symbol,
@@ -158,6 +331,7 @@ class InvestmentTransactionService {
     required String symbol,
     required double sellQuantity,
     required double sellUnitPrice,
+    int? excludeTransactionId,
   }) async {
     final symbolUpper = symbol.trim().toUpperCase();
     final history = await isar.investmentTransactions
@@ -176,6 +350,9 @@ class InvestmentTransactionService {
 
     final lots = <_FifoLot>[];
     for (final tx in history) {
+      if (excludeTransactionId != null && tx.id == excludeTransactionId) {
+        continue;
+      }
       final normalizedType = tx.type.trim().toLowerCase();
       if (normalizedType == 'buy' || normalizedType == 'alış' || normalizedType == 'alis') {
         if (tx.quantity > 0 && tx.unitPrice > 0) {
@@ -217,6 +394,39 @@ class InvestmentTransactionService {
       proceedsTotal: proceeds,
       realizedPnl: proceeds - costBasis,
     );
+  }
+
+  static Future<FinanceTransaction?> _findLinkedPnlFinanceTx({
+    required Isar isar,
+    required InvestmentTransaction tx,
+  }) async {
+    if (tx.type != 'sell' || tx.realizedPnl.abs() <= 1e-9) return null;
+
+    final expectedType = tx.realizedPnl >= 0 ? 'income' : 'expense';
+    final expectedDesc = 'Yatirim satis K/Z • ${tx.symbol.toUpperCase()}';
+    final expectedAmount = tx.realizedPnl.abs();
+
+    final allFinance = await isar.financeTransactions.where().findAll();
+    FinanceTransaction? best;
+    var bestDelta = 1 << 62;
+
+    for (final ft in allFinance) {
+      if (ft.type != expectedType) continue;
+      if (ft.accountId != tx.cashAccountId) continue;
+      if ((ft.amount - expectedAmount).abs() > 1e-6) continue;
+      if ((ft.description ?? '').trim() != expectedDesc) continue;
+      if (!ft.date.isAtSameMomentAs(tx.date)) continue;
+
+      final delta = (ft.createdAt.millisecondsSinceEpoch -
+              tx.createdAt.millisecondsSinceEpoch)
+          .abs();
+      if (best == null || delta < bestDelta) {
+        best = ft;
+        bestDelta = delta;
+      }
+    }
+
+    return best;
   }
 }
 

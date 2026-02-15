@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../models/account.dart';
 import '../models/cari_card.dart';
+import '../models/cari_transaction.dart';
 import '../services/account_service.dart';
 import '../services/cari_card_service.dart';
 import '../services/cari_transaction_service.dart';
@@ -15,7 +16,12 @@ import '../utils/turkish_money_input_formatter.dart';
 import '../utils/turkish_upper_case_formatter.dart';
 
 class CariAccountScreen extends StatefulWidget {
-  const CariAccountScreen({super.key});
+  const CariAccountScreen({
+    super.key,
+    this.initialTransaction,
+  });
+
+  final CariTransaction? initialTransaction;
 
   @override
   State<CariAccountScreen> createState() => _CariAccountScreenState();
@@ -36,6 +42,9 @@ class _CariAccountScreenState extends State<CariAccountScreen> {
   bool _loading = true;
   bool _saving = false;
   final List<Uint8List> _attachments = [];
+  final List<Uint8List> _existingAttachments = [];
+
+  bool get _isEditMode => widget.initialTransaction != null;
 
   @override
   void initState() {
@@ -50,16 +59,88 @@ class _CariAccountScreenState extends State<CariAccountScreen> {
     super.dispose();
   }
 
+  List<CariCard> _uniqueCardsById(Iterable<CariCard> items) {
+    final map = <int, CariCard>{};
+    for (final item in items) {
+      map[item.id] = item;
+    }
+    return map.values.toList();
+  }
+
+  List<Account> _uniqueAccountsById(Iterable<Account> items) {
+    final map = <int, Account>{};
+    for (final item in items) {
+      map[item.id] = item;
+    }
+    return map.values.toList();
+  }
+
   Future<void> _load() async {
-    final cards = await CariCardService.getAll();
-    final accounts = await AccountService.getActiveAccounts();
+    final allCards = await CariCardService.getAll();
+    final activeAccounts = await AccountService.getActiveAccounts();
+    final allAccounts = _isEditMode
+        ? await AccountService.getAllAccounts()
+        : const <Account>[];
+
+    final tx = widget.initialTransaction;
+    final activeCards = allCards.where((e) => e.isActive).toList();
+    CariCard? editCard;
+    Account? editAccount;
+    if (tx != null) {
+      for (final card in allCards) {
+        if (card.id == tx.cariCardId) {
+          editCard = card;
+          break;
+        }
+      }
+      for (final account in allAccounts) {
+        if (account.id == tx.accountId) {
+          editAccount = account;
+          break;
+        }
+      }
+    }
+
+    final cards = _uniqueCardsById([
+      ...activeCards,
+      if (editCard != null) editCard,
+    ]);
+    final accounts = _uniqueAccountsById([
+      ...activeAccounts,
+      if (editAccount != null) editAccount,
+    ]);
+
+    if (_isEditMode) {
+      final tx = widget.initialTransaction!;
+      final existing = await TransactionAttachmentService.getByOwner(
+        ownerType: 'cari',
+        ownerId: tx.id,
+      );
+      _existingAttachments
+        ..clear()
+        ..addAll(existing.map((e) => Uint8List.fromList(e.imageBytes)));
+    }
 
     if (!mounted) return;
     setState(() {
-      _cards = cards.where((e) => e.isActive).toList();
+      _cards = cards;
       _accounts = accounts;
-      _selectedCardId = _cards.isNotEmpty ? _cards.first.id : null;
-      _selectedAccountId = _accounts.isNotEmpty ? _accounts.first.id : null;
+      if (_isEditMode) {
+        final tx = widget.initialTransaction!;
+        _selectedCardId = _cards.any((e) => e.id == tx.cariCardId)
+            ? tx.cariCardId
+            : (_cards.isNotEmpty ? _cards.first.id : null);
+        _selectedAccountId = _accounts.any((e) => e.id == tx.accountId)
+            ? tx.accountId
+            : (_accounts.isNotEmpty ? _accounts.first.id : null);
+        _selectedDate = tx.date;
+        _isDebt = tx.type == 'debt';
+        _amountController.text = _fmtAmount(tx.amount);
+        _noteController.text = tx.description ?? '';
+      } else {
+        _selectedCardId = _cards.isNotEmpty ? _cards.first.id : null;
+        _selectedAccountId = _accounts.isNotEmpty ? _accounts.first.id : null;
+      }
       _loading = false;
     });
   }
@@ -88,6 +169,21 @@ class _CariAccountScreenState extends State<CariAccountScreen> {
     final dd = d.day.toString().padLeft(2, '0');
     final mm = d.month.toString().padLeft(2, '0');
     return '$dd.$mm.${d.year}';
+  }
+
+  String _fmtAmount(double value) {
+    final fixed = value.toStringAsFixed(2);
+    final parts = fixed.split('.');
+    final intPart = parts[0];
+    final decPart = parts[1];
+
+    final b = StringBuffer();
+    for (int i = 0; i < intPart.length; i++) {
+      final fromRight = intPart.length - i;
+      b.write(intPart[i]);
+      if (fromRight > 1 && fromRight % 3 == 1) b.write('.');
+    }
+    return '${b.toString()},$decPart';
   }
 
   Future<void> _pickAttachment(ImageSource source) async {
@@ -166,29 +262,47 @@ class _CariAccountScreenState extends State<CariAccountScreen> {
     });
 
     try {
-      int txId;
-      if (_isDebt) {
-        txId = await CariTransactionService.addDebtAndGetId(
+      if (_isEditMode) {
+        final tx = widget.initialTransaction!;
+        await CariTransactionService.updateTransaction(
+          transactionId: tx.id,
           cariCardId: _selectedCardId!,
           accountId: _selectedAccountId!,
+          type: _isDebt ? 'debt' : 'collection',
           amount: parsed,
           date: _selectedDate,
           description: _noteController.text,
+        );
+        await TransactionAttachmentService.addMany(
+          ownerType: 'cari',
+          ownerId: tx.id,
+          images: _attachments.map((e) => e.toList()).toList(),
         );
       } else {
-        txId = await CariTransactionService.addCollectionAndGetId(
-          cariCardId: _selectedCardId!,
-          accountId: _selectedAccountId!,
-          amount: parsed,
-          date: _selectedDate,
-          description: _noteController.text,
+        int txId;
+        if (_isDebt) {
+          txId = await CariTransactionService.addDebtAndGetId(
+            cariCardId: _selectedCardId!,
+            accountId: _selectedAccountId!,
+            amount: parsed,
+            date: _selectedDate,
+            description: _noteController.text,
+          );
+        } else {
+          txId = await CariTransactionService.addCollectionAndGetId(
+            cariCardId: _selectedCardId!,
+            accountId: _selectedAccountId!,
+            amount: parsed,
+            date: _selectedDate,
+            description: _noteController.text,
+          );
+        }
+        await TransactionAttachmentService.addMany(
+          ownerType: 'cari',
+          ownerId: txId,
+          images: _attachments.map((e) => e.toList()).toList(),
         );
       }
-      await TransactionAttachmentService.addMany(
-        ownerType: 'cari',
-        ownerId: txId,
-        images: _attachments.map((e) => e.toList()).toList(),
-      );
 
       if (!mounted) return;
       Navigator.pop(context, true);
@@ -206,13 +320,55 @@ class _CariAccountScreenState extends State<CariAccountScreen> {
     }
   }
 
+  Future<void> _deleteCurrent() async {
+    if (!_isEditMode || _saving) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('İşlemi Sil'),
+        content: const Text('Bu cari işlemi silinsin mi?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Vazgeç'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Sil'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+
+    setState(() {
+      _saving = true;
+    });
+    try {
+      await CariTransactionService.deleteAndReturn(widget.initialTransaction!.id);
+      if (!mounted) return;
+      Navigator.pop(context, true);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Silme hatası: $e')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _saving = false;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       drawer: buildAppMenuDrawer(),
       appBar: AppBar(
-        leading: buildMenuLeading(),
-        title: const Text('Cari Hesap'),
+        leading: _isEditMode ? const BackButton() : buildMenuLeading(),
+        title: Text(_isEditMode ? 'Cari İşlem Düzenle' : 'Cari Hesap'),
         actions: [buildHomeAction(context)],
       ),
       body: _loading
@@ -332,15 +488,18 @@ class _CariAccountScreenState extends State<CariAccountScreen> {
                           ),
                         ],
                       ),
-                      if (_attachments.isNotEmpty)
+                      if (_existingAttachments.isNotEmpty || _attachments.isNotEmpty)
                         SizedBox(
                           height: 78,
                           child: ListView.separated(
                             scrollDirection: Axis.horizontal,
-                            itemCount: _attachments.length,
+                            itemCount: _existingAttachments.length + _attachments.length,
                             separatorBuilder: (_, __) => const SizedBox(width: 8),
                             itemBuilder: (context, index) {
-                              final bytes = _attachments[index];
+                              final isExisting = index < _existingAttachments.length;
+                              final bytes = isExisting
+                                  ? _existingAttachments[index]
+                                  : _attachments[index - _existingAttachments.length];
                               return Stack(
                                 children: [
                                   ClipRRect(
@@ -352,29 +511,31 @@ class _CariAccountScreenState extends State<CariAccountScreen> {
                                       fit: BoxFit.cover,
                                     ),
                                   ),
-                                  Positioned(
-                                    top: 0,
-                                    right: 0,
-                                    child: InkWell(
-                                      onTap: () {
-                                        setState(() {
-                                          _attachments.removeAt(index);
-                                        });
-                                      },
-                                      child: Container(
-                                        decoration: const BoxDecoration(
-                                          color: Colors.black54,
-                                          shape: BoxShape.circle,
-                                        ),
-                                        padding: const EdgeInsets.all(2),
-                                        child: const Icon(
-                                          Icons.close,
-                                          color: Colors.white,
-                                          size: 14,
+                                  if (!isExisting)
+                                    Positioned(
+                                      top: 0,
+                                      right: 0,
+                                      child: InkWell(
+                                        onTap: () {
+                                          setState(() {
+                                            _attachments
+                                                .removeAt(index - _existingAttachments.length);
+                                          });
+                                        },
+                                        child: Container(
+                                          decoration: const BoxDecoration(
+                                            color: Colors.black54,
+                                            shape: BoxShape.circle,
+                                          ),
+                                          padding: const EdgeInsets.all(2),
+                                          child: const Icon(
+                                            Icons.close,
+                                            color: Colors.white,
+                                            size: 14,
+                                          ),
                                         ),
                                       ),
                                     ),
-                                  ),
                                 ],
                               );
                             },
@@ -383,8 +544,22 @@ class _CariAccountScreenState extends State<CariAccountScreen> {
                       const SizedBox(height: 20),
                       ElevatedButton(
                         onPressed: _saving ? null : _save,
-                        child: Text(_saving ? 'Kaydediliyor...' : 'Kaydet'),
+                        child: Text(
+                          _saving
+                              ? 'Kaydediliyor...'
+                              : (_isEditMode ? 'Güncelle' : 'Kaydet'),
+                        ),
                       ),
+                      if (_isEditMode) ...[
+                        const SizedBox(height: 10),
+                        OutlinedButton(
+                          onPressed: _saving ? null : _deleteCurrent,
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.red,
+                          ),
+                          child: const Text('Sil'),
+                        ),
+                      ],
                     ],
                   ),
                 ),

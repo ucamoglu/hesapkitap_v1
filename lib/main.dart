@@ -285,26 +285,98 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
+  void _openAboutDialog() {
+    Navigator.pop(context);
+    Future<void>.delayed(const Duration(milliseconds: 120), () {
+      if (!mounted) return;
+      showAboutDialog(
+        context: context,
+        applicationName: 'HesapKitap',
+        applicationVersion: 'v1',
+        children: const [
+          Text('Bu uygulama UC Digital Studio tarafından oluşturulmaktadır.'),
+        ],
+      );
+    });
+  }
+
+  Widget _buildAboutFooter() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+      child: Material(
+        color: Colors.black.withValues(alpha: 0.03),
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: _openAboutDialog,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Row(
+              children: [
+                Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white,
+                    border: Border.all(
+                      color: Colors.black.withValues(alpha: 0.08),
+                    ),
+                  ),
+                  child: const Icon(
+                    Icons.info_outline,
+                    size: 16,
+                    color: Colors.black87,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Text(
+                    'Hakkında',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                const Text(
+                  'v1',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.black54,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       drawer: Drawer(
-        child: ListView(
-          padding: EdgeInsets.zero,
+        child: Column(
           children: [
-            DrawerHeader(
+            Expanded(
+              child: ListView(
+                padding: EdgeInsets.zero,
+                children: [
+                  DrawerHeader(
               decoration: const BoxDecoration(
                 color: AppColors.brand,
               ),
               margin: EdgeInsets.zero,
               padding: EdgeInsets.zero,
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  onTap: _openProfileScreen,
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         CircleAvatar(
@@ -314,33 +386,62 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               ? MemoryImage(profilePhoto!)
                               : null,
                           child: profilePhoto == null
-                              ? const Icon(Icons.person,
-                                  color: Colors.white, size: 30)
+                              ? const Icon(Icons.person, color: Colors.white, size: 30)
                               : null,
                         ),
-                        const SizedBox(height: 10),
-                        Text(
-                          profileName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        const Text(
-                          'by UC Digital Studio',
-                          style: TextStyle(
-                            color: Colors.white70,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
+                        const SizedBox(width: 10),
+                        InkWell(
+                          onTap: _openProfileScreen,
+                          borderRadius: BorderRadius.circular(18),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(18),
+                              border: Border.all(color: Colors.white54),
+                              color: Colors.white.withValues(alpha: 0.08),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.account_circle, color: Colors.white, size: 18),
+                                SizedBox(width: 6),
+                                Text(
+                                  'Profil',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ],
                     ),
-                  ),
+                    const SizedBox(height: 10),
+                    Text(
+                      profileName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'by UC Digital Studio',
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -348,11 +449,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
               leading: const Icon(Icons.folder_open, color: Colors.blueGrey),
               title: const Text('Tanım'),
               children: [
-                ListTile(
-                  leading: const Icon(Icons.account_circle, color: AppColors.brand),
-                  title: const Text('Kullanıcı Profili'),
-                  onTap: _openProfileScreen,
-                ),
                 ListTile(
                   leading: const Icon(Icons.account_balance, color: Colors.blueGrey),
                   title: const Text('Hesap Tanım'),
@@ -500,21 +596,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               ],
             ),
-            const Divider(height: 1),
-            ListTile(
-              leading: const Icon(Icons.info_outline),
-              title: const Text('Hakkında'),
-              onTap: () {
-                showAboutDialog(
-                  context: context,
-                  applicationName: 'HesapKitap',
-                  applicationVersion: 'v1',
-                  children: const [
-                    Text('Bu uygulama UC Digital Studio tarafından oluşturulmaktadır.'),
-                  ],
-                );
-              },
+                ],
+              ),
             ),
+            const Divider(height: 1),
+            _buildAboutFooter(),
           ],
         ),
       ),

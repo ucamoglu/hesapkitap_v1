@@ -9,6 +9,10 @@ import 'package:printing/printing.dart';
 import '../models/cari_transaction.dart';
 import '../models/finance_transaction.dart';
 import '../models/investment_transaction.dart';
+import 'cari_account_screen.dart';
+import 'expense_entry_screen.dart';
+import 'income_entry_screen.dart';
+import 'investment_entry_screen.dart';
 import '../services/account_service.dart';
 import '../services/cari_card_service.dart';
 import '../services/cari_transaction_service.dart';
@@ -19,8 +23,6 @@ import '../services/investment_transaction_service.dart';
 import '../services/transaction_attachment_service.dart';
 import '../theme/app_colors.dart';
 import '../utils/navigation_helpers.dart';
-import '../utils/turkish_money_input_formatter.dart';
-import '../utils/turkish_upper_case_formatter.dart';
 
 enum _TypeFilter { all, income, expense, incomeExpense, cari }
 enum _CariKindFilter { all, debt, collection }
@@ -90,6 +92,8 @@ class _IncomeExpenseTransactionsScreenState
   Map<int, String> _cariCardNames = {};
   Map<int, String> _cariRawTypeByTxId = {};
   Map<int, _InvestmentHistoryMeta> _investmentMetaByTxId = {};
+  Map<int, int> _investmentTxIdByFinanceTxId = {};
+  Map<int, InvestmentTransaction> _investmentById = {};
   Map<String, int> _attachmentCountMap = {};
   List<_CategoryOption> _categoryOptions = [];
 
@@ -143,6 +147,13 @@ class _IncomeExpenseTransactionsScreenState
         investmentTx,
         {for (final a in accounts) a.id: a.name},
       );
+      final investmentById = {
+        for (final it in investmentTx) it.id: it,
+      };
+      final investmentFinanceLinkMap = _buildInvestmentFinanceLinkMap(
+        financeTx: tx,
+        investmentTx: investmentTx,
+      );
       final cariTypeMap = <int, String>{
         for (final c in cariTx) -(c.id + 1): c.type,
       };
@@ -163,6 +174,8 @@ class _IncomeExpenseTransactionsScreenState
         _expenseCategoryNames = {for (final c in expenseCategories) c.id: c.name};
         _cariRawTypeByTxId = cariTypeMap;
         _investmentMetaByTxId = mappedInvestment.$2;
+        _investmentTxIdByFinanceTxId = investmentFinanceLinkMap;
+        _investmentById = investmentById;
         _attachmentCountMap = attachmentCountMap;
         _cariCardNames = {
           for (final c in cariCards)
@@ -1270,6 +1283,8 @@ class _IncomeExpenseTransactionsScreenState
     final isIncome = tx.type == 'income';
     final account = _accountNames[tx.accountId] ?? 'Hesap #${tx.accountId}';
     final category = _categoryName(tx);
+    final investmentTx = _linkedInvestmentTransaction(tx);
+    final isInvestmentLinked = investmentTx != null;
 
     final attachmentCount = _attachmentCount(tx);
     return ListTile(
@@ -1301,26 +1316,26 @@ class _IncomeExpenseTransactionsScreenState
               color: isIncome ? AppColors.income : AppColors.expense,
             ),
           ),
-          if (!_isInvestmentSyntheticTx(tx))
-            PopupMenuButton<String>(
-              onSelected: (v) async {
-                if (v == 'edit') {
-                  await _editTransaction(tx);
-                } else if (v == 'delete') {
-                  await _deleteTransaction(tx);
-                }
-              },
-              itemBuilder: (_) => const [
-                PopupMenuItem<String>(
-                  value: 'edit',
-                  child: Text('Düzenle'),
-                ),
-                PopupMenuItem<String>(
+          PopupMenuButton<String>(
+            onSelected: (v) async {
+              if (v == 'edit') {
+                await _editTransaction(tx);
+              } else if (v == 'delete') {
+                await _deleteTransaction(tx);
+              }
+            },
+            itemBuilder: (_) => [
+              const PopupMenuItem<String>(
+                value: 'edit',
+                child: Text('Düzenle'),
+              ),
+              if (!isInvestmentLinked)
+                const PopupMenuItem<String>(
                   value: 'delete',
                   child: Text('Sil'),
                 ),
-              ],
-            ),
+            ],
+          ),
         ],
       ),
     );
@@ -1432,9 +1447,42 @@ class _IncomeExpenseTransactionsScreenState
   }
 
   Future<void> _editTransaction(FinanceTransaction tx) async {
-    final changed = _isCariTx(tx)
-        ? await _editCariTransaction(tx)
-        : await _editFinanceTransaction(tx);
+    bool? changed;
+    final investmentTx = _linkedInvestmentTransaction(tx);
+    if (investmentTx != null) {
+      changed = await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => InvestmentEntryScreen(initialTransaction: investmentTx),
+        ),
+      );
+    } else if (_isCariTx(tx)) {
+      final rawType = _cariRawTypeByTxId[tx.id] ?? 'debt';
+      final cariTx = CariTransaction()
+        ..id = -tx.id - 1
+        ..cariCardId = tx.categoryId
+        ..accountId = tx.accountId
+        ..type = rawType
+        ..amount = tx.amount
+        ..description = tx.description
+        ..date = tx.date
+        ..createdAt = tx.createdAt;
+      changed = await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => CariAccountScreen(initialTransaction: cariTx),
+        ),
+      );
+    } else {
+      changed = await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => tx.type == 'income'
+              ? IncomeEntryScreen(initialTransaction: tx)
+              : ExpenseEntryScreen(initialTransaction: tx),
+        ),
+      );
+    }
     if (changed == true && mounted) {
       await _load();
     }
@@ -1481,356 +1529,17 @@ class _IncomeExpenseTransactionsScreenState
     }
   }
 
-  Future<bool?> _editFinanceTransaction(FinanceTransaction tx) async {
-    final accounts = await AccountService.getAllAccounts();
-    final incomeCategories = await IncomeCategoryService.getAllManual();
-    final expenseCategories = await CategoryService.getAllManualExpenseCategories();
-
-    if (!mounted) return false;
-
-    String type = tx.type;
-    int accountId = tx.accountId;
-    int categoryId = tx.categoryId;
-    DateTime date = tx.date;
-
-    final amountController = TextEditingController(text: _fmtAmount(tx.amount));
-    final descriptionController =
-        TextEditingController(text: tx.description ?? '');
-
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (ctx, setLocal) {
-            final categoryItems = type == 'income'
-                ? incomeCategories
-                    .map(
-                      (e) => DropdownMenuItem<int>(
-                        value: e.id,
-                        child: Text(e.name),
-                      ),
-                    )
-                    .toList()
-                : expenseCategories
-                    .map(
-                      (e) => DropdownMenuItem<int>(
-                        value: e.id,
-                        child: Text(e.name),
-                      ),
-                    )
-                    .toList();
-
-            if (!categoryItems.any((e) => e.value == categoryId) &&
-                categoryItems.isNotEmpty) {
-              categoryId = categoryItems.first.value!;
-            }
-
-            return AlertDialog(
-              title: const Text('İşlem Düzenle'),
-              content: SizedBox(
-                width: 420,
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      DropdownButtonFormField<String>(
-                        initialValue: type,
-                        decoration: const InputDecoration(labelText: 'Tür'),
-                        items: const [
-                          DropdownMenuItem(
-                            value: 'income',
-                            child: Text('Gelir'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'expense',
-                            child: Text('Gider'),
-                          ),
-                        ],
-                        onChanged: (v) {
-                          if (v == null) return;
-                          setLocal(() {
-                            type = v;
-                          });
-                        },
-                      ),
-                      const SizedBox(height: 8),
-                      DropdownButtonFormField<int>(
-                        initialValue: accountId,
-                        decoration: const InputDecoration(labelText: 'Hesap'),
-                        items: accounts
-                            .map(
-                              (a) => DropdownMenuItem<int>(
-                                value: a.id,
-                                child: Text(a.name),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (v) {
-                          if (v == null) return;
-                          setLocal(() {
-                            accountId = v;
-                          });
-                        },
-                      ),
-                      const SizedBox(height: 8),
-                      DropdownButtonFormField<int>(
-                        initialValue: categoryId,
-                        decoration: const InputDecoration(labelText: 'Kategori'),
-                        items: categoryItems,
-                        onChanged: (v) {
-                          if (v == null) return;
-                          setLocal(() {
-                            categoryId = v;
-                          });
-                        },
-                      ),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: amountController,
-                        keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true,
-                        ),
-                        inputFormatters: const [TurkishMoneyInputFormatter()],
-                        decoration: const InputDecoration(labelText: 'Tutar (TL)'),
-                      ),
-                      const SizedBox(height: 8),
-                      InkWell(
-                        onTap: () async {
-                          final picked = await showDatePicker(
-                            context: ctx,
-                            initialDate: date,
-                            firstDate: DateTime(2000),
-                            lastDate: DateTime(2100),
-                          );
-                          if (picked == null) return;
-                          setLocal(() {
-                            date = DateTime(
-                              picked.year,
-                              picked.month,
-                              picked.day,
-                              date.hour,
-                              date.minute,
-                            );
-                          });
-                        },
-                        child: InputDecorator(
-                          decoration: const InputDecoration(labelText: 'Tarih'),
-                          child: Text(_fmtDateTime(date)),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: descriptionController,
-                        inputFormatters: const [TurkishUpperCaseFormatter()],
-                        maxLines: 2,
-                        decoration:
-                            const InputDecoration(labelText: 'Açıklama'),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx, false),
-                  child: const Text('Vazgeç'),
-                ),
-                ElevatedButton(
-                  onPressed: () async {
-                    final amount =
-                        TurkishMoneyInputFormatter.parse(amountController.text);
-                    if (amount == null || amount <= 0) return;
-                    await FinanceTransactionService.updateTransaction(
-                      transactionId: tx.id,
-                      accountId: accountId,
-                      categoryId: categoryId,
-                      type: type,
-                      amount: amount,
-                      date: date,
-                      description: descriptionController.text,
-                      incomePlanId: type == 'income' ? tx.incomePlanId : null,
-                      expensePlanId: type == 'expense' ? tx.expensePlanId : null,
-                    );
-                    if (ctx.mounted) Navigator.pop(ctx, true);
-                  },
-                  child: const Text('Kaydet'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-
-    amountController.dispose();
-    descriptionController.dispose();
-    return result;
-  }
-
-  Future<bool?> _editCariTransaction(FinanceTransaction tx) async {
-    final cariId = -tx.id - 1;
-    final accounts = await AccountService.getAllAccounts();
-    final cards = await CariCardService.getAll();
-
-    if (!mounted) return false;
-
-    String rawType = _cariRawTypeByTxId[tx.id] ?? 'debt';
-    int accountId = tx.accountId;
-    int cardId = tx.categoryId;
-    DateTime date = tx.date;
-
-    final amountController = TextEditingController(text: _fmtAmount(tx.amount));
-    final descriptionController =
-        TextEditingController(text: tx.description ?? '');
-
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setLocal) => AlertDialog(
-          title: const Text('Cari İşlem Düzenle'),
-          content: SizedBox(
-            width: 420,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  DropdownButtonFormField<String>(
-                    initialValue: rawType,
-                    decoration: const InputDecoration(labelText: 'Cari Türü'),
-                    items: const [
-                      DropdownMenuItem(
-                        value: 'debt',
-                        child: Text('Borç Verme (Ödeme)'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'collection',
-                        child: Text('Tahsilat'),
-                      ),
-                    ],
-                    onChanged: (v) {
-                      if (v == null) return;
-                      setLocal(() {
-                        rawType = v;
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  DropdownButtonFormField<int>(
-                    initialValue: accountId,
-                    decoration: const InputDecoration(labelText: 'Hesap'),
-                    items: accounts
-                        .map(
-                          (a) => DropdownMenuItem<int>(
-                            value: a.id,
-                            child: Text(a.name),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (v) {
-                      if (v == null) return;
-                      setLocal(() {
-                        accountId = v;
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  DropdownButtonFormField<int>(
-                    initialValue: cardId,
-                    decoration: const InputDecoration(labelText: 'Cari Kart'),
-                    items: cards
-                        .map(
-                          (c) => DropdownMenuItem<int>(
-                            value: c.id,
-                            child: Text(_cariCardNames[c.id] ?? 'Cari #${c.id}'),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (v) {
-                      if (v == null) return;
-                      setLocal(() {
-                        cardId = v;
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: amountController,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    inputFormatters: const [TurkishMoneyInputFormatter()],
-                    decoration: const InputDecoration(labelText: 'Tutar (TL)'),
-                  ),
-                  const SizedBox(height: 8),
-                  InkWell(
-                    onTap: () async {
-                      final picked = await showDatePicker(
-                        context: ctx,
-                        initialDate: date,
-                        firstDate: DateTime(2000),
-                        lastDate: DateTime(2100),
-                      );
-                      if (picked == null) return;
-                      setLocal(() {
-                        date = DateTime(
-                          picked.year,
-                          picked.month,
-                          picked.day,
-                          date.hour,
-                          date.minute,
-                        );
-                      });
-                    },
-                    child: InputDecorator(
-                      decoration: const InputDecoration(labelText: 'Tarih'),
-                      child: Text(_fmtDateTime(date)),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: descriptionController,
-                    inputFormatters: const [TurkishUpperCaseFormatter()],
-                    maxLines: 2,
-                    decoration: const InputDecoration(labelText: 'Açıklama'),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Vazgeç'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                final amount = TurkishMoneyInputFormatter.parse(amountController.text);
-                if (amount == null || amount <= 0) return;
-                await CariTransactionService.updateTransaction(
-                  transactionId: cariId,
-                  cariCardId: cardId,
-                  accountId: accountId,
-                  type: rawType,
-                  amount: amount,
-                  date: date,
-                  description: descriptionController.text,
-                );
-                if (ctx.mounted) Navigator.pop(ctx, true);
-              },
-              child: const Text('Kaydet'),
-            ),
-          ],
-        ),
-      ),
-    );
-
-    amountController.dispose();
-    descriptionController.dispose();
-    return result;
-  }
-
   bool _isCariTx(FinanceTransaction tx) => _cariRawTypeByTxId.containsKey(tx.id);
 
-  bool _isInvestmentSyntheticTx(FinanceTransaction tx) =>
-      _investmentMetaByTxId.containsKey(tx.id);
+  InvestmentTransaction? _linkedInvestmentTransaction(FinanceTransaction tx) {
+    final syntheticMeta = _investmentMetaByTxId[tx.id];
+    if (syntheticMeta != null) {
+      return _investmentById[syntheticMeta.investmentTransactionId];
+    }
+    final linkedId = _investmentTxIdByFinanceTxId[tx.id];
+    if (linkedId == null) return null;
+    return _investmentById[linkedId];
+  }
 
   String _txTypeLabel(FinanceTransaction tx) {
     final invMeta = _investmentMetaByTxId[tx.id];
@@ -1888,6 +1597,7 @@ class _IncomeExpenseTransactionsScreenState
         ..createdAt = it.createdAt;
       result.add(cash);
       metaById[cashId] = _InvestmentHistoryMeta(
+        investmentTransactionId: it.id,
         symbol: it.symbol,
         rawType: it.type,
       );
@@ -1895,13 +1605,58 @@ class _IncomeExpenseTransactionsScreenState
 
     return (result, metaById);
   }
+
+  Map<int, int> _buildInvestmentFinanceLinkMap({
+    required List<FinanceTransaction> financeTx,
+    required List<InvestmentTransaction> investmentTx,
+  }) {
+    final linked = <int, int>{};
+    final usedFinanceIds = <int>{};
+
+    for (final it in investmentTx) {
+      if (it.type != 'sell' || it.realizedPnl.abs() <= 1e-9) continue;
+
+      final expectedType = it.realizedPnl >= 0 ? 'income' : 'expense';
+      final expectedAmount = it.realizedPnl.abs();
+      final expectedDesc = 'Yatirim satis K/Z • ${it.symbol.toUpperCase()}';
+
+      FinanceTransaction? bestCandidate;
+      var bestDelta = 1 << 62;
+
+      for (final ft in financeTx) {
+        if (usedFinanceIds.contains(ft.id)) continue;
+        if (ft.type != expectedType) continue;
+        if (ft.accountId != it.cashAccountId) continue;
+        if ((ft.amount - expectedAmount).abs() > 1e-6) continue;
+        if ((ft.description ?? '').trim() != expectedDesc) continue;
+        if (!ft.date.isAtSameMomentAs(it.date)) continue;
+
+        final delta = (ft.createdAt.millisecondsSinceEpoch -
+                it.createdAt.millisecondsSinceEpoch)
+            .abs();
+        if (bestCandidate == null || delta < bestDelta) {
+          bestCandidate = ft;
+          bestDelta = delta;
+        }
+      }
+
+      if (bestCandidate != null) {
+        usedFinanceIds.add(bestCandidate.id);
+        linked[bestCandidate.id] = it.id;
+      }
+    }
+
+    return linked;
+  }
 }
 
 class _InvestmentHistoryMeta {
+  final int investmentTransactionId;
   final String symbol;
   final String rawType;
 
   const _InvestmentHistoryMeta({
+    required this.investmentTransactionId,
     required this.symbol,
     required this.rawType,
   });

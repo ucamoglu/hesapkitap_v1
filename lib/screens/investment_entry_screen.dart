@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/account.dart';
+import '../models/investment_transaction.dart';
 import '../services/account_service.dart';
 import '../services/investment_transaction_service.dart';
 import '../services/tracked_currency_service.dart';
@@ -9,7 +10,12 @@ import '../utils/navigation_helpers.dart';
 import '../utils/turkish_money_input_formatter.dart';
 
 class InvestmentEntryScreen extends StatefulWidget {
-  const InvestmentEntryScreen({super.key});
+  const InvestmentEntryScreen({
+    super.key,
+    this.initialTransaction,
+  });
+
+  final InvestmentTransaction? initialTransaction;
 
   @override
   State<InvestmentEntryScreen> createState() => _InvestmentEntryScreenState();
@@ -36,6 +42,8 @@ class _InvestmentEntryScreenState extends State<InvestmentEntryScreen> {
   bool _loading = true;
   bool _saving = false;
 
+  bool get _isEditMode => widget.initialTransaction != null;
+
   @override
   void initState() {
     super.initState();
@@ -52,13 +60,16 @@ class _InvestmentEntryScreenState extends State<InvestmentEntryScreen> {
   Future<void> _load() async {
     final results = await Future.wait([
       AccountService.getActiveAccounts(),
+      if (_isEditMode) AccountService.getAllAccounts(),
       TrackedCurrencyService.getAll(),
       TrackedMetalService.getAll(),
     ]);
 
     final allAccounts = results[0] as List<Account>;
-    final trackedCurrencies = results[1] as List<TrackedCurrencyItem>;
-    final trackedMetals = results[2] as List<TrackedMetalItem>;
+    final allAccountsForEdit =
+        _isEditMode ? (results[1] as List<Account>) : const <Account>[];
+    final trackedCurrencies = results[_isEditMode ? 2 : 1] as List<TrackedCurrencyItem>;
+    final trackedMetals = results[_isEditMode ? 3 : 2] as List<TrackedMetalItem>;
 
     for (final c in trackedCurrencies) {
       _currencyNameByCode[c.code.toUpperCase()] = c.name;
@@ -67,7 +78,7 @@ class _InvestmentEntryScreenState extends State<InvestmentEntryScreen> {
       _metalNameByCode[m.code.toUpperCase()] = m.name;
     }
 
-    final investmentAccounts = allAccounts
+    final activeInvestmentAccounts = allAccounts
         .where(
           (a) =>
               a.type == 'investment' &&
@@ -76,19 +87,55 @@ class _InvestmentEntryScreenState extends State<InvestmentEntryScreen> {
         .toList()
       ..sort((a, b) => a.name.compareTo(b.name));
 
-    final cashAccounts = allAccounts
+    final activeCashAccounts = allAccounts
         .where((a) => a.type != 'investment')
         .toList()
       ..sort((a, b) => a.name.compareTo(b.name));
 
+    final extraInvestment = _isEditMode
+        ? allAccountsForEdit.where((a) => a.id == widget.initialTransaction!.investmentAccountId)
+        : const <Account>[];
+    final extraCash = _isEditMode
+        ? allAccountsForEdit.where((a) => a.id == widget.initialTransaction!.cashAccountId)
+        : const <Account>[];
+
+    final investmentMap = <int, Account>{};
+    for (final a in [...activeInvestmentAccounts, ...extraInvestment]) {
+      investmentMap[a.id] = a;
+    }
+    final cashMap = <int, Account>{};
+    for (final a in [...activeCashAccounts, ...extraCash]) {
+      if (a.type != 'investment') {
+        cashMap[a.id] = a;
+      }
+    }
+    final investmentAccounts = investmentMap.values.toList()
+      ..sort((a, b) => a.name.compareTo(b.name));
+    final cashAccounts = cashMap.values.toList()
+      ..sort((a, b) => a.name.compareTo(b.name));
+
     if (!mounted) return;
+    final tx = widget.initialTransaction;
     setState(() {
       _investmentAccounts = investmentAccounts;
       _cashAccounts = cashAccounts;
-      _selectedAccountId =
-          investmentAccounts.isNotEmpty ? investmentAccounts.first.id : null;
-      _selectedCashAccountId =
-          cashAccounts.isNotEmpty ? cashAccounts.first.id : null;
+      if (_isEditMode && tx != null) {
+        _selectedAccountId = investmentAccounts.any((a) => a.id == tx.investmentAccountId)
+            ? tx.investmentAccountId
+            : (investmentAccounts.isNotEmpty ? investmentAccounts.first.id : null);
+        _selectedCashAccountId = cashAccounts.any((a) => a.id == tx.cashAccountId)
+            ? tx.cashAccountId
+            : (cashAccounts.isNotEmpty ? cashAccounts.first.id : null);
+        _txType = tx.type;
+        _selectedDate = tx.date;
+        _amountController.text = _fmtMoney(tx.total);
+        _quantityController.text = _fmtQuantity(tx.quantity);
+      } else {
+        _selectedAccountId =
+            investmentAccounts.isNotEmpty ? investmentAccounts.first.id : null;
+        _selectedCashAccountId =
+            cashAccounts.isNotEmpty ? cashAccounts.first.id : null;
+      }
       _loading = false;
     });
   }
@@ -283,16 +330,30 @@ class _InvestmentEntryScreenState extends State<InvestmentEntryScreen> {
     });
 
     try {
-      await InvestmentTransactionService.addAndGetId(
-        investmentAccountId: account.id,
-        cashAccountId: cashAccountId,
-        symbol: (account.investmentSymbol ?? '').toUpperCase(),
-        type: _txType,
-        quantity: quantity,
-        unitPrice: unitPrice,
-        total: amount,
-        date: _selectedDate,
-      );
+      if (_isEditMode) {
+        await InvestmentTransactionService.updateTransaction(
+          transactionId: widget.initialTransaction!.id,
+          investmentAccountId: account.id,
+          cashAccountId: cashAccountId,
+          symbol: (account.investmentSymbol ?? '').toUpperCase(),
+          type: _txType,
+          quantity: quantity,
+          unitPrice: unitPrice,
+          total: amount,
+          date: _selectedDate,
+        );
+      } else {
+        await InvestmentTransactionService.addAndGetId(
+          investmentAccountId: account.id,
+          cashAccountId: cashAccountId,
+          symbol: (account.investmentSymbol ?? '').toUpperCase(),
+          type: _txType,
+          quantity: quantity,
+          unitPrice: unitPrice,
+          total: amount,
+          date: _selectedDate,
+        );
+      }
 
       if (!mounted) return;
       Navigator.pop(context, true);
@@ -300,6 +361,48 @@ class _InvestmentEntryScreenState extends State<InvestmentEntryScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Kayıt hatası: $e')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _saving = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _deleteCurrent() async {
+    if (!_isEditMode || _saving) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('İşlemi Sil'),
+        content: const Text('Bu yatırım işlemi silinsin mi?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Vazgeç'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Sil'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+
+    setState(() {
+      _saving = true;
+    });
+    try {
+      await InvestmentTransactionService.deleteAndReturn(widget.initialTransaction!.id);
+      if (!mounted) return;
+      Navigator.pop(context, true);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Silme hatası: $e')),
       );
     } finally {
       if (mounted) {
@@ -358,8 +461,8 @@ class _InvestmentEntryScreenState extends State<InvestmentEntryScreen> {
     return Scaffold(
       drawer: buildAppMenuDrawer(),
       appBar: AppBar(
-        leading: buildMenuLeading(),
-        title: const Text('Yatırım İşlemi'),
+        leading: _isEditMode ? const BackButton() : buildMenuLeading(),
+        title: Text(_isEditMode ? 'Yatırım İşlemi Düzenle' : 'Yatırım İşlemi'),
         actions: [buildHomeAction(context)],
       ),
       body: _loading
@@ -574,8 +677,22 @@ class _InvestmentEntryScreenState extends State<InvestmentEntryScreen> {
                       const SizedBox(height: 16),
                       ElevatedButton(
                         onPressed: _saving ? null : _save,
-                        child: Text(_saving ? 'Kaydediliyor...' : 'Kaydet'),
+                        child: Text(
+                          _saving
+                              ? 'Kaydediliyor...'
+                              : (_isEditMode ? 'Güncelle' : 'Kaydet'),
+                        ),
                       ),
+                      if (_isEditMode) ...[
+                        const SizedBox(height: 10),
+                        OutlinedButton(
+                          onPressed: _saving ? null : _deleteCurrent,
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.red,
+                          ),
+                          child: const Text('Sil'),
+                        ),
+                      ],
                     ],
                   ),
                 ),
