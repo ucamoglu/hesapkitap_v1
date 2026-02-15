@@ -16,6 +16,10 @@ import '../models/tracked_currency.dart';
 import '../models/tracked_currency_state.dart';
 import '../models/tracked_metal.dart';
 import '../models/tracked_metal_state.dart';
+import '../models/tracked_stock.dart';
+import '../models/tracked_stock_state.dart';
+import '../models/tracked_crypto.dart';
+import '../models/tracked_crypto_state.dart';
 
 class IsarService {
   static late Isar isar;
@@ -44,6 +48,10 @@ class IsarService {
         TrackedCurrencyStateSchema,
         TrackedMetalSchema,
         TrackedMetalStateSchema,
+        TrackedStockSchema,
+        TrackedStockStateSchema,
+        TrackedCryptoSchema,
+        TrackedCryptoStateSchema,
       ],
       directory: dir.path,
     );

@@ -13,6 +13,8 @@ class CariTransaction {
   // debt / collection
 
   late double amount;
+  double? quantity;
+  double? unitPrice;
   String? description;
   late DateTime date;
   late DateTime createdAt;

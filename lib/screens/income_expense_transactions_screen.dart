@@ -527,13 +527,13 @@ class _IncomeExpenseTransactionsScreenState
     if (_typeFilter == _TypeFilter.expense) typeText = 'Gider';
     if (_typeFilter == _TypeFilter.incomeExpense) typeText = 'Gelir + Gider';
     if (_typeFilter == _TypeFilter.cari) typeText = 'Cari Kart';
-    if (_typeFilter == _TypeFilter.cari) {
-      if (_cariKindFilter == _CariKindFilter.debt) {
-        typeText = 'Cari Kart (Borç Verme)';
-      } else if (_cariKindFilter == _CariKindFilter.collection) {
-        typeText = 'Cari Kart (Tahsilat)';
+      if (_typeFilter == _TypeFilter.cari) {
+        if (_cariKindFilter == _CariKindFilter.debt) {
+          typeText = 'Cari Kart (Giden)';
+        } else if (_cariKindFilter == _CariKindFilter.collection) {
+          typeText = 'Cari Kart (Gelen)';
+        }
       }
-    }
 
     final periodText = _periodLabel();
 
@@ -983,11 +983,11 @@ class _IncomeExpenseTransactionsScreenState
                               ),
                               DropdownMenuItem(
                                 value: _CariKindFilter.debt,
-                                child: Text('Borç Verme'),
+                                child: Text('Giden'),
                               ),
                               DropdownMenuItem(
                                 value: _CariKindFilter.collection,
-                                child: Text('Tahsilat'),
+                                child: Text('Gelen'),
                               ),
                             ],
                             onChanged: (v) {
@@ -1547,8 +1547,8 @@ class _IncomeExpenseTransactionsScreenState
       return invMeta.rawType == 'buy' ? 'Yatırım Alış (Nakit)' : 'Yatırım Satış (Nakit)';
     }
     if (_isCariTx(tx)) {
-      if (_isCariDebt(tx)) return 'Cari Kart (Borç Verme)';
-      if (_isCariCollection(tx)) return 'Cari Kart (Tahsilat)';
+      if (_isCariDebt(tx)) return 'Cari Kart (Giden)';
+      if (_isCariCollection(tx)) return 'Cari Kart (Gelen)';
       return 'Cari Kart';
     }
     return tx.type == 'income' ? 'Gelir' : 'Gider';
@@ -1563,6 +1563,7 @@ class _IncomeExpenseTransactionsScreenState
       ..id = -(c.id + 1)
       ..accountId = c.accountId
       ..categoryId = c.cariCardId
+      // Hesap bakisi: Gelen (collection) hesaba +, Giden (debt) hesaptan -.
       ..type = c.type == 'collection' ? 'income' : 'expense'
       ..amount = c.amount
       ..description = c.description

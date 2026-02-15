@@ -22,43 +22,63 @@ const CariCardSchema = CollectionSchema(
       name: r'createdAt',
       type: IsarType.dateTime,
     ),
-    r'email': PropertySchema(
+    r'currencyType': PropertySchema(
       id: 1,
+      name: r'currencyType',
+      type: IsarType.string,
+    ),
+    r'email': PropertySchema(
+      id: 2,
       name: r'email',
       type: IsarType.string,
     ),
+    r'foreignCode': PropertySchema(
+      id: 3,
+      name: r'foreignCode',
+      type: IsarType.string,
+    ),
+    r'foreignMarketType': PropertySchema(
+      id: 4,
+      name: r'foreignMarketType',
+      type: IsarType.string,
+    ),
+    r'foreignName': PropertySchema(
+      id: 5,
+      name: r'foreignName',
+      type: IsarType.string,
+    ),
     r'fullName': PropertySchema(
-      id: 2,
+      id: 6,
       name: r'fullName',
       type: IsarType.string,
     ),
     r'isActive': PropertySchema(
-      id: 3,
+      id: 7,
       name: r'isActive',
       type: IsarType.bool,
     ),
     r'note': PropertySchema(
-      id: 4,
+      id: 8,
       name: r'note',
       type: IsarType.string,
     ),
     r'phone': PropertySchema(
-      id: 5,
+      id: 9,
       name: r'phone',
       type: IsarType.string,
     ),
     r'photoBytes': PropertySchema(
-      id: 6,
+      id: 10,
       name: r'photoBytes',
       type: IsarType.longList,
     ),
     r'title': PropertySchema(
-      id: 7,
+      id: 11,
       name: r'title',
       type: IsarType.string,
     ),
     r'type': PropertySchema(
-      id: 8,
+      id: 12,
       name: r'type',
       type: IsarType.string,
     )
@@ -83,8 +103,27 @@ int _cariCardEstimateSize(
   Map<Type, List<int>> allOffsets,
 ) {
   var bytesCount = offsets.last;
+  bytesCount += 3 + object.currencyType.length * 3;
   {
     final value = object.email;
+    if (value != null) {
+      bytesCount += 3 + value.length * 3;
+    }
+  }
+  {
+    final value = object.foreignCode;
+    if (value != null) {
+      bytesCount += 3 + value.length * 3;
+    }
+  }
+  {
+    final value = object.foreignMarketType;
+    if (value != null) {
+      bytesCount += 3 + value.length * 3;
+    }
+  }
+  {
+    final value = object.foreignName;
     if (value != null) {
       bytesCount += 3 + value.length * 3;
     }
@@ -130,14 +169,18 @@ void _cariCardSerialize(
   Map<Type, List<int>> allOffsets,
 ) {
   writer.writeDateTime(offsets[0], object.createdAt);
-  writer.writeString(offsets[1], object.email);
-  writer.writeString(offsets[2], object.fullName);
-  writer.writeBool(offsets[3], object.isActive);
-  writer.writeString(offsets[4], object.note);
-  writer.writeString(offsets[5], object.phone);
-  writer.writeLongList(offsets[6], object.photoBytes);
-  writer.writeString(offsets[7], object.title);
-  writer.writeString(offsets[8], object.type);
+  writer.writeString(offsets[1], object.currencyType);
+  writer.writeString(offsets[2], object.email);
+  writer.writeString(offsets[3], object.foreignCode);
+  writer.writeString(offsets[4], object.foreignMarketType);
+  writer.writeString(offsets[5], object.foreignName);
+  writer.writeString(offsets[6], object.fullName);
+  writer.writeBool(offsets[7], object.isActive);
+  writer.writeString(offsets[8], object.note);
+  writer.writeString(offsets[9], object.phone);
+  writer.writeLongList(offsets[10], object.photoBytes);
+  writer.writeString(offsets[11], object.title);
+  writer.writeString(offsets[12], object.type);
 }
 
 CariCard _cariCardDeserialize(
@@ -148,15 +191,19 @@ CariCard _cariCardDeserialize(
 ) {
   final object = CariCard();
   object.createdAt = reader.readDateTime(offsets[0]);
-  object.email = reader.readStringOrNull(offsets[1]);
-  object.fullName = reader.readStringOrNull(offsets[2]);
+  object.currencyType = reader.readString(offsets[1]);
+  object.email = reader.readStringOrNull(offsets[2]);
+  object.foreignCode = reader.readStringOrNull(offsets[3]);
+  object.foreignMarketType = reader.readStringOrNull(offsets[4]);
+  object.foreignName = reader.readStringOrNull(offsets[5]);
+  object.fullName = reader.readStringOrNull(offsets[6]);
   object.id = id;
-  object.isActive = reader.readBool(offsets[3]);
-  object.note = reader.readStringOrNull(offsets[4]);
-  object.phone = reader.readStringOrNull(offsets[5]);
-  object.photoBytes = reader.readLongList(offsets[6]);
-  object.title = reader.readStringOrNull(offsets[7]);
-  object.type = reader.readString(offsets[8]);
+  object.isActive = reader.readBool(offsets[7]);
+  object.note = reader.readStringOrNull(offsets[8]);
+  object.phone = reader.readStringOrNull(offsets[9]);
+  object.photoBytes = reader.readLongList(offsets[10]);
+  object.title = reader.readStringOrNull(offsets[11]);
+  object.type = reader.readString(offsets[12]);
   return object;
 }
 
@@ -170,20 +217,28 @@ P _cariCardDeserializeProp<P>(
     case 0:
       return (reader.readDateTime(offset)) as P;
     case 1:
-      return (reader.readStringOrNull(offset)) as P;
+      return (reader.readString(offset)) as P;
     case 2:
       return (reader.readStringOrNull(offset)) as P;
     case 3:
-      return (reader.readBool(offset)) as P;
+      return (reader.readStringOrNull(offset)) as P;
     case 4:
       return (reader.readStringOrNull(offset)) as P;
     case 5:
       return (reader.readStringOrNull(offset)) as P;
     case 6:
-      return (reader.readLongList(offset)) as P;
-    case 7:
       return (reader.readStringOrNull(offset)) as P;
+    case 7:
+      return (reader.readBool(offset)) as P;
     case 8:
+      return (reader.readStringOrNull(offset)) as P;
+    case 9:
+      return (reader.readStringOrNull(offset)) as P;
+    case 10:
+      return (reader.readLongList(offset)) as P;
+    case 11:
+      return (reader.readStringOrNull(offset)) as P;
+    case 12:
       return (reader.readString(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -332,6 +387,140 @@ extension CariCardQueryFilter
     });
   }
 
+  QueryBuilder<CariCard, CariCard, QAfterFilterCondition> currencyTypeEqualTo(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'currencyType',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<CariCard, CariCard, QAfterFilterCondition>
+      currencyTypeGreaterThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'currencyType',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<CariCard, CariCard, QAfterFilterCondition> currencyTypeLessThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'currencyType',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<CariCard, CariCard, QAfterFilterCondition> currencyTypeBetween(
+    String lower,
+    String upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'currencyType',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<CariCard, CariCard, QAfterFilterCondition>
+      currencyTypeStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'currencyType',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<CariCard, CariCard, QAfterFilterCondition> currencyTypeEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'currencyType',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<CariCard, CariCard, QAfterFilterCondition> currencyTypeContains(
+      String value,
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'currencyType',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<CariCard, CariCard, QAfterFilterCondition> currencyTypeMatches(
+      String pattern,
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'currencyType',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<CariCard, CariCard, QAfterFilterCondition>
+      currencyTypeIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'currencyType',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<CariCard, CariCard, QAfterFilterCondition>
+      currencyTypeIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'currencyType',
+        value: '',
+      ));
+    });
+  }
+
   QueryBuilder<CariCard, CariCard, QAfterFilterCondition> emailIsNull() {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(const FilterCondition.isNull(
@@ -473,6 +662,458 @@ extension CariCardQueryFilter
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.greaterThan(
         property: r'email',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<CariCard, CariCard, QAfterFilterCondition> foreignCodeIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'foreignCode',
+      ));
+    });
+  }
+
+  QueryBuilder<CariCard, CariCard, QAfterFilterCondition>
+      foreignCodeIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'foreignCode',
+      ));
+    });
+  }
+
+  QueryBuilder<CariCard, CariCard, QAfterFilterCondition> foreignCodeEqualTo(
+    String? value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'foreignCode',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<CariCard, CariCard, QAfterFilterCondition>
+      foreignCodeGreaterThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'foreignCode',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<CariCard, CariCard, QAfterFilterCondition> foreignCodeLessThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'foreignCode',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<CariCard, CariCard, QAfterFilterCondition> foreignCodeBetween(
+    String? lower,
+    String? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'foreignCode',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<CariCard, CariCard, QAfterFilterCondition> foreignCodeStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'foreignCode',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<CariCard, CariCard, QAfterFilterCondition> foreignCodeEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'foreignCode',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<CariCard, CariCard, QAfterFilterCondition> foreignCodeContains(
+      String value,
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'foreignCode',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<CariCard, CariCard, QAfterFilterCondition> foreignCodeMatches(
+      String pattern,
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'foreignCode',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<CariCard, CariCard, QAfterFilterCondition> foreignCodeIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'foreignCode',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<CariCard, CariCard, QAfterFilterCondition>
+      foreignCodeIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'foreignCode',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<CariCard, CariCard, QAfterFilterCondition>
+      foreignMarketTypeIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'foreignMarketType',
+      ));
+    });
+  }
+
+  QueryBuilder<CariCard, CariCard, QAfterFilterCondition>
+      foreignMarketTypeIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'foreignMarketType',
+      ));
+    });
+  }
+
+  QueryBuilder<CariCard, CariCard, QAfterFilterCondition>
+      foreignMarketTypeEqualTo(
+    String? value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'foreignMarketType',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<CariCard, CariCard, QAfterFilterCondition>
+      foreignMarketTypeGreaterThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'foreignMarketType',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<CariCard, CariCard, QAfterFilterCondition>
+      foreignMarketTypeLessThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'foreignMarketType',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<CariCard, CariCard, QAfterFilterCondition>
+      foreignMarketTypeBetween(
+    String? lower,
+    String? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'foreignMarketType',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<CariCard, CariCard, QAfterFilterCondition>
+      foreignMarketTypeStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'foreignMarketType',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<CariCard, CariCard, QAfterFilterCondition>
+      foreignMarketTypeEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'foreignMarketType',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<CariCard, CariCard, QAfterFilterCondition>
+      foreignMarketTypeContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'foreignMarketType',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<CariCard, CariCard, QAfterFilterCondition>
+      foreignMarketTypeMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'foreignMarketType',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<CariCard, CariCard, QAfterFilterCondition>
+      foreignMarketTypeIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'foreignMarketType',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<CariCard, CariCard, QAfterFilterCondition>
+      foreignMarketTypeIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'foreignMarketType',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<CariCard, CariCard, QAfterFilterCondition> foreignNameIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'foreignName',
+      ));
+    });
+  }
+
+  QueryBuilder<CariCard, CariCard, QAfterFilterCondition>
+      foreignNameIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'foreignName',
+      ));
+    });
+  }
+
+  QueryBuilder<CariCard, CariCard, QAfterFilterCondition> foreignNameEqualTo(
+    String? value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'foreignName',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<CariCard, CariCard, QAfterFilterCondition>
+      foreignNameGreaterThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'foreignName',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<CariCard, CariCard, QAfterFilterCondition> foreignNameLessThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'foreignName',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<CariCard, CariCard, QAfterFilterCondition> foreignNameBetween(
+    String? lower,
+    String? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'foreignName',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<CariCard, CariCard, QAfterFilterCondition> foreignNameStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'foreignName',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<CariCard, CariCard, QAfterFilterCondition> foreignNameEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'foreignName',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<CariCard, CariCard, QAfterFilterCondition> foreignNameContains(
+      String value,
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'foreignName',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<CariCard, CariCard, QAfterFilterCondition> foreignNameMatches(
+      String pattern,
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'foreignName',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<CariCard, CariCard, QAfterFilterCondition> foreignNameIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'foreignName',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<CariCard, CariCard, QAfterFilterCondition>
+      foreignNameIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'foreignName',
         value: '',
       ));
     });
@@ -1435,6 +2076,18 @@ extension CariCardQuerySortBy on QueryBuilder<CariCard, CariCard, QSortBy> {
     });
   }
 
+  QueryBuilder<CariCard, CariCard, QAfterSortBy> sortByCurrencyType() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'currencyType', Sort.asc);
+    });
+  }
+
+  QueryBuilder<CariCard, CariCard, QAfterSortBy> sortByCurrencyTypeDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'currencyType', Sort.desc);
+    });
+  }
+
   QueryBuilder<CariCard, CariCard, QAfterSortBy> sortByEmail() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'email', Sort.asc);
@@ -1444,6 +2097,42 @@ extension CariCardQuerySortBy on QueryBuilder<CariCard, CariCard, QSortBy> {
   QueryBuilder<CariCard, CariCard, QAfterSortBy> sortByEmailDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'email', Sort.desc);
+    });
+  }
+
+  QueryBuilder<CariCard, CariCard, QAfterSortBy> sortByForeignCode() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'foreignCode', Sort.asc);
+    });
+  }
+
+  QueryBuilder<CariCard, CariCard, QAfterSortBy> sortByForeignCodeDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'foreignCode', Sort.desc);
+    });
+  }
+
+  QueryBuilder<CariCard, CariCard, QAfterSortBy> sortByForeignMarketType() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'foreignMarketType', Sort.asc);
+    });
+  }
+
+  QueryBuilder<CariCard, CariCard, QAfterSortBy> sortByForeignMarketTypeDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'foreignMarketType', Sort.desc);
+    });
+  }
+
+  QueryBuilder<CariCard, CariCard, QAfterSortBy> sortByForeignName() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'foreignName', Sort.asc);
+    });
+  }
+
+  QueryBuilder<CariCard, CariCard, QAfterSortBy> sortByForeignNameDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'foreignName', Sort.desc);
     });
   }
 
@@ -1534,6 +2223,18 @@ extension CariCardQuerySortThenBy
     });
   }
 
+  QueryBuilder<CariCard, CariCard, QAfterSortBy> thenByCurrencyType() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'currencyType', Sort.asc);
+    });
+  }
+
+  QueryBuilder<CariCard, CariCard, QAfterSortBy> thenByCurrencyTypeDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'currencyType', Sort.desc);
+    });
+  }
+
   QueryBuilder<CariCard, CariCard, QAfterSortBy> thenByEmail() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'email', Sort.asc);
@@ -1543,6 +2244,42 @@ extension CariCardQuerySortThenBy
   QueryBuilder<CariCard, CariCard, QAfterSortBy> thenByEmailDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'email', Sort.desc);
+    });
+  }
+
+  QueryBuilder<CariCard, CariCard, QAfterSortBy> thenByForeignCode() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'foreignCode', Sort.asc);
+    });
+  }
+
+  QueryBuilder<CariCard, CariCard, QAfterSortBy> thenByForeignCodeDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'foreignCode', Sort.desc);
+    });
+  }
+
+  QueryBuilder<CariCard, CariCard, QAfterSortBy> thenByForeignMarketType() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'foreignMarketType', Sort.asc);
+    });
+  }
+
+  QueryBuilder<CariCard, CariCard, QAfterSortBy> thenByForeignMarketTypeDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'foreignMarketType', Sort.desc);
+    });
+  }
+
+  QueryBuilder<CariCard, CariCard, QAfterSortBy> thenByForeignName() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'foreignName', Sort.asc);
+    });
+  }
+
+  QueryBuilder<CariCard, CariCard, QAfterSortBy> thenByForeignNameDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'foreignName', Sort.desc);
     });
   }
 
@@ -1639,10 +2376,39 @@ extension CariCardQueryWhereDistinct
     });
   }
 
+  QueryBuilder<CariCard, CariCard, QDistinct> distinctByCurrencyType(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'currencyType', caseSensitive: caseSensitive);
+    });
+  }
+
   QueryBuilder<CariCard, CariCard, QDistinct> distinctByEmail(
       {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'email', caseSensitive: caseSensitive);
+    });
+  }
+
+  QueryBuilder<CariCard, CariCard, QDistinct> distinctByForeignCode(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'foreignCode', caseSensitive: caseSensitive);
+    });
+  }
+
+  QueryBuilder<CariCard, CariCard, QDistinct> distinctByForeignMarketType(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'foreignMarketType',
+          caseSensitive: caseSensitive);
+    });
+  }
+
+  QueryBuilder<CariCard, CariCard, QDistinct> distinctByForeignName(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'foreignName', caseSensitive: caseSensitive);
     });
   }
 
@@ -1708,9 +2474,34 @@ extension CariCardQueryProperty
     });
   }
 
+  QueryBuilder<CariCard, String, QQueryOperations> currencyTypeProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'currencyType');
+    });
+  }
+
   QueryBuilder<CariCard, String?, QQueryOperations> emailProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'email');
+    });
+  }
+
+  QueryBuilder<CariCard, String?, QQueryOperations> foreignCodeProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'foreignCode');
+    });
+  }
+
+  QueryBuilder<CariCard, String?, QQueryOperations>
+      foreignMarketTypeProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'foreignMarketType');
+    });
+  }
+
+  QueryBuilder<CariCard, String?, QQueryOperations> foreignNameProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'foreignName');
     });
   }
 

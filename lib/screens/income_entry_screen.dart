@@ -63,7 +63,9 @@ class _IncomeEntryScreenState extends State<IncomeEntryScreen> {
   Future<void> _loadData() async {
     await IncomeCategoryService.seedDefaultsIfEmpty();
 
-    final accounts = await AccountService.getActiveAccounts();
+    final accounts = (await AccountService.getActiveAccounts())
+        .where((a) => a.type != 'investment')
+        .toList();
     final categories = await IncomeCategoryService.getActiveManual();
 
     if (!mounted) return;
@@ -84,7 +86,9 @@ class _IncomeEntryScreenState extends State<IncomeEntryScreen> {
       _categories = categories;
       if (_isEditMode) {
         final tx = widget.initialTransaction!;
-        _selectedAccountId = tx.accountId;
+        _selectedAccountId = accounts.any((a) => a.id == tx.accountId)
+            ? tx.accountId
+            : (accounts.isNotEmpty ? accounts.first.id : null);
         _selectedCategoryId = tx.categoryId;
         _selectedDate = tx.date;
         _amountController.text = _fmtAmount(tx.amount);
@@ -310,7 +314,12 @@ class _IncomeEntryScreenState extends State<IncomeEntryScreen> {
     return Scaffold(
       drawer: buildAppMenuDrawer(),
       appBar: AppBar(
-        leading: _isEditMode ? const BackButton() : buildMenuLeading(),
+        leading: _isEditMode
+            ? const BackButton()
+            : IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () => popToDashboard(context),
+              ),
         title: Text(_isEditMode ? "Gelir Düzenle" : "Gelir Girişi"),
         actions: [buildHomeAction(context)],
       ),

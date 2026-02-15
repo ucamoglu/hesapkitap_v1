@@ -17,6 +17,8 @@ class CariTransactionService {
     required int cariCardId,
     required int accountId,
     required double amount,
+    double? quantity,
+    double? unitPrice,
     required DateTime date,
     String? description,
   }) async {
@@ -24,6 +26,8 @@ class CariTransactionService {
       cariCardId: cariCardId,
       accountId: accountId,
       amount: amount,
+      quantity: quantity,
+      unitPrice: unitPrice,
       date: date,
       description: description,
     );
@@ -33,6 +37,8 @@ class CariTransactionService {
     required int cariCardId,
     required int accountId,
     required double amount,
+    double? quantity,
+    double? unitPrice,
     required DateTime date,
     String? description,
   }) async {
@@ -50,6 +56,8 @@ class CariTransactionService {
         ..accountId = accountId
         ..type = 'debt'
         ..amount = amount
+        ..quantity = quantity
+        ..unitPrice = unitPrice
         ..date = date
         ..description = description?.trim().isEmpty == true
             ? null
@@ -69,6 +77,8 @@ class CariTransactionService {
     required int cariCardId,
     required int accountId,
     required double amount,
+    double? quantity,
+    double? unitPrice,
     required DateTime date,
     String? description,
   }) async {
@@ -76,6 +86,8 @@ class CariTransactionService {
       cariCardId: cariCardId,
       accountId: accountId,
       amount: amount,
+      quantity: quantity,
+      unitPrice: unitPrice,
       date: date,
       description: description,
     );
@@ -85,6 +97,8 @@ class CariTransactionService {
     required int cariCardId,
     required int accountId,
     required double amount,
+    double? quantity,
+    double? unitPrice,
     required DateTime date,
     String? description,
   }) async {
@@ -102,6 +116,8 @@ class CariTransactionService {
         ..accountId = accountId
         ..type = 'collection'
         ..amount = amount
+        ..quantity = quantity
+        ..unitPrice = unitPrice
         ..date = date
         ..description = description?.trim().isEmpty == true
             ? null
@@ -123,6 +139,8 @@ class CariTransactionService {
     required int accountId,
     required String type, // debt / collection
     required double amount,
+    double? quantity,
+    double? unitPrice,
     required DateTime date,
     String? description,
   }) async {
@@ -176,6 +194,8 @@ class CariTransactionService {
         ..accountId = accountId
         ..type = type
         ..amount = amount
+        ..quantity = quantity
+        ..unitPrice = unitPrice
         ..date = date
         ..description = description?.trim().isEmpty == true
             ? null

@@ -17,6 +17,14 @@ class CariCard {
   String? note;
   List<int>? photoBytes;
 
+  // tl / foreign
+  String currencyType = 'tl';
+
+  // currency / metal / crypto / stock
+  String? foreignMarketType;
+  String? foreignCode;
+  String? foreignName;
+
   bool isActive = true;
 
   late DateTime createdAt;

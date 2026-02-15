@@ -30,6 +30,7 @@ class CariAccountScreen extends StatefulWidget {
 class _CariAccountScreenState extends State<CariAccountScreen> {
   final _formKey = GlobalKey<FormState>();
   final _amountController = TextEditingController();
+  final _quantityController = TextEditingController();
   final _noteController = TextEditingController();
   final _imagePicker = ImagePicker();
 
@@ -55,6 +56,7 @@ class _CariAccountScreenState extends State<CariAccountScreen> {
   @override
   void dispose() {
     _amountController.dispose();
+    _quantityController.dispose();
     _noteController.dispose();
     super.dispose();
   }
@@ -136,6 +138,9 @@ class _CariAccountScreenState extends State<CariAccountScreen> {
         _selectedDate = tx.date;
         _isDebt = tx.type == 'debt';
         _amountController.text = _fmtAmount(tx.amount);
+        _quantityController.text = tx.quantity == null
+            ? ''
+            : tx.quantity!.toString().replaceAll('.', ',');
         _noteController.text = tx.description ?? '';
       } else {
         _selectedCardId = _cards.isNotEmpty ? _cards.first.id : null;
@@ -145,11 +150,59 @@ class _CariAccountScreenState extends State<CariAccountScreen> {
     });
   }
 
-  String _cardLabel(CariCard c) {
-    if (c.type == 'company') {
-      return c.title?.isNotEmpty == true ? c.title! : '-';
+  CariCard? _selectedCard() {
+    final id = _selectedCardId;
+    if (id == null) return null;
+    for (final c in _cards) {
+      if (c.id == id) return c;
     }
-    return c.fullName?.isNotEmpty == true ? c.fullName! : '-';
+    return null;
+  }
+
+  bool _isSelectedCardForeign() {
+    final c = _selectedCard();
+    return c?.currencyType == 'foreign';
+  }
+
+  String _foreignUnitLabel() {
+    final c = _selectedCard();
+    if (c == null || c.currencyType != 'foreign') return 'Miktar';
+    final unit = _currencyTypeLabel(c);
+    return unit.isEmpty ? 'Miktar' : 'Miktar ($unit)';
+  }
+
+  String _cardLabel(CariCard c) {
+    final currency = _currencyTypeLabel(c);
+    final suffix = currency.isEmpty ? '' : ' - $currency';
+    if (c.type == 'company') {
+      final title = c.title?.isNotEmpty == true ? c.title! : '-';
+      return '$title$suffix';
+    }
+    final fullName = c.fullName?.isNotEmpty == true ? c.fullName! : '-';
+    return '$fullName$suffix';
+  }
+
+  String _currencyTypeLabel(CariCard c) {
+    if (c.currencyType != 'foreign') return 'TL';
+
+    final explicitName = (c.foreignName ?? '').trim();
+    if (explicitName.isNotEmpty) return explicitName;
+
+    final code = (c.foreignCode ?? '').trim().toUpperCase();
+    if (code.isEmpty) return '';
+
+    switch (code) {
+      case 'USD':
+        return 'Dolar';
+      case 'EUR':
+        return 'Euro';
+      case 'GBP':
+        return 'Sterlin';
+      case 'GA':
+        return 'Gram Altın';
+      default:
+        return code;
+    }
   }
 
   Future<void> _pickDate() async {
@@ -184,6 +237,19 @@ class _CariAccountScreenState extends State<CariAccountScreen> {
       if (fromRight > 1 && fromRight % 3 == 1) b.write('.');
     }
     return '${b.toString()},$decPart';
+  }
+
+  double? _parseQuantity(String raw) {
+    final input = raw.trim();
+    if (input.isEmpty) return null;
+    var normalized = input;
+    if (normalized.contains(',') && normalized.contains('.')) {
+      normalized = normalized.replaceAll('.', '');
+      normalized = normalized.replaceAll(',', '.');
+    } else {
+      normalized = normalized.replaceAll(',', '.');
+    }
+    return double.tryParse(normalized);
   }
 
   Future<void> _pickAttachment(ImageSource source) async {
@@ -256,6 +322,15 @@ class _CariAccountScreenState extends State<CariAccountScreen> {
 
     final parsed = TurkishMoneyInputFormatter.parse(_amountController.text);
     if (parsed == null || parsed <= 0) return;
+    final isForeign = _isSelectedCardForeign();
+    final quantity = _parseQuantity(_quantityController.text);
+    if (isForeign && (quantity == null || quantity <= 0)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Yabancı para için geçerli miktar giriniz.')),
+      );
+      return;
+    }
+    final unitPrice = isForeign ? (parsed / quantity!) : null;
 
     setState(() {
       _saving = true;
@@ -270,6 +345,8 @@ class _CariAccountScreenState extends State<CariAccountScreen> {
           accountId: _selectedAccountId!,
           type: _isDebt ? 'debt' : 'collection',
           amount: parsed,
+          quantity: isForeign ? quantity : null,
+          unitPrice: unitPrice,
           date: _selectedDate,
           description: _noteController.text,
         );
@@ -285,6 +362,8 @@ class _CariAccountScreenState extends State<CariAccountScreen> {
             cariCardId: _selectedCardId!,
             accountId: _selectedAccountId!,
             amount: parsed,
+            quantity: isForeign ? quantity : null,
+            unitPrice: unitPrice,
             date: _selectedDate,
             description: _noteController.text,
           );
@@ -293,6 +372,8 @@ class _CariAccountScreenState extends State<CariAccountScreen> {
             cariCardId: _selectedCardId!,
             accountId: _selectedAccountId!,
             amount: parsed,
+            quantity: isForeign ? quantity : null,
+            unitPrice: unitPrice,
             date: _selectedDate,
             description: _noteController.text,
           );
@@ -415,7 +496,9 @@ class _CariAccountScreenState extends State<CariAccountScreen> {
                               ),
                             )
                             .toList(),
-                        onChanged: (v) => setState(() => _selectedCardId = v),
+                        onChanged: (v) => setState(() {
+                          _selectedCardId = v;
+                        }),
                         validator: (v) => v == null ? 'Cari kart seçiniz.' : null,
                       ),
                       const SizedBox(height: 12),
@@ -451,6 +534,27 @@ class _CariAccountScreenState extends State<CariAccountScreen> {
                           return null;
                         },
                       ),
+                      if (_isSelectedCardForeign()) ...[
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: _quantityController,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          decoration: InputDecoration(
+                            labelText: _foreignUnitLabel(),
+                            filled: true,
+                            fillColor: Colors.orange.withValues(alpha: 0.14),
+                            border: const OutlineInputBorder(),
+                          ),
+                          validator: (v) {
+                            if (!_isSelectedCardForeign()) return null;
+                            final q = _parseQuantity(v ?? '');
+                            if (q == null || q <= 0) {
+                              return 'Geçerli bir miktar giriniz.';
+                            }
+                            return null;
+                          },
+                        ),
+                      ],
                       const SizedBox(height: 12),
                       InkWell(
                         onTap: _pickDate,

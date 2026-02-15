@@ -7,6 +7,7 @@ import '../screens/accounts_screen.dart';
 import '../screens/asset_status_screen.dart';
 import '../screens/calendar_transactions_screen.dart';
 import '../screens/cari_card_summary_screen.dart';
+import '../screens/cari_card_summary_foreign_screen.dart';
 import '../screens/cari_cards_screen.dart';
 import '../screens/crypto_tracking_screen.dart';
 import '../screens/currency_tracking_screen.dart';
@@ -37,6 +38,7 @@ enum _MenuItem {
   investmentTracking,
   assetStatus,
   cariSummary,
+  cariSummaryForeign,
   incomePlanning,
   expensePlanning,
   calendar,
@@ -97,7 +99,12 @@ void rememberDrawerSelectionForScreen(Widget screen) {
   }
   if (screen is CariCardSummaryScreen) {
     _lastSelectedMenuItem = _MenuItem.cariSummary;
-    _lastExpandedSection = _MenuSection.transactions;
+    _lastExpandedSection = null;
+    return;
+  }
+  if (screen is CariCardSummaryForeignScreen) {
+    _lastSelectedMenuItem = _MenuItem.cariSummaryForeign;
+    _lastExpandedSection = null;
     return;
   }
   if (screen is IncomePlanningScreen) {
@@ -509,17 +516,32 @@ class _AppMenuDrawerState extends State<_AppMenuDrawer> {
                   _openScreen(const AssetStatusScreen());
                 },
               ),
+            ],
+          ),
+          ExpansionTile(
+            leading: const Icon(Icons.people_alt_outlined, color: Colors.orange),
+            title: const Text('Cari Kart Özetleri'),
+            initiallyExpanded: _lastSelectedMenuItem == _MenuItem.cariSummary ||
+                _lastSelectedMenuItem == _MenuItem.cariSummaryForeign,
+            children: [
               _menuItem(
                 item: _MenuItem.cariSummary,
-                icon: Icons.people_alt_outlined,
+                icon: Icons.circle,
                 color: Colors.orange,
-                title: 'Cari Kart Özet',
+                title: 'Cari Kart Özet (TL)',
                 onTap: () {
-                  _rememberSelection(
-                    item: _MenuItem.cariSummary,
-                    section: _MenuSection.transactions,
-                  );
+                  _rememberSelection(item: _MenuItem.cariSummary);
                   _openScreen(const CariCardSummaryScreen());
+                },
+              ),
+              _menuItem(
+                item: _MenuItem.cariSummaryForeign,
+                icon: Icons.circle,
+                color: Colors.deepOrange,
+                title: 'Cari Kart Özet (Dış Finans)',
+                onTap: () {
+                  _rememberSelection(item: _MenuItem.cariSummaryForeign);
+                  _openScreen(const CariCardSummaryForeignScreen());
                 },
               ),
             ],

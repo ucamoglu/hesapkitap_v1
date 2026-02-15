@@ -64,6 +64,96 @@ class MarketRateService {
     'T': 'Tam Altın',
   };
 
+  static Future<List<MarketRateItem>> fetchStocksByCodes(
+    List<String> codes,
+  ) async {
+    final normalized = codes
+        .map((e) => e.trim().toUpperCase())
+        .where((e) => e.isNotEmpty)
+        .toSet()
+        .toList();
+    if (normalized.isEmpty) return const [];
+
+    // stooq endpoint is free and does not require an API key.
+    // BIST symbols are usually served with ".ti". Keep ".tr" as fallback.
+    final stooqTi = await _fetchStocksFromStooqBySuffix(normalized, 'ti');
+    final stooqGot = stooqTi.map((e) => e.code.toUpperCase()).toSet();
+    final stooqMissing = normalized.where((c) => !stooqGot.contains(c)).toList();
+    final stooqTr = await _fetchStocksFromStooqBySuffix(stooqMissing, 'tr');
+
+    final stooqMerged = <String, MarketRateItem>{
+      for (final i in stooqTi) i.code.toUpperCase(): i,
+      for (final i in stooqTr) i.code.toUpperCase(): i,
+    };
+
+    final stillMissing = normalized
+        .where((c) => !stooqMerged.containsKey(c))
+        .toList();
+    final yahoo = await _fetchStocksFromYahooByCodes(stillMissing);
+    final yahooGot = yahoo.map((e) => e.code.toUpperCase()).toSet();
+    final googleMissing = stillMissing.where((c) => !yahooGot.contains(c)).toList();
+    final google = await _fetchStocksFromGoogleByCodes(googleMissing);
+
+    final merged = <String, MarketRateItem>{
+      ...stooqMerged,
+      for (final i in yahoo) i.code.toUpperCase(): i,
+      for (final i in google) i.code.toUpperCase(): i,
+    };
+    return merged.values.toList();
+  }
+
+  static Future<List<MarketRateItem>> fetchCryptosByCodes(
+    List<String> codes,
+  ) async {
+    final normalized = codes
+        .map((e) => e.trim().toUpperCase())
+        .where((e) => e.isNotEmpty)
+        .toSet()
+        .toList();
+    if (normalized.isEmpty) return const [];
+
+    // Binance expects JSON array format for symbols param:
+    // symbols=["BTCUSDT","ETHUSDT"] (URL encoded)
+    try {
+      final usdtSymbols = normalized.map((c) => '${c}USDT').toList();
+      final symbolsJson = jsonEncode(usdtSymbols);
+      final encoded = Uri.encodeQueryComponent(symbolsJson);
+      final url = 'https://api.binance.com/api/v3/ticker/price?symbols=$encoded';
+      final body = await _fetchString(url);
+      final decoded = jsonDecode(body);
+      if (decoded is List) {
+        final items = _buildCryptosFromBinanceList(decoded);
+        if (items.isNotEmpty) return items;
+      }
+    } catch (_) {}
+
+    // Fallback: CryptoCompare public endpoint (no key required).
+    try {
+      final fsyms = normalized.join(',');
+      final url =
+          'https://min-api.cryptocompare.com/data/pricemulti?fsyms=$fsyms&tsyms=USD';
+      final json = await _fetchJson(url);
+      final items = <MarketRateItem>[];
+      for (final code in normalized) {
+        final row = json[code];
+        if (row is! Map<String, dynamic>) continue;
+        final price = _parseNum(row['USD']);
+        if (price == null || price <= 0) continue;
+        items.add(
+          MarketRateItem(
+            code: code,
+            name: code,
+            buy: price,
+            sell: price,
+          ),
+        );
+      }
+      return items;
+    } catch (_) {
+      return const [];
+    }
+  }
+
   static Future<CurrencyRateListResult> fetchAllCurrencies() async {
     final currencyXml = await _fetchStringFromAny(_currencyUrls);
     final items = _buildAllCurrenciesFromXml(currencyXml, _currencyNameMap);
@@ -323,6 +413,10 @@ class MarketRateService {
     final client = HttpClient();
     try {
       final req = await client.getUrl(Uri.parse(url));
+      req.headers.set(
+        HttpHeaders.userAgentHeader,
+        'Mozilla/5.0 (HesapKitap/1.0; +https://example.local)',
+      );
       final res = await req.close();
       if (res.statusCode != 200) {
         throw Exception('API status: ${res.statusCode}');
@@ -337,6 +431,10 @@ class MarketRateService {
     final client = HttpClient();
     try {
       final req = await client.getUrl(Uri.parse(url));
+      req.headers.set(
+        HttpHeaders.userAgentHeader,
+        'Mozilla/5.0 (HesapKitap/1.0; +https://example.local)',
+      );
       final res = await req.close();
       if (res.statusCode != 200) {
         throw Exception('API status: ${res.statusCode}');
@@ -379,5 +477,179 @@ class MarketRateService {
     }
 
     return double.tryParse(s);
+  }
+
+  static List<MarketRateItem> _buildStocksFromStooqCsv(String csv) {
+    final lines = csv
+        .split('\n')
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
+    if (lines.length <= 1) return const [];
+
+    final items = <MarketRateItem>[];
+    for (int i = 1; i < lines.length; i++) {
+      final parts = _parseCsvLine(lines[i]);
+      if (parts.length < 7) continue;
+      final symbolRaw = parts[0].replaceAll('"', '').trim().toUpperCase();
+      final closeRaw = parts[6].replaceAll('"', '').trim();
+      final nameRaw = parts.length > 10
+          ? parts[10].replaceAll('"', '').trim()
+          : '';
+      if (symbolRaw.isEmpty || symbolRaw == 'N/A') continue;
+      final code = symbolRaw
+          .replaceAll('.TR', '')
+          .replaceAll('.TI', '')
+          .replaceAll('.IS', '');
+      final close = _parseNum(closeRaw);
+      if (close == null || close <= 0) continue;
+      items.add(
+        MarketRateItem(
+          code: code,
+          name: nameRaw.isEmpty || nameRaw == 'N/A' ? code : nameRaw,
+          buy: close,
+          sell: close,
+        ),
+      );
+    }
+    return items;
+  }
+
+  static List<String> _parseCsvLine(String line) {
+    final result = <String>[];
+    var current = StringBuffer();
+    bool inQuotes = false;
+    for (int i = 0; i < line.length; i++) {
+      final ch = line[i];
+      if (ch == '"') {
+        inQuotes = !inQuotes;
+        current.write(ch);
+        continue;
+      }
+      if (ch == ',' && !inQuotes) {
+        result.add(current.toString());
+        current = StringBuffer();
+        continue;
+      }
+      current.write(ch);
+    }
+    result.add(current.toString());
+    return result;
+  }
+
+  static Future<List<MarketRateItem>> _fetchStocksFromStooqBySuffix(
+    List<String> codes,
+    String suffix,
+  ) async {
+    if (codes.isEmpty) return const [];
+    final joined = codes.map((c) => '${c.toLowerCase()}.$suffix').join(',');
+    final url = 'https://stooq.com/q/l/?s=$joined&f=sd2t2ohlcvn&e=csv';
+    try {
+      final body = await _fetchString(url);
+      return _buildStocksFromStooqCsv(body);
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  static Future<List<MarketRateItem>> _fetchStocksFromYahooByCodes(
+    List<String> codes,
+  ) async {
+    if (codes.isEmpty) return const [];
+    final symbols = codes.map((c) => '${c.toUpperCase()}.IS').join(',');
+    final url = 'https://query1.finance.yahoo.com/v7/finance/quote?symbols=$symbols';
+    try {
+      final json = await _fetchJson(url);
+      final qr = json['quoteResponse'];
+      if (qr is! Map<String, dynamic>) return const [];
+      final result = qr['result'];
+      if (result is! List) return const [];
+
+      final items = <MarketRateItem>[];
+      for (final row in result) {
+        if (row is! Map) continue;
+        final symbolRaw = (row['symbol'] ?? '').toString().toUpperCase().trim();
+        if (symbolRaw.isEmpty) continue;
+        final code = symbolRaw.split('.').first;
+        final price = _parseNum(row['regularMarketPrice']);
+        if (price == null || price <= 0) continue;
+        final name = (row['shortName'] ?? row['longName'] ?? code).toString().trim();
+        items.add(
+          MarketRateItem(
+            code: code,
+            name: name.isEmpty ? code : name,
+            buy: price,
+            sell: price,
+          ),
+        );
+      }
+      return items;
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  static Future<List<MarketRateItem>> _fetchStocksFromGoogleByCodes(
+    List<String> codes,
+  ) async {
+    if (codes.isEmpty) return const [];
+    final items = <MarketRateItem>[];
+    for (final code in codes) {
+      final item = await _fetchStockFromGoogleByCode(code);
+      if (item != null) items.add(item);
+    }
+    return items;
+  }
+
+  static Future<MarketRateItem?> _fetchStockFromGoogleByCode(String code) async {
+    final clean = code.trim().toUpperCase();
+    if (clean.isEmpty) return null;
+    final url = 'https://www.google.com/finance/quote/$clean:IST?hl=tr';
+    try {
+      final html = await _fetchString(url);
+
+      final escaped = RegExp.escape(clean);
+      final re = RegExp(
+        '\\["[^"]+",\\["$escaped","IST"\\],"([^"]+)"[^\\[]*\\[([0-9]+(?:\\.[0-9]+)?)',
+        caseSensitive: false,
+      );
+      final m = re.firstMatch(html);
+      if (m == null) return null;
+      final name = (m.group(1) ?? clean).trim();
+      final price = _parseNum(m.group(2));
+      if (price == null || price <= 0) return null;
+
+      return MarketRateItem(
+        code: clean,
+        name: name.isEmpty ? clean : name,
+        buy: price,
+        sell: price,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static List<MarketRateItem> _buildCryptosFromBinanceList(List rows) {
+    final items = <MarketRateItem>[];
+    for (final row in rows) {
+      if (row is! Map) continue;
+      final symbol = (row['symbol'] ?? '').toString().toUpperCase().trim();
+      final rawPrice = (row['price'] ?? '').toString().trim();
+      if (symbol.isEmpty || rawPrice.isEmpty) continue;
+      if (!symbol.endsWith('USDT')) continue;
+      final code = symbol.substring(0, symbol.length - 4);
+      final price = _parseNum(rawPrice);
+      if (price == null || price <= 0) continue;
+      items.add(
+        MarketRateItem(
+          code: code,
+          name: code,
+          buy: price,
+          sell: price,
+        ),
+      );
+    }
+    return items;
   }
 }

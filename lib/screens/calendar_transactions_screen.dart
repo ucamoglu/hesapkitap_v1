@@ -194,7 +194,7 @@ class _CalendarTransactionsScreenState extends State<CalendarTransactionsScreen>
 
   String _txTypeLabel(FinanceTransaction tx) {
     if (_isCariTx(tx)) {
-      return _isCariCollection(tx) ? 'Cari Kart (Tahsilat)' : 'Cari Kart (Ödeme)';
+      return _isCariCollection(tx) ? 'Cari Kart (Gelen)' : 'Cari Kart (Giden)';
     }
     final invMeta = _investmentMetaByTxId[tx.id];
     if (invMeta != null) {

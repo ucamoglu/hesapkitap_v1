@@ -5,6 +5,10 @@ import 'package:file_picker/file_picker.dart';
 
 import '../models/cari_card.dart';
 import '../services/cari_card_service.dart';
+import '../services/tracked_crypto_service.dart';
+import '../services/tracked_currency_service.dart';
+import '../services/tracked_metal_service.dart';
+import '../services/tracked_stock_service.dart';
 import '../utils/navigation_helpers.dart';
 import '../utils/turkish_upper_case_formatter.dart';
 
@@ -72,8 +76,69 @@ class _CariCardsScreenState extends State<CariCardsScreen> {
     return card.fullName?.trim().isNotEmpty == true ? card.fullName! : '-';
   }
 
-  void _openDialog({CariCard? edit}) {
+  String _currencySummary(CariCard c) {
+    if (c.currencyType != 'foreign') return 'TL';
+    final market = switch ((c.foreignMarketType ?? '').trim()) {
+      'currency' => 'Döviz',
+      'metal' => 'Kıymetli Maden',
+      'crypto' => 'Kripto',
+      'stock' => 'Borsa',
+      _ => 'Yabancı Para',
+    };
+    final symbol = (c.foreignCode ?? '').trim();
+    return symbol.isEmpty ? market : '$market • $symbol';
+  }
+
+  Future<void> _openDialog({CariCard? edit}) async {
     String selectedType = edit?.type ?? 'person';
+    String selectedCurrencyType = edit?.currencyType ?? 'tl';
+    String selectedForeignMarketType = edit?.foreignMarketType ?? 'currency';
+    String? selectedForeignCode = edit?.foreignCode;
+    String? selectedForeignName = edit?.foreignName;
+
+    final trackedCurrencies = await TrackedCurrencyService.getAll();
+    final trackedMetals = await TrackedMetalService.getAll();
+    final trackedStocks = await TrackedStockService.getAll();
+    final trackedCryptos = await TrackedCryptoService.getAll();
+    if (!mounted) return;
+
+    final optionsByMarket = <String, List<(String, String)>>{
+      'currency': trackedCurrencies
+          .where((e) => e.isActive)
+          .map((e) => (e.code.toUpperCase(), e.name))
+          .toList()
+        ..sort((a, b) => a.$2.compareTo(b.$2)),
+      'metal': trackedMetals
+          .where((e) => e.isActive)
+          .map((e) => (e.code.toUpperCase(), e.name))
+          .toList()
+        ..sort((a, b) => a.$2.compareTo(b.$2)),
+      'stock': trackedStocks
+          .where((e) => e.isActive)
+          .map((e) => (e.code.toUpperCase(), e.name))
+          .toList()
+        ..sort((a, b) => a.$1.compareTo(b.$1)),
+      'crypto': trackedCryptos
+          .where((e) => e.isActive)
+          .map((e) => (e.code.toUpperCase(), e.name))
+          .toList()
+        ..sort((a, b) => a.$1.compareTo(b.$1)),
+    };
+
+    List<(String, String)> currentOptions() =>
+        optionsByMarket[selectedForeignMarketType] ?? const [];
+
+    if (selectedCurrencyType == 'foreign') {
+      final opts = currentOptions();
+      if (opts.isEmpty) {
+        selectedForeignCode = null;
+        selectedForeignName = null;
+      } else if (!opts.any((e) => e.$1 == selectedForeignCode)) {
+        selectedForeignCode = opts.first.$1;
+        selectedForeignName = opts.first.$2;
+      }
+    }
+
     final fullNameController = TextEditingController(text: edit?.fullName ?? '');
     final titleController = TextEditingController(text: edit?.title ?? '');
     final phoneController = TextEditingController(text: edit?.phone ?? '');
@@ -177,6 +242,111 @@ class _CariCardsScreenState extends State<CariCardsScreen> {
                   textCapitalization: TextCapitalization.sentences,
                   decoration: const InputDecoration(labelText: 'Not'),
                 ),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String>(
+                  initialValue: selectedCurrencyType,
+                  decoration: const InputDecoration(labelText: 'Para Birimi'),
+                  items: const [
+                    DropdownMenuItem(value: 'tl', child: Text('TL')),
+                    DropdownMenuItem(value: 'foreign', child: Text('Yabancı Para')),
+                  ],
+                  onChanged: (v) {
+                    if (v == null) return;
+                    setInnerState(() {
+                      selectedCurrencyType = v;
+                      if (v == 'tl') {
+                        selectedForeignCode = null;
+                        selectedForeignName = null;
+                        return;
+                      }
+                      final opts = currentOptions();
+                      if (opts.isEmpty) {
+                        selectedForeignCode = null;
+                        selectedForeignName = null;
+                      } else if (!opts.any((e) => e.$1 == selectedForeignCode)) {
+                        selectedForeignCode = opts.first.$1;
+                        selectedForeignName = opts.first.$2;
+                      }
+                    });
+                  },
+                ),
+                if (selectedCurrencyType == 'foreign') ...[
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedForeignMarketType,
+                    decoration: const InputDecoration(labelText: 'Yabancı Para Türü'),
+                    items: const [
+                      DropdownMenuItem(value: 'currency', child: Text('Döviz')),
+                      DropdownMenuItem(value: 'metal', child: Text('Kıymetli Maden')),
+                      DropdownMenuItem(value: 'crypto', child: Text('Kripto Para')),
+                      DropdownMenuItem(value: 'stock', child: Text('Borsa')),
+                    ],
+                    onChanged: (v) {
+                      if (v == null) return;
+                      setInnerState(() {
+                        selectedForeignMarketType = v;
+                        final opts = currentOptions();
+                        if (opts.isEmpty) {
+                          selectedForeignCode = null;
+                          selectedForeignName = null;
+                        } else {
+                          selectedForeignCode = opts.first.$1;
+                          selectedForeignName = opts.first.$2;
+                        }
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  Builder(
+                    builder: (_) {
+                      final opts = currentOptions();
+                      if (opts.isEmpty) {
+                        return const InputDecorator(
+                          decoration: InputDecoration(
+                            labelText: 'Takip Edilen Enstrüman',
+                            border: OutlineInputBorder(),
+                          ),
+                          child: Text(
+                            'Bu türde aktif takip bulunamadı.',
+                            style: TextStyle(color: Colors.black54),
+                          ),
+                        );
+                      }
+                      if (!opts.any((e) => e.$1 == selectedForeignCode)) {
+                        selectedForeignCode = opts.first.$1;
+                        selectedForeignName = opts.first.$2;
+                      }
+                      return DropdownButtonFormField<String>(
+                        initialValue: selectedForeignCode,
+                        decoration: const InputDecoration(
+                          labelText: 'Takip Edilen Enstrüman',
+                        ),
+                        items: opts
+                            .map(
+                              (e) => DropdownMenuItem(
+                                value: e.$1,
+                                child: Text('${e.$1} - ${e.$2}'),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (v) {
+                          if (v == null) return;
+                          setInnerState(() {
+                            selectedForeignCode = v;
+                            String? found;
+                            for (final e in opts) {
+                              if (e.$1 == v) {
+                                found = e.$2;
+                                break;
+                              }
+                            }
+                            selectedForeignName = found;
+                          });
+                        },
+                      );
+                    },
+                  ),
+                ],
               ],
             ),
           ),
@@ -191,6 +361,11 @@ class _CariCardsScreenState extends State<CariCardsScreen> {
                 final title = titleController.text.trim();
                 if (selectedType == 'person' && fullName.isEmpty) return;
                 if (selectedType == 'company' && title.isEmpty) return;
+                if (selectedCurrencyType == 'foreign') {
+                  final opts = currentOptions();
+                  if (opts.isEmpty) return;
+                  if (selectedForeignCode == null) return;
+                }
 
                 final card = edit ?? CariCard()..createdAt = DateTime.now();
                 card.type = selectedType;
@@ -206,6 +381,16 @@ class _CariCardsScreenState extends State<CariCardsScreen> {
                     ? null
                     : noteController.text.trim();
                 card.photoBytes = selectedPhoto?.toList();
+                card.currencyType = selectedCurrencyType;
+                if (selectedCurrencyType == 'foreign') {
+                  card.foreignMarketType = selectedForeignMarketType;
+                  card.foreignCode = selectedForeignCode;
+                  card.foreignName = selectedForeignName;
+                } else {
+                  card.foreignMarketType = null;
+                  card.foreignCode = null;
+                  card.foreignName = null;
+                }
 
                 if (edit == null) {
                   await CariCardService.add(card);
@@ -257,7 +442,9 @@ class _CariCardsScreenState extends State<CariCardsScreen> {
                       decoration: c.isActive ? null : TextDecoration.lineThrough,
                     ),
                   ),
-                  subtitle: Text(c.type == 'company' ? 'Firma' : 'Kişi'),
+                  subtitle: Text(
+                    '${c.type == 'company' ? 'Firma' : 'Kişi'} • ${_currencySummary(c)}',
+                  ),
                   trailing: PopupMenuButton<String>(
                     onSelected: (value) async {
                       if (value == 'edit') {

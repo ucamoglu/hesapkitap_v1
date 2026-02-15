@@ -39,7 +39,10 @@ class _CariCardSummaryScreenState extends State<CariCardSummaryScreen> {
     });
 
     try {
-      final cards = await CariCardService.getAll();
+      final allCards = await CariCardService.getAll();
+      final cards = allCards
+          .where((c) => (c.currencyType).trim().toLowerCase() != 'foreign')
+          .toList();
       final txs = await CariTransactionService.getAll();
       final accounts = await AccountService.getAllAccounts();
 
@@ -69,7 +72,12 @@ class _CariCardSummaryScreenState extends State<CariCardSummaryScreen> {
           totalPayment: payment,
         );
       }).toList()
-        ..sort((a, b) => _cardName(a.card).compareTo(_cardName(b.card)));
+        ..sort((a, b) {
+          final currencyCmp =
+              _currencyLabel(a.card).compareTo(_currencyLabel(b.card));
+          if (currencyCmp != 0) return currencyCmp;
+          return _cardBaseName(a.card).compareTo(_cardBaseName(b.card));
+        });
 
       if (!mounted) return;
       setState(() {
@@ -86,7 +94,7 @@ class _CariCardSummaryScreenState extends State<CariCardSummaryScreen> {
     }
   }
 
-  String _cardName(CariCard c) {
+  String _cardBaseName(CariCard c) {
     if (c.type == 'company') {
       return (c.title ?? '').trim().isNotEmpty ? c.title!.trim() : 'Firma #${c.id}';
     }
@@ -94,6 +102,30 @@ class _CariCardSummaryScreenState extends State<CariCardSummaryScreen> {
         ? c.fullName!.trim()
         : 'Kişi #${c.id}';
   }
+
+  String _currencyLabel(CariCard c) {
+    if (c.currencyType != 'foreign') return 'TL';
+
+    final explicitName = (c.foreignName ?? '').trim();
+    if (explicitName.isNotEmpty) return explicitName;
+
+    final code = (c.foreignCode ?? '').trim().toUpperCase();
+    if (code.isEmpty) return 'Yabancı Para';
+    switch (code) {
+      case 'USD':
+        return 'Dolar';
+      case 'EUR':
+        return 'Euro';
+      case 'GBP':
+        return 'Sterlin';
+      case 'GA':
+        return 'Gram Altın';
+      default:
+        return code;
+    }
+  }
+
+  String _cardName(CariCard c) => '${_cardBaseName(c)} - ${_currencyLabel(c)}';
 
   String _fmtAmount(double value) {
     final fixed = value.toStringAsFixed(2);
@@ -299,11 +331,23 @@ class _CariCardSummaryScreenState extends State<CariCardSummaryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final groupedItems = <String, List<_CariCardSummary>>{};
+    for (final item in _items) {
+      final key = _currencyLabel(item.card);
+      groupedItems.putIfAbsent(key, () => []).add(item);
+    }
+    final groupKeys = groupedItems.keys.toList()
+      ..sort((a, b) {
+        if (a == 'TL' && b != 'TL') return -1;
+        if (b == 'TL' && a != 'TL') return 1;
+        return a.compareTo(b);
+      });
+
     return Scaffold(
       drawer: buildAppMenuDrawer(),
       appBar: AppBar(
         leading: buildMenuLeading(),
-        title: const Text('Cari Kart Özet'),
+        title: const Text('Cari Kart Özet (TL)'),
         actions: [
           IconButton(
             onPressed: _load,
@@ -319,67 +363,80 @@ class _CariCardSummaryScreenState extends State<CariCardSummaryScreen> {
               ? Center(child: Padding(padding: const EdgeInsets.all(16), child: Text(_error!)))
               : _items.isEmpty
                   ? const Center(child: Text('Kayıtlı cari kart bulunamadı.'))
-                  : ListView.builder(
+                  : ListView(
                       padding: const EdgeInsets.all(12),
-                      itemCount: _items.length,
-                      itemBuilder: (_, index) {
-                        final item = _items[index];
-                        final net = item.totalCollection - item.totalPayment;
-
-                        return Dismissible(
-                          key: ValueKey('cari-summary-${item.card.id}'),
-                          direction: DismissDirection.endToStart,
-                          confirmDismiss: (_) async {
-                            _openMovements(item);
-                            return false;
-                          },
-                          background: Container(
-                            alignment: Alignment.centerRight,
-                            padding: const EdgeInsets.symmetric(horizontal: 20),
-                            color: Colors.deepPurple.shade100,
-                            child: const Row(
-                              mainAxisAlignment: MainAxisAlignment.end,
-                              children: [
-                                Icon(Icons.chevron_left),
-                                SizedBox(width: 8),
-                                Text('Hareketleri Aç'),
-                              ],
+                      children: [
+                        for (final group in groupKeys) ...[
+                          Padding(
+                            padding: const EdgeInsets.only(left: 4, right: 4, top: 4, bottom: 6),
+                            child: Text(
+                              'Para Birimi: $group',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: Colors.black87,
+                              ),
                             ),
                           ),
-                          child: Card(
-                            child: ListTile(
-                              onTap: () => _openMovements(item),
-                              title: Text(
-                                _cardName(item.card),
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  decoration:
-                                      item.card.isActive ? null : TextDecoration.lineThrough,
+                          ...groupedItems[group]!.map((item) {
+                            final net = item.totalCollection - item.totalPayment;
+                            return Dismissible(
+                              key: ValueKey('cari-summary-$group-${item.card.id}'),
+                              direction: DismissDirection.endToStart,
+                              confirmDismiss: (_) async {
+                                _openMovements(item);
+                                return false;
+                              },
+                              background: Container(
+                                alignment: Alignment.centerRight,
+                                padding: const EdgeInsets.symmetric(horizontal: 20),
+                                color: Colors.deepPurple.shade100,
+                                child: const Row(
+                                  mainAxisAlignment: MainAxisAlignment.end,
+                                  children: [
+                                    Icon(Icons.chevron_left),
+                                    SizedBox(width: 8),
+                                    Text('Hareketleri Aç'),
+                                  ],
                                 ),
                               ),
-                              subtitle: Text(
-                                'Gelen: ${_fmtAmount(item.totalCollection)} TL'
-                                ' - Giden: ${_fmtAmount(item.totalPayment)} TL',
-                              ),
-                              trailing: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  const Icon(Icons.chevron_left, size: 18, color: Colors.black45),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    'Net: ${net >= 0 ? '+' : '-'}${_fmtAmount(net.abs())}',
+                              child: Card(
+                                child: ListTile(
+                                  onTap: () => _openMovements(item),
+                                  title: Text(
+                                    _cardName(item.card),
                                     style: TextStyle(
-                                      color: net >= 0 ? Colors.blue : Colors.orange,
-                                      fontWeight: FontWeight.bold,
+                                      fontWeight: FontWeight.w600,
+                                      decoration:
+                                          item.card.isActive ? null : TextDecoration.lineThrough,
                                     ),
                                   ),
-                                ],
+                                  subtitle: Text(
+                                    'Gelen: ${_fmtAmount(item.totalCollection)} TL'
+                                    ' - Giden: ${_fmtAmount(item.totalPayment)} TL',
+                                  ),
+                                  trailing: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    crossAxisAlignment: CrossAxisAlignment.end,
+                                    children: [
+                                      const Icon(Icons.chevron_left,
+                                          size: 18, color: Colors.black45),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        'Net: ${net >= 0 ? '+' : '-'}${_fmtAmount(net.abs())}',
+                                        style: TextStyle(
+                                          color: net >= 0 ? Colors.blue : Colors.orange,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               ),
-                            ),
-                          ),
-                        );
-                      },
+                            );
+                          }),
+                          const SizedBox(height: 6),
+                        ],
+                      ],
                     ),
     );
   }
