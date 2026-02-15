@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../models/account.dart';
+import '../models/finance_transaction.dart';
 import '../models/income_category.dart';
 import '../services/account_service.dart';
 import '../services/finance_transaction_service.dart';
@@ -16,7 +17,12 @@ import '../utils/turkish_money_input_formatter.dart';
 import '../utils/turkish_upper_case_formatter.dart';
 
 class IncomeEntryScreen extends StatefulWidget {
-  const IncomeEntryScreen({super.key});
+  const IncomeEntryScreen({
+    super.key,
+    this.initialTransaction,
+  });
+
+  final FinanceTransaction? initialTransaction;
 
   @override
   State<IncomeEntryScreen> createState() => _IncomeEntryScreenState();
@@ -37,6 +43,9 @@ class _IncomeEntryScreenState extends State<IncomeEntryScreen> {
   bool _isSaving = false;
   bool _isLoading = true;
   final List<Uint8List> _attachments = [];
+  final List<Uint8List> _existingAttachments = [];
+
+  bool get _isEditMode => widget.initialTransaction != null;
 
   @override
   void initState() {
@@ -59,11 +68,31 @@ class _IncomeEntryScreenState extends State<IncomeEntryScreen> {
 
     if (!mounted) return;
 
+    if (_isEditMode) {
+      final tx = widget.initialTransaction!;
+      final existing = await TransactionAttachmentService.getByOwner(
+        ownerType: 'finance',
+        ownerId: tx.id,
+      );
+      _existingAttachments
+        ..clear()
+        ..addAll(existing.map((e) => Uint8List.fromList(e.imageBytes)));
+    }
+
     setState(() {
       _accounts = accounts;
       _categories = categories;
-      _selectedAccountId = accounts.isNotEmpty ? accounts.first.id : null;
-      _selectedCategoryId = categories.isNotEmpty ? categories.first.id : null;
+      if (_isEditMode) {
+        final tx = widget.initialTransaction!;
+        _selectedAccountId = tx.accountId;
+        _selectedCategoryId = tx.categoryId;
+        _selectedDate = tx.date;
+        _amountController.text = _fmtAmount(tx.amount);
+        _descriptionController.text = tx.description ?? '';
+      } else {
+        _selectedAccountId = accounts.isNotEmpty ? accounts.first.id : null;
+        _selectedCategoryId = categories.isNotEmpty ? categories.first.id : null;
+      }
       _isLoading = false;
     });
   }
@@ -101,18 +130,38 @@ class _IncomeEntryScreenState extends State<IncomeEntryScreen> {
     });
 
     try {
-      final txId = await FinanceTransactionService.addIncomeAndGetId(
-        accountId: _selectedAccountId!,
-        categoryId: _selectedCategoryId!,
-        amount: amount,
-        date: _selectedDate,
-        description: _descriptionController.text,
-      );
-      await TransactionAttachmentService.addMany(
-        ownerType: 'finance',
-        ownerId: txId,
-        images: _attachments.map((e) => e.toList()).toList(),
-      );
+      if (_isEditMode) {
+        final tx = widget.initialTransaction!;
+        await FinanceTransactionService.updateTransaction(
+          transactionId: tx.id,
+          accountId: _selectedAccountId!,
+          categoryId: _selectedCategoryId!,
+          type: 'income',
+          amount: amount,
+          date: _selectedDate,
+          description: _descriptionController.text,
+          incomePlanId: tx.incomePlanId,
+          expensePlanId: null,
+        );
+        await TransactionAttachmentService.addMany(
+          ownerType: 'finance',
+          ownerId: tx.id,
+          images: _attachments.map((e) => e.toList()).toList(),
+        );
+      } else {
+        final txId = await FinanceTransactionService.addIncomeAndGetId(
+          accountId: _selectedAccountId!,
+          categoryId: _selectedCategoryId!,
+          amount: amount,
+          date: _selectedDate,
+          description: _descriptionController.text,
+        );
+        await TransactionAttachmentService.addMany(
+          ownerType: 'finance',
+          ownerId: txId,
+          images: _attachments.map((e) => e.toList()).toList(),
+        );
+      }
 
       if (!mounted) return;
       Navigator.pop(context, true);
@@ -128,6 +177,63 @@ class _IncomeEntryScreenState extends State<IncomeEntryScreen> {
         });
       }
     }
+  }
+
+  Future<void> _deleteCurrent() async {
+    if (!_isEditMode || _isSaving) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('İşlemi Sil'),
+        content: const Text('Bu gelir işlemi silinsin mi?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Vazgeç'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Sil'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+
+    setState(() {
+      _isSaving = true;
+    });
+    try {
+      await FinanceTransactionService.deleteAndReturn(widget.initialTransaction!.id);
+      if (!mounted) return;
+      Navigator.pop(context, true);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Silme hatası: $e')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+        });
+      }
+    }
+  }
+
+  String _fmtAmount(double value) {
+    final fixed = value.toStringAsFixed(2);
+    final parts = fixed.split('.');
+    final intPart = parts[0];
+    final decPart = parts[1];
+
+    final b = StringBuffer();
+    for (int i = 0; i < intPart.length; i++) {
+      final fromRight = intPart.length - i;
+      b.write(intPart[i]);
+      if (fromRight > 1 && fromRight % 3 == 1) b.write('.');
+    }
+    return '${b.toString()},$decPart';
   }
 
   String _fmtDate(DateTime d) {
@@ -204,8 +310,8 @@ class _IncomeEntryScreenState extends State<IncomeEntryScreen> {
     return Scaffold(
       drawer: buildAppMenuDrawer(),
       appBar: AppBar(
-        leading: buildMenuLeading(),
-        title: const Text("Gelir Girişi"),
+        leading: _isEditMode ? const BackButton() : buildMenuLeading(),
+        title: Text(_isEditMode ? "Gelir Düzenle" : "Gelir Girişi"),
         actions: [buildHomeAction(context)],
       ),
       body: _isLoading
@@ -326,15 +432,18 @@ class _IncomeEntryScreenState extends State<IncomeEntryScreen> {
                           ),
                         ],
                       ),
-                      if (_attachments.isNotEmpty)
+                      if (_existingAttachments.isNotEmpty || _attachments.isNotEmpty)
                         SizedBox(
                           height: 78,
                           child: ListView.separated(
                             scrollDirection: Axis.horizontal,
-                            itemCount: _attachments.length,
+                            itemCount: _existingAttachments.length + _attachments.length,
                             separatorBuilder: (_, __) => const SizedBox(width: 8),
                             itemBuilder: (context, index) {
-                              final bytes = _attachments[index];
+                              final isExisting = index < _existingAttachments.length;
+                              final bytes = isExisting
+                                  ? _existingAttachments[index]
+                                  : _attachments[index - _existingAttachments.length];
                               return Stack(
                                 children: [
                                   ClipRRect(
@@ -346,29 +455,31 @@ class _IncomeEntryScreenState extends State<IncomeEntryScreen> {
                                       fit: BoxFit.cover,
                                     ),
                                   ),
-                                  Positioned(
-                                    top: 0,
-                                    right: 0,
-                                    child: InkWell(
-                                      onTap: () {
-                                        setState(() {
-                                          _attachments.removeAt(index);
-                                        });
-                                      },
-                                      child: Container(
-                                        decoration: const BoxDecoration(
-                                          color: Colors.black54,
-                                          shape: BoxShape.circle,
-                                        ),
-                                        padding: const EdgeInsets.all(2),
-                                        child: const Icon(
-                                          Icons.close,
-                                          color: Colors.white,
-                                          size: 14,
+                                  if (!isExisting)
+                                    Positioned(
+                                      top: 0,
+                                      right: 0,
+                                      child: InkWell(
+                                        onTap: () {
+                                          setState(() {
+                                            _attachments
+                                                .removeAt(index - _existingAttachments.length);
+                                          });
+                                        },
+                                        child: Container(
+                                          decoration: const BoxDecoration(
+                                            color: Colors.black54,
+                                            shape: BoxShape.circle,
+                                          ),
+                                          padding: const EdgeInsets.all(2),
+                                          child: const Icon(
+                                            Icons.close,
+                                            color: Colors.white,
+                                            size: 14,
+                                          ),
                                         ),
                                       ),
                                     ),
-                                  ),
                                 ],
                               );
                             },
@@ -381,8 +492,22 @@ class _IncomeEntryScreenState extends State<IncomeEntryScreen> {
                           foregroundColor: Colors.white,
                         ),
                         onPressed: _isSaving ? null : _save,
-                        child: Text(_isSaving ? "Kaydediliyor..." : "Kaydet"),
+                        child: Text(
+                          _isSaving
+                              ? "Kaydediliyor..."
+                              : (_isEditMode ? "Güncelle" : "Kaydet"),
+                        ),
                       ),
+                      if (_isEditMode) ...[
+                        const SizedBox(height: 10),
+                        OutlinedButton(
+                          onPressed: _isSaving ? null : _deleteCurrent,
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.red,
+                          ),
+                          child: const Text('Sil'),
+                        ),
+                      ],
                     ],
                   ),
                 ),

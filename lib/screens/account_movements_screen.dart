@@ -35,6 +35,7 @@ class _AccountMovementsScreenState extends State<AccountMovementsScreen> {
 
   List<Account> _accounts = [];
   Map<int, List<_AccountMovement>> _movementsByAccount = {};
+  Map<int, double> _displayBalanceByAccount = {};
 
   int? _selectedAccountId;
   _DatePreset _datePreset = _DatePreset.month;
@@ -96,6 +97,9 @@ class _AccountMovementsScreenState extends State<AccountMovementsScreen> {
 
       final movementMap = <int, List<_AccountMovement>>{
         for (final a in accounts) a.id: <_AccountMovement>[],
+      };
+      final displayBalanceMap = <int, double>{
+        for (final a in accounts) a.id: a.type == 'investment' ? 0 : a.balance,
       };
 
       for (final tx in finance) {
@@ -201,6 +205,12 @@ class _AccountMovementsScreenState extends State<AccountMovementsScreen> {
               sourceLabel: 'Nakit: $cashAccountName',
             ),
           );
+
+          // Investment accounts keep quantity in `balance`; for this report card,
+          // show monetary net as total buys minus total sells.
+          displayBalanceMap[tx.investmentAccountId] =
+              (displayBalanceMap[tx.investmentAccountId] ?? 0) +
+                  (isBuy ? tx.total : -tx.total);
         }
       }
 
@@ -212,6 +222,7 @@ class _AccountMovementsScreenState extends State<AccountMovementsScreen> {
       setState(() {
         _accounts = accounts;
         _movementsByAccount = movementMap;
+        _displayBalanceByAccount = displayBalanceMap;
         _selectedAccountId = _resolveSelectedAccountId(_selectedAccountId, accounts);
         _loading = false;
       });
@@ -242,6 +253,12 @@ class _AccountMovementsScreenState extends State<AccountMovementsScreen> {
       if (a.id == _selectedAccountId) return a;
     }
     return null;
+  }
+
+  double _selectedAccountDisplayBalance() {
+    final account = _selectedAccount();
+    if (account == null) return 0;
+    return _displayBalanceByAccount[account.id] ?? account.balance;
   }
 
   List<_AccountMovement> _filteredMovements() {
@@ -410,6 +427,7 @@ class _AccountMovementsScreenState extends State<AccountMovementsScreen> {
   Future<Uint8List> _buildPdf(
     Account account,
     List<_AccountMovement> movements,
+    double displayBalance,
     PdfPageFormat format,
   ) async {
     final font = pw.Font.ttf(
@@ -445,7 +463,7 @@ class _AccountMovementsScreenState extends State<AccountMovementsScreen> {
           ),
           pw.SizedBox(height: 6),
           pw.Text('Hesap: ${account.name}'),
-          pw.Text('Güncel Bakiye: ${_fmtAmount(account.balance)} TL'),
+          pw.Text('Güncel Bakiye: ${_fmtAmount(displayBalance)} TL'),
           pw.Text('Oluşturulma: ${_fmtDateTime(DateTime.now())}'),
           pw.SizedBox(height: 8),
           pw.Text(
@@ -499,6 +517,7 @@ class _AccountMovementsScreenState extends State<AccountMovementsScreen> {
     final account = _selectedAccount();
     if (account == null) return;
     final movements = _filteredMovements();
+    final displayBalance = _selectedAccountDisplayBalance();
 
     Navigator.push(
       context,
@@ -511,7 +530,8 @@ class _AccountMovementsScreenState extends State<AccountMovementsScreen> {
             actions: [buildHomeAction(context)],
           ),
           body: PdfPreview(
-            build: (format) => _buildPdf(account, movements, format),
+            build: (format) =>
+                _buildPdf(account, movements, displayBalance, format),
             canChangePageFormat: false,
             canChangeOrientation: false,
             canDebug: false,
@@ -539,6 +559,7 @@ class _AccountMovementsScreenState extends State<AccountMovementsScreen> {
   Widget build(BuildContext context) {
     final account = _selectedAccount();
     final movements = _filteredMovements();
+    final displayBalance = _selectedAccountDisplayBalance();
     final availableYears = _availableYears();
 
     return Scaffold(
@@ -588,10 +609,10 @@ class _AccountMovementsScreenState extends State<AccountMovementsScreen> {
                               ),
                               subtitle: const Text('Güncel Bakiye'),
                               trailing: Text(
-                                '${_fmtAmount(account?.balance ?? 0)} TL',
+                                '${_fmtAmount(displayBalance)} TL',
                                 style: TextStyle(
                                   fontWeight: FontWeight.bold,
-                                  color: (account?.balance ?? 0) >= 0
+                                  color: displayBalance >= 0
                                       ? Colors.blue
                                       : Colors.orange,
                                 ),

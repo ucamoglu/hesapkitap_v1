@@ -404,7 +404,7 @@ class _AppMenuDrawerState extends State<_AppMenuDrawer> {
                 item: _MenuItem.investmentTracking,
                 icon: Icons.analytics_outlined,
                 color: Colors.teal,
-                title: 'Yatırım Takip',
+                title: 'Yatırım Portföyü',
                 onTap: () {
                   _rememberSelection(
                     item: _MenuItem.investmentTracking,

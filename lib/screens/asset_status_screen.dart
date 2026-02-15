@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../models/account.dart';
 import '../models/investment_transaction.dart';
+import '../models/market_rate_item.dart';
 import '../services/account_service.dart';
 import '../services/investment_transaction_service.dart';
+import '../services/market_rate_service.dart';
 import '../utils/navigation_helpers.dart';
 
 class AssetStatusScreen extends StatefulWidget {
@@ -21,6 +23,7 @@ class _AssetStatusScreenState extends State<AssetStatusScreen> {
   final Map<String, _InvestmentTotals> _investmentTotalsBySymbol = {};
   final Map<int, double> _realizedPnlByAccountId = {};
   final Map<String, double> _realizedPnlBySymbol = {};
+  final Map<String, double> _livePriceBySymbol = {};
 
   @override
   void initState() {
@@ -41,6 +44,21 @@ class _AssetStatusScreenState extends State<AssetStatusScreen> {
       ]);
       final accounts = results[0] as List<Account>;
       final investmentTx = results[1] as List<InvestmentTransaction>;
+      final livePriceBySymbol = <String, double>{};
+      try {
+        final rateResults = await Future.wait([
+          MarketRateService.fetchAllCurrencies(),
+          MarketRateService.fetchAllMetals(),
+        ]);
+        final currencyRates = (rateResults[0] as CurrencyRateListResult).items;
+        final metalRates = (rateResults[1] as MetalRateListResult).items;
+        final allRates = <MarketRateItem>[...currencyRates, ...metalRates];
+        for (final item in allRates) {
+          livePriceBySymbol[item.code.toUpperCase()] = item.sell;
+        }
+      } catch (_) {
+        // Keep summary visible when live market data is unavailable.
+      }
       final grouped = <String, List<Account>>{};
       for (final a in accounts) {
         grouped.putIfAbsent(a.type, () => []).add(a);
@@ -101,6 +119,9 @@ class _AssetStatusScreenState extends State<AssetStatusScreen> {
         _realizedPnlBySymbol
           ..clear()
           ..addAll(realizedBySymbol);
+        _livePriceBySymbol
+          ..clear()
+          ..addAll(livePriceBySymbol);
         _loading = false;
       });
     } catch (e) {
@@ -140,6 +161,23 @@ class _AssetStatusScreenState extends State<AssetStatusScreen> {
     return '${b.toString()},$decPart';
   }
 
+  String _fmtQuantity(double value) {
+    final fixed = value.toStringAsFixed(4);
+    final normalized = fixed.replaceFirst(RegExp(r'([.,]?)0+$'), '');
+    final parts = normalized.split('.');
+    final intPart = parts[0];
+    final decPart = parts.length > 1 ? parts[1] : '';
+
+    final b = StringBuffer();
+    for (int i = 0; i < intPart.length; i++) {
+      final fromRight = intPart.length - i;
+      b.write(intPart[i]);
+      if (fromRight > 1 && fromRight % 3 == 1) b.write('.');
+    }
+    if (decPart.isEmpty) return b.toString();
+    return '${b.toString()},$decPart';
+  }
+
   _InvestmentTotals _totalsForInvestmentAccount(Account account) {
     final direct = _investmentTotalsByAccountId[account.id];
     if (direct != null) return direct;
@@ -165,6 +203,28 @@ class _AssetStatusScreenState extends State<AssetStatusScreen> {
       return '${_fmtMoney(net)} TL';
     }
     return '${_fmtMoney(account.balance)} TL';
+  }
+
+  double? _currentUnitPrice(Account account) {
+    final symbol = (account.investmentSymbol ?? '').trim().toUpperCase();
+    if (symbol.isEmpty) return null;
+    return _livePriceBySymbol[symbol];
+  }
+
+  double? _currentInvestmentValue(Account account) {
+    if (account.type != 'investment') return null;
+    final unitPrice = _currentUnitPrice(account);
+    if (unitPrice == null) return null;
+    return account.balance * unitPrice;
+  }
+
+  String _trailingValueText(Account account) {
+    if (account.type != 'investment') {
+      return _acquisitionValueText(account);
+    }
+    final currentValue = _currentInvestmentValue(account);
+    if (currentValue == null) return _acquisitionValueText(account);
+    return '${_fmtMoney(currentValue)} TL';
   }
 
   IconData _typeIcon(String type) {
@@ -265,8 +325,13 @@ class _AssetStatusScreenState extends State<AssetStatusScreen> {
                                     final realized = a.type == 'investment'
                                         ? _realizedPnlForInvestmentAccount(a)
                                         : 0.0;
+                                    final currentValue = a.type == 'investment'
+                                        ? _currentInvestmentValue(a)
+                                        : null;
                                     final subtitle = a.type == 'investment'
-                                        ? 'Edinim Değeri (Bakiye)\nAlış: ${_fmtMoney(totals!.buy)} TL • Satış: ${_fmtMoney(totals.sell)} TL'
+                                        ? 'Miktar: ${_fmtQuantity(a.balance)} ${(a.investmentSymbol ?? '-').toUpperCase()}'
+                                          '\nGüncel Değer: ${currentValue == null ? 'Veri yok' : '${_fmtMoney(currentValue)} TL'}'
+                                          '\nEdinim Değeri (Bakiye)\nAlış: ${_fmtMoney(totals!.buy)} TL • Satış: ${_fmtMoney(totals.sell)} TL'
                                           '\nGerç. K/Z: ${_fmtMoney(realized.abs())} TL ${realized >= 0 ? '(Kar)' : '(Zarar)'}'
                                         : 'Edinim Değeri (Bakiye)';
                                     return ListTile(
@@ -283,7 +348,7 @@ class _AssetStatusScreenState extends State<AssetStatusScreen> {
                                       subtitle: Text(subtitle),
                                       isThreeLine: a.type == 'investment',
                                       trailing: Text(
-                                        _acquisitionValueText(a),
+                                        _trailingValueText(a),
                                         style: const TextStyle(
                                           fontWeight: FontWeight.w700,
                                         ),

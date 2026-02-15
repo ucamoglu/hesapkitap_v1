@@ -411,7 +411,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
                 ListTile(
                   leading: const Icon(Icons.analytics_outlined, color: Colors.teal),
-                  title: const Text('Yatırım Takip'),
+                  title: const Text('Yatırım Portföyü'),
                   onTap: () async {
                     await _openFromDrawer(
                       const InvestmentTrackingScreen(),

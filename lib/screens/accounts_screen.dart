@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../models/account.dart';
+import '../models/market_rate_item.dart';
 import '../services/account_service.dart';
+import '../services/market_rate_service.dart';
 import '../services/investment_outcome_category_service.dart';
 import '../database/isar_service.dart';
 import '../services/tracked_currency_service.dart';
@@ -17,6 +19,7 @@ class AccountsScreen extends StatefulWidget {
 
 class _AccountsScreenState extends State<AccountsScreen> {
   List<Account> accounts = [];
+  Map<String, double> _livePriceBySymbol = {};
 
   void _showSnack(String message) {
     if (!mounted) return;
@@ -40,6 +43,41 @@ class _AccountsScreenState extends State<AccountsScreen> {
     return '${b.toString()},$decPart';
   }
 
+  String _fmtQuantity(double value) {
+    final fixed = value.toStringAsFixed(4);
+    final normalized = fixed.replaceFirst(RegExp(r'([.,]?)0+$'), '');
+    final parts = normalized.split('.');
+    final intPart = parts[0];
+    final decPart = parts.length > 1 ? parts[1] : '';
+
+    final b = StringBuffer();
+    for (int i = 0; i < intPart.length; i++) {
+      final fromRight = intPart.length - i;
+      b.write(intPart[i]);
+      if (fromRight > 1 && fromRight % 3 == 1) b.write('.');
+    }
+    if (decPart.isEmpty) return b.toString();
+    return '${b.toString()},$decPart';
+  }
+
+  String _accountSubtitle(Account acc) {
+    if (acc.type != 'investment') {
+      final label = acc.type == "cash" ? "Kasa" : "Banka";
+      return '$label\nBakiye: ${_fmtAmount(acc.balance)} TL';
+    }
+
+    final symbol = (acc.investmentSymbol ?? '-').toUpperCase();
+    final price = _livePriceBySymbol[symbol];
+    final currentValue = price == null ? null : (acc.balance * price);
+    final valueText = currentValue == null
+        ? 'Değeri: Veri yok'
+        : 'Değeri: ${_fmtAmount(currentValue)} TL';
+
+    return 'Yatırım • ${_investmentSubtypeLabel(acc.investmentSubtype)} • $symbol\n'
+        'Depo: ${_fmtQuantity(acc.balance)} $symbol\n'
+        '$valueText';
+  }
+
   @override
   void initState() {
     super.initState();
@@ -48,8 +86,26 @@ class _AccountsScreenState extends State<AccountsScreen> {
 
   Future<void> loadAccounts() async {
     final data = await AccountService.getAllAccounts();
+    final livePriceMap = <String, double>{};
+    try {
+      final results = await Future.wait([
+        MarketRateService.fetchAllCurrencies(),
+        MarketRateService.fetchAllMetals(),
+      ]);
+      final currencyRates = (results[0] as CurrencyRateListResult).items;
+      final metalRates = (results[1] as MetalRateListResult).items;
+      final allRates = <MarketRateItem>[...currencyRates, ...metalRates];
+      for (final item in allRates) {
+        livePriceMap[item.code.toUpperCase()] = item.sell;
+      }
+    } catch (_) {
+      // Keep account list usable when live prices are temporarily unavailable.
+    }
+
+    if (!mounted) return;
     setState(() {
       accounts = data;
+      _livePriceBySymbol = livePriceMap;
     });
   }
 
@@ -126,12 +182,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
                       ),
                     ),
                     subtitle: Text(
-                      '${acc.type == "investment"
-                              ? "Yatırım • ${_investmentSubtypeLabel(acc.investmentSubtype)} • ${acc.investmentSymbol ?? "-"}"
-                              : acc.type == "cash"
-                                  ? "Kasa"
-                                  : "Banka"}\n'
-                      'Bakiye: ${_fmtAmount(acc.balance)} TL',
+                      _accountSubtitle(acc),
                     ),
                     isThreeLine: true,
                     trailing: PopupMenuButton<String>(

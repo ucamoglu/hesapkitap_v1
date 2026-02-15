@@ -31,6 +31,7 @@ class _InvestmentEntryScreenState extends State<InvestmentEntryScreen> {
   DateTime _selectedDate = DateTime.now();
   double? _calculatedUnitPrice;
   FifoSellPreview? _sellPreview;
+  String? _lastCalculationKey;
 
   bool _loading = true;
   bool _saving = false;
@@ -139,6 +140,21 @@ class _InvestmentEntryScreenState extends State<InvestmentEntryScreen> {
     return '$dd.$mm.${d.year}';
   }
 
+  String _buildCalculationKey({
+    required int accountId,
+    required String txType,
+    required double amount,
+    required double quantity,
+  }) {
+    return '$accountId|$txType|${amount.toStringAsFixed(6)}|${quantity.toStringAsFixed(8)}';
+  }
+
+  void _invalidateCalculation() {
+    _calculatedUnitPrice = null;
+    _sellPreview = null;
+    _lastCalculationKey = null;
+  }
+
   double? _parseQuantity(String raw) {
     final input = raw.trim();
     if (input.isEmpty) return null;
@@ -189,9 +205,16 @@ class _InvestmentEntryScreenState extends State<InvestmentEntryScreen> {
     }
 
     if (!mounted) return;
+    final key = _buildCalculationKey(
+      accountId: account.id,
+      txType: _txType,
+      amount: amount,
+      quantity: quantity,
+    );
     setState(() {
       _calculatedUnitPrice = unitPrice;
       _sellPreview = preview;
+      _lastCalculationKey = key;
     });
   }
 
@@ -226,8 +249,16 @@ class _InvestmentEntryScreenState extends State<InvestmentEntryScreen> {
     }
 
     final unitPrice = amount / quantity;
+    final key = _buildCalculationKey(
+      accountId: account.id,
+      txType: _txType,
+      amount: amount,
+      quantity: quantity,
+    );
     FifoSellPreview? sellPreview;
-    if (_txType == 'sell') {
+    if (_lastCalculationKey == key) {
+      sellPreview = _sellPreview;
+    } else if (_txType == 'sell') {
       try {
         sellPreview = await InvestmentTransactionService.previewSell(
           investmentAccountId: account.id,
@@ -248,6 +279,7 @@ class _InvestmentEntryScreenState extends State<InvestmentEntryScreen> {
       _saving = true;
       _calculatedUnitPrice = unitPrice;
       _sellPreview = sellPreview;
+      _lastCalculationKey = key;
     });
 
     try {
@@ -293,8 +325,30 @@ class _InvestmentEntryScreenState extends State<InvestmentEntryScreen> {
     return '${b.toString()},$decPart';
   }
 
-  String _accountBalanceLabel(Account a) {
-    return '${a.name} • Bakiye: ${_fmtMoney(a.balance)}';
+  String _fmtQuantity(double value) {
+    final fixed = value.toStringAsFixed(4);
+    final normalized = fixed.replaceFirst(RegExp(r'([.,]?)0+$'), '');
+    final parts = normalized.split('.');
+    final intPart = parts[0];
+    final decPart = parts.length > 1 ? parts[1] : '';
+
+    final b = StringBuffer();
+    for (int i = 0; i < intPart.length; i++) {
+      final fromRight = intPart.length - i;
+      b.write(intPart[i]);
+      if (fromRight > 1 && fromRight % 3 == 1) b.write('.');
+    }
+    if (decPart.isEmpty) return b.toString();
+    return '${b.toString()},$decPart';
+  }
+
+  String _investmentAccountLabel(Account a) {
+    final symbol = (a.investmentSymbol ?? '-').toUpperCase();
+    return '${a.name} • Bakiye: ${_fmtQuantity(a.balance)} $symbol';
+  }
+
+  String _cashAccountLabel(Account a) {
+    return '${a.name} • Bakiye: ${_fmtMoney(a.balance)} TL';
   }
 
   @override
@@ -336,7 +390,7 @@ class _InvestmentEntryScreenState extends State<InvestmentEntryScreen> {
                         onSelectionChanged: (set) {
                           setState(() {
                             _txType = set.first;
-                            _sellPreview = null;
+                            _invalidateCalculation();
                           });
                         },
                       ),
@@ -353,7 +407,7 @@ class _InvestmentEntryScreenState extends State<InvestmentEntryScreen> {
                               (a) => DropdownMenuItem<int>(
                                 value: a.id,
                                 child: Text(
-                                  _accountBalanceLabel(a),
+                                  _investmentAccountLabel(a),
                                   overflow: TextOverflow.ellipsis,
                                   maxLines: 1,
                                 ),
@@ -363,7 +417,7 @@ class _InvestmentEntryScreenState extends State<InvestmentEntryScreen> {
                         onChanged: (v) {
                           setState(() {
                             _selectedAccountId = v;
-                            _sellPreview = null;
+                            _invalidateCalculation();
                           });
                         },
                         validator: (v) => v == null ? 'Hesap seçiniz.' : null,
@@ -381,7 +435,7 @@ class _InvestmentEntryScreenState extends State<InvestmentEntryScreen> {
                               (a) => DropdownMenuItem<int>(
                                 value: a.id,
                                 child: Text(
-                                  _accountBalanceLabel(a),
+                                  _cashAccountLabel(a),
                                   overflow: TextOverflow.ellipsis,
                                   maxLines: 1,
                                 ),
@@ -391,7 +445,7 @@ class _InvestmentEntryScreenState extends State<InvestmentEntryScreen> {
                         onChanged: (v) {
                           setState(() {
                             _selectedCashAccountId = v;
-                            _sellPreview = null;
+                            _invalidateCalculation();
                           });
                         },
                         validator: (v) => v == null ? 'Hesap seçiniz.' : null,
@@ -431,9 +485,11 @@ class _InvestmentEntryScreenState extends State<InvestmentEntryScreen> {
                           border: OutlineInputBorder(),
                         ),
                         onChanged: (_) {
-                          if (_sellPreview != null) {
+                          if (_calculatedUnitPrice != null ||
+                              _sellPreview != null ||
+                              _lastCalculationKey != null) {
                             setState(() {
-                              _sellPreview = null;
+                              _invalidateCalculation();
                             });
                           }
                         },
@@ -456,9 +512,11 @@ class _InvestmentEntryScreenState extends State<InvestmentEntryScreen> {
                           hintText: 'Örn: 12,50',
                         ),
                         onChanged: (_) {
-                          if (_sellPreview != null) {
+                          if (_calculatedUnitPrice != null ||
+                              _sellPreview != null ||
+                              _lastCalculationKey != null) {
                             setState(() {
-                              _sellPreview = null;
+                              _invalidateCalculation();
                             });
                           }
                         },

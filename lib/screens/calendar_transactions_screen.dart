@@ -75,7 +75,9 @@ class _CalendarTransactionsScreenState extends State<CalendarTransactionsScreen>
     });
 
     try {
-      final tx = await FinanceTransactionService.getAll();
+      final tx = (await FinanceTransactionService.getAll())
+          .where((e) => !_isSyntheticInvestmentPnlTx(e))
+          .toList();
       final cariTx = await CariTransactionService.getAll();
       final accounts = await AccountService.getAllAccounts();
       final incomeCategories = await IncomeCategoryService.getAll();
@@ -256,6 +258,11 @@ class _CalendarTransactionsScreenState extends State<CalendarTransactionsScreen>
     return PlanningStandard.periodLabel(v);
   }
 
+  bool _isSyntheticInvestmentPnlTx(FinanceTransaction tx) {
+    final desc = (tx.description ?? '').trim().toLowerCase();
+    return desc.startsWith('yatirim satis k/z');
+  }
+
   FinanceTransaction _mapCariToFinanceLike(CariTransaction c) {
     return FinanceTransaction()
       ..id = -(c.id + 1)
@@ -287,9 +294,7 @@ class _CalendarTransactionsScreenState extends State<CalendarTransactionsScreen>
         ..accountId = it.cashAccountId
         ..categoryId = 0
         ..type = isBuy ? 'expense' : 'income'
-        ..amount = isBuy
-            ? it.total
-            : (it.costBasisTotal > 0 ? it.costBasisTotal : it.total)
+        ..amount = it.total
         ..description =
             'Yatırım: ${it.symbol} • Miktar: ${it.quantity.toStringAsFixed(4)} • Birim: ${_fmtAmount(it.unitPrice)} TL'
         ..date = it.date

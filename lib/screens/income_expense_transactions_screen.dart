@@ -8,12 +8,14 @@ import 'package:printing/printing.dart';
 
 import '../models/cari_transaction.dart';
 import '../models/finance_transaction.dart';
+import '../models/investment_transaction.dart';
 import '../services/account_service.dart';
 import '../services/cari_card_service.dart';
 import '../services/cari_transaction_service.dart';
 import '../services/category_service.dart';
 import '../services/finance_transaction_service.dart';
 import '../services/income_category_service.dart';
+import '../services/investment_transaction_service.dart';
 import '../services/transaction_attachment_service.dart';
 import '../theme/app_colors.dart';
 import '../utils/navigation_helpers.dart';
@@ -87,6 +89,7 @@ class _IncomeExpenseTransactionsScreenState
   Map<int, String> _expenseCategoryNames = {};
   Map<int, String> _cariCardNames = {};
   Map<int, String> _cariRawTypeByTxId = {};
+  Map<int, _InvestmentHistoryMeta> _investmentMetaByTxId = {};
   Map<String, int> _attachmentCountMap = {};
   List<_CategoryOption> _categoryOptions = [];
 
@@ -123,6 +126,7 @@ class _IncomeExpenseTransactionsScreenState
     try {
       final tx = await FinanceTransactionService.getAll();
       final cariTx = await CariTransactionService.getAll();
+      final investmentTx = await InvestmentTransactionService.getAll();
       final accounts = await AccountService.getAllAccounts();
       final incomeCategories = await IncomeCategoryService.getAll();
       final expenseCategories = await CategoryService.getAllExpenseCategories();
@@ -135,18 +139,30 @@ class _IncomeExpenseTransactionsScreenState
       if (!mounted) return;
 
       final mappedCari = cariTx.map(_mapCariToFinanceLike).toList();
+      final mappedInvestment = _mapInvestmentToFinanceLike(
+        investmentTx,
+        {for (final a in accounts) a.id: a.name},
+      );
       final cariTypeMap = <int, String>{
         for (final c in cariTx) -(c.id + 1): c.type,
       };
-      final merged = [...tx, ...mappedCari]
+      final merged = [...tx, ...mappedCari, ...mappedInvestment.$1]
         ..sort((a, b) => b.date.compareTo(a.date));
+      final accountFilterMap = {
+        for (final a in accounts.where((a) => a.type != 'investment')) a.id: a.name,
+      };
 
       setState(() {
         _all = merged;
-        _accountNames = {for (final a in accounts) a.id: a.name};
+        _accountNames = accountFilterMap;
+        if (_selectedAccountId != null &&
+            !_accountNames.containsKey(_selectedAccountId)) {
+          _selectedAccountId = null;
+        }
         _incomeCategoryNames = {for (final c in incomeCategories) c.id: c.name};
         _expenseCategoryNames = {for (final c in expenseCategories) c.id: c.name};
         _cariRawTypeByTxId = cariTypeMap;
+        _investmentMetaByTxId = mappedInvestment.$2;
         _attachmentCountMap = attachmentCountMap;
         _cariCardNames = {
           for (final c in cariCards)
@@ -442,6 +458,8 @@ class _IncomeExpenseTransactionsScreenState
   }
 
   String _categoryName(FinanceTransaction tx) {
+    final invMeta = _investmentMetaByTxId[tx.id];
+    if (invMeta != null) return invMeta.symbol;
     if (_isCariTx(tx)) {
       return _cariCardNames[tx.categoryId] ?? 'Cari #${tx.categoryId}';
     }
@@ -1283,25 +1301,26 @@ class _IncomeExpenseTransactionsScreenState
               color: isIncome ? AppColors.income : AppColors.expense,
             ),
           ),
-          PopupMenuButton<String>(
-            onSelected: (v) async {
-              if (v == 'edit') {
-                await _editTransaction(tx);
-              } else if (v == 'delete') {
-                await _deleteTransaction(tx);
-              }
-            },
-            itemBuilder: (_) => const [
-              PopupMenuItem<String>(
-                value: 'edit',
-                child: Text('Düzenle'),
-              ),
-              PopupMenuItem<String>(
-                value: 'delete',
-                child: Text('Sil'),
-              ),
-            ],
-          ),
+          if (!_isInvestmentSyntheticTx(tx))
+            PopupMenuButton<String>(
+              onSelected: (v) async {
+                if (v == 'edit') {
+                  await _editTransaction(tx);
+                } else if (v == 'delete') {
+                  await _deleteTransaction(tx);
+                }
+              },
+              itemBuilder: (_) => const [
+                PopupMenuItem<String>(
+                  value: 'edit',
+                  child: Text('Düzenle'),
+                ),
+                PopupMenuItem<String>(
+                  value: 'delete',
+                  child: Text('Sil'),
+                ),
+              ],
+            ),
         ],
       ),
     );
@@ -1393,10 +1412,9 @@ class _IncomeExpenseTransactionsScreenState
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => Scaffold(
-          drawer: buildAppMenuDrawer(),
           backgroundColor: Colors.black,
           appBar: AppBar(
-            leading: buildMenuLeading(),
+            leading: const BackButton(),
             backgroundColor: Colors.black,
             foregroundColor: Colors.white,
             title: const Text('Ek Görsel'),
@@ -1809,9 +1827,16 @@ class _IncomeExpenseTransactionsScreenState
     return result;
   }
 
-  bool _isCariTx(FinanceTransaction tx) => tx.id < 0;
+  bool _isCariTx(FinanceTransaction tx) => _cariRawTypeByTxId.containsKey(tx.id);
+
+  bool _isInvestmentSyntheticTx(FinanceTransaction tx) =>
+      _investmentMetaByTxId.containsKey(tx.id);
 
   String _txTypeLabel(FinanceTransaction tx) {
+    final invMeta = _investmentMetaByTxId[tx.id];
+    if (invMeta != null) {
+      return invMeta.rawType == 'buy' ? 'Yatırım Alış (Nakit)' : 'Yatırım Satış (Nakit)';
+    }
     if (_isCariTx(tx)) {
       if (_isCariDebt(tx)) return 'Cari Kart (Borç Verme)';
       if (_isCariCollection(tx)) return 'Cari Kart (Tahsilat)';
@@ -1835,4 +1860,49 @@ class _IncomeExpenseTransactionsScreenState
       ..date = c.date
       ..createdAt = c.createdAt;
   }
+
+  (List<FinanceTransaction>, Map<int, _InvestmentHistoryMeta>)
+      _mapInvestmentToFinanceLike(
+    List<InvestmentTransaction> items,
+    Map<int, String> accountNames,
+  ) {
+    final result = <FinanceTransaction>[];
+    final metaById = <int, _InvestmentHistoryMeta>{};
+
+    for (final it in items) {
+      final base = 2000000000 + (it.id * 10);
+      final cashId = -(base + 1);
+      final isBuy = it.type == 'buy';
+
+      final cash = FinanceTransaction()
+        ..id = cashId
+        ..accountId = it.cashAccountId
+        ..categoryId = 0
+        ..type = isBuy ? 'expense' : 'income'
+        ..amount = isBuy
+            ? it.total
+            : (it.costBasisTotal > 0 ? it.costBasisTotal : (it.total - it.realizedPnl))
+        ..description =
+            'Yatırım: ${it.symbol} • Miktar: ${it.quantity.toStringAsFixed(4)} • Birim: ${_fmtAmount(it.unitPrice)} TL • Karşı: ${accountNames[it.investmentAccountId] ?? 'Yatırım #${it.investmentAccountId}'}'
+        ..date = it.date
+        ..createdAt = it.createdAt;
+      result.add(cash);
+      metaById[cashId] = _InvestmentHistoryMeta(
+        symbol: it.symbol,
+        rawType: it.type,
+      );
+    }
+
+    return (result, metaById);
+  }
+}
+
+class _InvestmentHistoryMeta {
+  final String symbol;
+  final String rawType;
+
+  const _InvestmentHistoryMeta({
+    required this.symbol,
+    required this.rawType,
+  });
 }

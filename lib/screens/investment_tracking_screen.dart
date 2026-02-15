@@ -56,7 +56,7 @@ class _InvestmentTrackingScreenState extends State<InvestmentTrackingScreen> {
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _error = 'Yatırım takip verileri yüklenemedi: $e';
+        _error = 'Yatırım portföyü verileri yüklenemedi: $e';
       });
     }
   }
@@ -121,7 +121,7 @@ class _InvestmentTrackingScreenState extends State<InvestmentTrackingScreen> {
         margin: const pw.EdgeInsets.all(20),
         build: (_) {
           final widgets = <pw.Widget>[
-            pw.Text('Yatirim Takip', style: pw.TextStyle(font: bold, fontSize: 18)),
+            pw.Text('Yatirim Portfoyu', style: pw.TextStyle(font: bold, fontSize: 18)),
             pw.SizedBox(height: 6),
             pw.Text('Olusturma: ${_fmtDate(DateTime.now())}'),
             pw.SizedBox(height: 12),
@@ -193,7 +193,7 @@ class _InvestmentTrackingScreenState extends State<InvestmentTrackingScreen> {
           drawer: buildAppMenuDrawer(),
           appBar: AppBar(
             leading: const BackButton(),
-            title: const Text('Yatirim Takip - PDF'),
+            title: const Text('Yatirim Portfoyu - PDF'),
             actions: [buildHomeAction(context)],
           ),
           body: PdfPreview(
@@ -203,7 +203,7 @@ class _InvestmentTrackingScreenState extends State<InvestmentTrackingScreen> {
             canDebug: false,
             allowPrinting: true,
             allowSharing: true,
-            pdfFileName: 'yatirim_takip.pdf',
+            pdfFileName: 'yatirim_portfoyu.pdf',
           ),
         ),
       ),
@@ -299,7 +299,7 @@ class _InvestmentTrackingScreenState extends State<InvestmentTrackingScreen> {
       drawer: buildAppMenuDrawer(),
       appBar: AppBar(
         leading: buildMenuLeading(),
-        title: const Text('Yatırım Takip'),
+        title: const Text('Yatırım Portföyü'),
         actions: [
           IconButton(
             onPressed: _items.isEmpty ? null : _openPdfPreview,
