@@ -461,7 +461,12 @@ class _InvestmentEntryScreenState extends State<InvestmentEntryScreen> {
     return Scaffold(
       drawer: buildAppMenuDrawer(),
       appBar: AppBar(
-        leading: _isEditMode ? const BackButton() : buildMenuLeading(),
+        leading: _isEditMode
+            ? const BackButton()
+            : IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () => popToDashboard(context),
+              ),
         title: Text(_isEditMode ? 'Yatırım İşlemi Düzenle' : 'Yatırım İşlemi'),
         actions: [buildHomeAction(context)],
       ),

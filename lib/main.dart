@@ -14,6 +14,7 @@ import 'screens/expense_category_screen.dart';
 import 'screens/expense_planning_screen.dart';
 import 'screens/calendar_transactions_screen.dart';
 import 'models/cari_card.dart';
+import 'models/cari_transaction.dart';
 import 'models/market_rate_item.dart';
 import 'services/account_service.dart';
 import 'services/cari_card_service.dart';
@@ -31,6 +32,7 @@ import 'screens/expense_entry_screen.dart';
 import 'screens/income_category_screen.dart';
 import 'screens/income_entry_screen.dart';
 import 'screens/income_expense_transactions_screen.dart';
+import 'screens/cari_transactions_screen.dart';
 import 'screens/account_movements_screen.dart';
 import 'screens/asset_status_screen.dart';
 import 'screens/investment_tracking_screen.dart';
@@ -230,6 +232,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     final stockSymbolsForRates = <String>{};
     final cryptoSymbolsForRates = <String>{};
+    for (final c in cariCards) {
+      if ((c.currencyType).trim().toLowerCase() != 'foreign') continue;
+      final code = (c.foreignCode ?? '').trim().toUpperCase();
+      if (code.isEmpty) continue;
+      final marketType = (c.foreignMarketType ?? '').trim().toLowerCase();
+      if (marketType == 'stock') {
+        stockSymbolsForRates.add(code);
+      } else if (marketType == 'crypto') {
+        cryptoSymbolsForRates.add(code);
+      }
+    }
     for (final a in accounts) {
       if (a.type != 'investment' || !a.isActive) continue;
       final subtype = (a.investmentSubtype ?? '').trim().toLowerCase();
@@ -356,8 +369,34 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final cariNetByCard = <int, double>{};
     for (final tx in cariTx) {
       final prev = cariNetByCard[tx.cariCardId] ?? 0;
-      final next = tx.type == 'collection' ? (prev + tx.amount) : (prev - tx.amount);
+      final next = tx.type == 'debt' ? (prev + tx.amount) : (prev - tx.amount);
       cariNetByCard[tx.cariCardId] = next;
+    }
+    final foreignCardsById = <int, CariCard>{
+      for (final c in cariCards)
+        if ((c.currencyType).trim().toLowerCase() == 'foreign') c.id: c,
+    };
+    final foreignNetQtyByCard = <int, double>{};
+    for (final tx in cariTx) {
+      final foreignCard = foreignCardsById[tx.cariCardId];
+      if (foreignCard == null) continue;
+      final qty = _cariTxQuantity(tx);
+      if (qty == null || qty <= 0) continue;
+      final prev = foreignNetQtyByCard[tx.cariCardId] ?? 0;
+      final next = tx.type == 'debt' ? (prev + qty) : (prev - qty);
+      foreignNetQtyByCard[tx.cariCardId] = next;
+    }
+    double foreignSignedTotal = 0;
+    for (final entry in foreignNetQtyByCard.entries) {
+      final card = foreignCardsById[entry.key];
+      if (card == null) continue;
+      final code = (card.foreignCode ?? '').trim().toUpperCase();
+      if (code.isEmpty) continue;
+      final unitPrice = ratesByCode[code];
+      if (unitPrice == null || unitPrice <= 0) continue;
+      final signedValue = entry.value * unitPrice;
+      foreignSignedTotal += signedValue;
+      cariNetByCard[entry.key] = signedValue;
     }
     final cardNameById = <int, String>{};
     final cardCurrencyById = <int, String>{};
@@ -366,7 +405,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final title = (c.title ?? '').trim();
       final name = full.isNotEmpty ? full : (title.isNotEmpty ? title : 'Cari #${c.id}');
       final currency = _cariCurrencyLabel(c);
-      cardNameById[c.id] = '$name - $currency';
+      cardNameById[c.id] = name;
       cardCurrencyById[c.id] = currency;
     }
     for (final e in cariNetByCard.entries) {
@@ -667,7 +706,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       hasMissingInvestmentPrice = missingInvestmentPrice;
       cariReceivableTotal = cariReceivable;
       cariDebtTotal = cariDebt;
-      cariNetTotal = cariReceivable - cariDebt;
+      cariNetTotal = (cariReceivable - cariDebt) + foreignSignedTotal;
       trackedQuotes = trackedRows;
       plannedIncomeTotal = dueIncomeTotal;
       plannedExpenseTotal = dueExpenseTotal;
@@ -973,13 +1012,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     await _openFromDrawer(const ExpenseCategoryScreen());
                   },
                 ),
-                ListTile(
-                  leading: const Icon(Icons.badge, color: AppColors.brand),
-                  title: const Text('Cari Kartlar'),
-                  onTap: () async {
-                    await _openFromDrawer(const CariCardsScreen());
-                  },
-                ),
               ],
             ),
             ExpansionTile(
@@ -1027,8 +1059,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
             ExpansionTile(
               leading: const Icon(Icons.people_alt_outlined, color: Colors.orange),
-              title: const Text('Cari Kart Özetleri'),
+              title: const Text('Cari Kart İşlemleri'),
               children: [
+                ListTile(
+                  leading: const Icon(Icons.badge, color: AppColors.brand),
+                  title: const Text('Cari Kart Tanım'),
+                  onTap: () async {
+                    await _openFromDrawer(const CariCardsScreen());
+                  },
+                ),
                 ListTile(
                   leading: const Icon(Icons.circle, color: Colors.orange, size: 12),
                   title: const Text('Cari Kart Özet (TL)'),
@@ -1045,6 +1084,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   onTap: () async {
                     await _openFromDrawer(
                       const CariCardSummaryForeignScreen(),
+                      reloadOnReturn: true,
+                    );
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.swap_vert_circle, color: Colors.orange),
+                  title: const Text('Cari Kart İşlem Geçmişi'),
+                  onTap: () async {
+                    await _openFromDrawer(
+                      const CariTransactionsScreen(),
                       reloadOnReturn: true,
                     );
                   },
@@ -1182,7 +1231,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
       ),
       appBar: AppBar(
-        title: const Text('Ana Dashboard'),
+        title: const Text('Finansal Özet'),
       ),
       body: Container(
         decoration: BoxDecoration(
@@ -1234,6 +1283,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
       if (fromRight > 1 && fromRight % 3 == 1) b.write('.');
     }
     return '${b.toString()},$decPart';
+  }
+
+  double? _cariTxQuantity(CariTransaction tx) {
+    final q = tx.quantity;
+    if (q != null && q > 0) return q;
+    final unitPrice = tx.unitPrice;
+    if (unitPrice != null && unitPrice > 0) {
+      final fallback = tx.amount / unitPrice;
+      if (fallback > 0) return fallback;
+    }
+    return null;
   }
 
   String _cariCurrencyLabel(CariCard c) {
@@ -1333,6 +1393,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         final compact = constraints.maxWidth < 760;
         if (compact) {
           return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _buildTypeBalanceCard(
                 title: 'Kasa',
@@ -1574,18 +1635,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       children: [
                         Expanded(
                           child: Text(
-                            r.ownerName,
+                            '${r.ownerName} / ${r.currencyLabel}',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontWeight: FontWeight.w700),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: Colors.black87,
+                            ),
                           ),
                         ),
                         const SizedBox(width: 8),
                         Text(
                           '${r.net >= 0 ? '+' : '-'}${_fmtAmount(r.net.abs())} TL',
+                          textAlign: TextAlign.right,
                           style: TextStyle(
                             fontWeight: FontWeight.w700,
-                            color: r.net >= 0 ? Colors.blue : Colors.orange,
+                            color: r.net >= 0 ? Colors.orange : Colors.blue,
                           ),
                         ),
                       ],

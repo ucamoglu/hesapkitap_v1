@@ -10,6 +10,7 @@ import '../models/account.dart';
 import '../models/investment_transaction.dart';
 import '../services/account_service.dart';
 import '../services/investment_transaction_service.dart';
+import '../services/market_rate_service.dart';
 import '../utils/navigation_helpers.dart';
 
 class InvestmentTrackingScreen extends StatefulWidget {
@@ -25,6 +26,10 @@ class _InvestmentTrackingScreenState extends State<InvestmentTrackingScreen> {
 
   List<InvestmentTransaction> _items = [];
   Map<int, String> _accountNames = {};
+  Map<int, Account> _accountsById = {};
+  Map<String, double> _livePriceBySymbol = {};
+  DateTime? _priceFetchedAt;
+  final Set<String> _expandedPortfolioKeys = <String>{};
 
   @override
   void initState() {
@@ -45,11 +50,73 @@ class _InvestmentTrackingScreenState extends State<InvestmentTrackingScreen> {
       ]);
       final items = results[0] as List<InvestmentTransaction>;
       final accounts = results[1] as List<Account>;
+      final accountsById = {for (final a in accounts) a.id: a};
+
+      final currencySymbols = <String>{};
+      final metalSymbols = <String>{};
+      final stockSymbols = <String>{};
+      final cryptoSymbols = <String>{};
+      for (final a in accounts) {
+        if (a.type != 'investment' || !a.isActive) continue;
+        final symbol = (a.investmentSymbol ?? '').trim().toUpperCase();
+        if (symbol.isEmpty) continue;
+        final subtype = (a.investmentSubtype ?? '').trim().toLowerCase();
+        if (subtype == 'currency') {
+          currencySymbols.add(symbol);
+        } else if (subtype == 'metal') {
+          metalSymbols.add(symbol);
+        } else if (subtype == 'stock') {
+          stockSymbols.add(symbol);
+        } else if (subtype == 'crypto') {
+          cryptoSymbols.add(symbol);
+        }
+      }
+
+      final livePriceBySymbol = <String, double>{};
+      try {
+        final currencies = await MarketRateService.fetchAllCurrencies();
+        for (final r in currencies.items) {
+          final code = r.code.toUpperCase();
+          if (!currencySymbols.contains(code)) continue;
+          final price = r.sell > 0 ? r.sell : r.buy;
+          if (price > 0) livePriceBySymbol[code] = price;
+        }
+      } catch (_) {}
+      try {
+        final metals = await MarketRateService.fetchAllMetals();
+        for (final r in metals.items) {
+          final code = r.code.toUpperCase();
+          if (!metalSymbols.contains(code)) continue;
+          final price = r.sell > 0 ? r.sell : r.buy;
+          if (price > 0) livePriceBySymbol[code] = price;
+        }
+      } catch (_) {}
+      if (stockSymbols.isNotEmpty) {
+        try {
+          final stocks = await MarketRateService.fetchStocksByCodes(stockSymbols.toList());
+          for (final r in stocks) {
+            final price = r.sell > 0 ? r.sell : r.buy;
+            if (price > 0) livePriceBySymbol[r.code.toUpperCase()] = price;
+          }
+        } catch (_) {}
+      }
+      if (cryptoSymbols.isNotEmpty) {
+        try {
+          final cryptos = await MarketRateService.fetchCryptosByCodes(cryptoSymbols.toList());
+          for (final r in cryptos) {
+            final price = r.sell > 0 ? r.sell : r.buy;
+            if (price > 0) livePriceBySymbol[r.code.toUpperCase()] = price;
+          }
+        } catch (_) {}
+      }
 
       if (!mounted) return;
       setState(() {
         _items = items;
         _accountNames = {for (final a in accounts) a.id: a.name};
+        _accountsById = accountsById;
+        _livePriceBySymbol = livePriceBySymbol;
+        _priceFetchedAt = DateTime.now();
         _loading = false;
       });
     } catch (e) {
@@ -95,6 +162,24 @@ class _InvestmentTrackingScreenState extends State<InvestmentTrackingScreen> {
   }
 
   String _fmtQty(double q) => q.toStringAsFixed(4);
+
+  String _fmtSignedMoney(double value) {
+    final sign = value >= 0 ? '+' : '-';
+    return '$sign${_fmtMoney(value.abs())}';
+  }
+
+  String _fmtRateDate() {
+    final d = _priceFetchedAt ?? DateTime.now();
+    return _fmtDate(d);
+  }
+
+  Color _sentimentColor(double value) {
+    return value >= 0 ? Colors.green : Colors.red;
+  }
+
+  String _sentimentLabel(double value) {
+    return value >= 0 ? 'Olumlu' : 'Olumsuz';
+  }
 
   Future<Uint8List> _buildPdf(PdfPageFormat format) async {
     final font = pw.Font.ttf(
@@ -284,15 +369,26 @@ class _InvestmentTrackingScreenState extends State<InvestmentTrackingScreen> {
         if (byName != 0) return byName;
         return a.compareTo(b);
       });
-    final sells = _items.where((e) => _isSell(e.type));
-    final positiveTotal = sells
-        .map((e) => e.realizedPnl)
-        .where((v) => v > 0)
-        .fold<double>(0, (s, v) => s + v);
-    final negativeTotal = sells
-        .map((e) => e.realizedPnl)
-        .where((v) => v < 0)
-        .fold<double>(0, (s, v) => s + v.abs());
+    final lotRowsByKey = <String, List<_LotView>>{};
+    for (final key in orderedKeys) {
+      lotRowsByKey[key] = _buildLotRows(grouped[key]!);
+    }
+    double positiveTotal = 0;
+    double negativeTotal = 0;
+    for (final key in orderedKeys) {
+      final parts = key.split('|');
+      final symbol = parts[1].toUpperCase();
+      final rate = _livePriceBySymbol[symbol];
+      if (rate == null || rate <= 0) continue;
+      final rows = lotRowsByKey[key] ?? const <_LotView>[];
+      final remainingTotal = rows.fold<double>(0, (sum, row) => sum + row.remainingQty);
+      final currentValue = remainingTotal * rate;
+      if (currentValue >= 0) {
+        positiveTotal += currentValue;
+      } else {
+        negativeTotal += currentValue.abs();
+      }
+    }
     final netPnl = positiveTotal - negativeTotal;
 
     return Scaffold(
@@ -370,7 +466,35 @@ class _InvestmentTrackingScreenState extends State<InvestmentTrackingScreen> {
                         final accountId = int.parse(parts[0]);
                         final symbol = parts[1];
                         final accountName = _accountNames[accountId] ?? 'Hesap #$accountId';
-                        final lotRows = _buildLotRows(grouped[key]!);
+                        final account = _accountsById[accountId];
+                        final lotRows = lotRowsByKey[key] ?? const <_LotView>[];
+                        final remainingTotal = lotRows.fold<double>(
+                          0,
+                          (sum, row) => sum + row.remainingQty,
+                        );
+                        final lotPnlTotal = lotRows.fold<double>(
+                          0,
+                          (sum, row) => sum + row.lotPnl,
+                        );
+                        final rate = _livePriceBySymbol[symbol.toUpperCase()];
+                        final currentValue = rate == null ? null : (remainingTotal * rate);
+                        final sentimentValue = currentValue ?? lotPnlTotal;
+                        final isExpanded = _expandedPortfolioKeys.contains(key);
+                        final subtype = (account?.investmentSubtype ?? '').trim().toLowerCase();
+                        final kindLabel = subtype == 'currency'
+                            ? 'Döviz'
+                            : subtype == 'metal'
+                                ? 'Kıymetli Maden'
+                                : subtype == 'stock'
+                                    ? 'Borsa'
+                                    : subtype == 'crypto'
+                                        ? 'Kripto'
+                                        : 'Yatırım';
+                        final amountText = currentValue == null
+                            ? 'Tutar: veri yok'
+                            : 'Tutar: ${_fmtSignedMoney(currentValue)} TL';
+                        final rateText =
+                            rate == null ? 'veri yok' : '${_fmtMoney(rate)} TL';
 
                         return Card(
                           margin: const EdgeInsets.only(bottom: 12),
@@ -379,57 +503,105 @@ class _InvestmentTrackingScreenState extends State<InvestmentTrackingScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  '$accountName • $symbol',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 16,
+                                InkWell(
+                                  onTap: () {
+                                    setState(() {
+                                      if (isExpanded) {
+                                        _expandedPortfolioKeys.remove(key);
+                                      } else {
+                                        _expandedPortfolioKeys.add(key);
+                                      }
+                                    });
+                                  },
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              '$accountName • $symbol',
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.w700,
+                                                fontSize: 16,
+                                              ),
+                                            ),
+                                          ),
+                                          Icon(
+                                            isExpanded
+                                                ? Icons.keyboard_arrow_up
+                                                : Icons.chevron_left,
+                                            color: Colors.black45,
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text('Cins: $kindLabel ($symbol)'),
+                                      Text('Kalan Toplam: ${_fmtQty(remainingTotal)}'),
+                                      Text('Güncel Kur (${_fmtRateDate()}): $rateText'),
+                                      Text(
+                                        'Durum: ${_sentimentLabel(sentimentValue)}',
+                                        style: TextStyle(
+                                          color: _sentimentColor(sentimentValue),
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                      Text(
+                                        amountText,
+                                        style: TextStyle(
+                                          color: _sentimentColor(sentimentValue),
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
-                                const SizedBox(height: 8),
-                                SingleChildScrollView(
-                                  scrollDirection: Axis.horizontal,
-                                  child: DataTable(
-                                    columns: const [
-                                      DataColumn(label: Text('Alış #')),
-                                      DataColumn(label: Text('Tarih')),
-                                      DataColumn(label: Text('Giriş Adet')),
-                                      DataColumn(label: Text('Alış Tutarı')),
-                                      DataColumn(label: Text('Alış Birim')),
-                                      DataColumn(label: Text('Çıkan Adet')),
-                                      DataColumn(label: Text('Satış Tutarı')),
-                                      DataColumn(label: Text('Kalan Adet')),
-                                      DataColumn(label: Text('Lot K/Z')),
-                                    ],
-                                    rows: lotRows
-                                        .map(
-                                          (r) => DataRow(
-                                            cells: [
-                                              DataCell(Text(r.buyTxId.toString())),
-                                              DataCell(Text(_fmtDate(r.buyDate))),
-                                              DataCell(Text(_fmtQty(r.buyQty))),
-                                              DataCell(Text('${_fmtMoney(r.buyTotal)} TL')),
-                                              DataCell(Text('${_fmtMoney(r.buyUnitPrice)} TL')),
-                                              DataCell(Text(_fmtQty(r.soldQty))),
-                                              DataCell(Text('${_fmtMoney(r.soldTotal)} TL')),
-                                              DataCell(Text(_fmtQty(r.remainingQty))),
-                                              DataCell(
-                                                Text(
-                                                  '${r.lotPnl >= 0 ? '+' : '-'}${_fmtMoney(r.lotPnl.abs())} TL',
-                                                  style: TextStyle(
-                                                    color: r.lotPnl >= 0
-                                                        ? Colors.green
-                                                        : Colors.red,
-                                                    fontWeight: FontWeight.w700,
+                                if (isExpanded) ...[
+                                  const SizedBox(height: 8),
+                                  SingleChildScrollView(
+                                    scrollDirection: Axis.horizontal,
+                                    child: DataTable(
+                                      columns: const [
+                                        DataColumn(label: Text('Alış #')),
+                                        DataColumn(label: Text('Tarih')),
+                                        DataColumn(label: Text('Giriş Adet')),
+                                        DataColumn(label: Text('Alış Tutarı')),
+                                        DataColumn(label: Text('Alış Birim')),
+                                        DataColumn(label: Text('Çıkan Adet')),
+                                        DataColumn(label: Text('Satış Tutarı')),
+                                        DataColumn(label: Text('Kalan Adet')),
+                                        DataColumn(label: Text('Lot K/Z')),
+                                      ],
+                                      rows: lotRows
+                                          .map(
+                                            (r) => DataRow(
+                                              cells: [
+                                                DataCell(Text(r.buyTxId.toString())),
+                                                DataCell(Text(_fmtDate(r.buyDate))),
+                                                DataCell(Text(_fmtQty(r.buyQty))),
+                                                DataCell(Text('${_fmtMoney(r.buyTotal)} TL')),
+                                                DataCell(Text('${_fmtMoney(r.buyUnitPrice)} TL')),
+                                                DataCell(Text(_fmtQty(r.soldQty))),
+                                                DataCell(Text('${_fmtMoney(r.soldTotal)} TL')),
+                                                DataCell(Text(_fmtQty(r.remainingQty))),
+                                                DataCell(
+                                                  Text(
+                                                    '${r.lotPnl >= 0 ? '+' : '-'}${_fmtMoney(r.lotPnl.abs())} TL',
+                                                    style: TextStyle(
+                                                      color: r.lotPnl >= 0
+                                                          ? Colors.green
+                                                          : Colors.red,
+                                                      fontWeight: FontWeight.w700,
+                                                    ),
                                                   ),
                                                 ),
-                                              ),
-                                            ],
-                                          ),
-                                        )
-                                        .toList(),
+                                              ],
+                                            ),
+                                          )
+                                          .toList(),
+                                    ),
                                   ),
-                                ),
+                                ],
                               ],
                             ),
                           ),

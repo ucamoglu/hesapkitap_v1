@@ -448,7 +448,12 @@ class _CariAccountScreenState extends State<CariAccountScreen> {
     return Scaffold(
       drawer: buildAppMenuDrawer(),
       appBar: AppBar(
-        leading: _isEditMode ? const BackButton() : buildMenuLeading(),
+        leading: _isEditMode
+            ? const BackButton()
+            : IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () => popToDashboard(context),
+              ),
         title: Text(_isEditMode ? 'Cari İşlem Düzenle' : 'Cari Hesap'),
         actions: [buildHomeAction(context)],
       ),

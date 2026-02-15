@@ -225,12 +225,38 @@ class _CariCardSummaryForeignScreenState extends State<CariCardSummaryForeignScr
     return '$d.$m.${dt.year} $h:$min';
   }
 
+  String _fmtDate(DateTime dt) {
+    final d = dt.day.toString().padLeft(2, '0');
+    final m = dt.month.toString().padLeft(2, '0');
+    return '$d.$m.${dt.year}';
+  }
+
   String _fmtQuantity(double value) {
     var s = value.toStringAsFixed(4);
     while (s.contains('.') && (s.endsWith('0') || s.endsWith('.'))) {
       s = s.substring(0, s.length - 1);
     }
     return s.replaceAll('.', ',');
+  }
+
+  String _fmtSignedQuantity(double value) {
+    final sign = value > 0 ? '+' : (value < 0 ? '-' : '');
+    return '$sign${_fmtQuantity(value.abs())}';
+  }
+
+  String _fmtSignedAmount(double value) {
+    final sign = value > 0 ? '+' : (value < 0 ? '-' : '');
+    return '$sign${_fmtAmount(value.abs())}';
+  }
+
+  String _sentimentLabel(double? value) {
+    if (value == null) return 'Bilinmiyor';
+    return value >= 0 ? 'Olumlu' : 'Olumsuz';
+  }
+
+  Color _sentimentColor(double? value) {
+    if (value == null) return Colors.black54;
+    return value >= 0 ? Colors.green : Colors.red;
   }
 
   List<_CariLotView> _buildCariLotRows(List<CariTransaction> txs) {
@@ -242,51 +268,60 @@ class _CariCardSummaryForeignScreenState extends State<CariCardSummaryForeignScr
       });
 
     final lots = <_CariLotView>[];
+    final openLotQueue = <int>[];
+    const eps = 1e-9;
+
     for (final tx in sorted) {
       final qty = _txQuantity(tx);
       if (qty == null || qty <= 0) continue;
       final unitPrice = (tx.unitPrice != null && tx.unitPrice! > 0)
           ? tx.unitPrice!
           : (tx.amount / qty);
+      final txIsDebt = tx.type == 'debt';
+      var remaining = qty;
 
-      if (tx.type == 'collection') {
+      while (remaining > eps && openLotQueue.isNotEmpty) {
+        final lotIndex = openLotQueue.first;
+        final lot = lots[lotIndex];
+        if (lot.isDebtEntry == txIsDebt) break;
+        if (lot.remainingQty <= eps) {
+          openLotQueue.removeAt(0);
+          continue;
+        }
+
+        final used = remaining <= lot.remainingQty ? remaining : lot.remainingQty;
+        final exitTotal = used * unitPrice;
+        final pnlPart = (used * lot.buyUnitPrice) - exitTotal;
+
+        lots[lotIndex] = lot.copyWith(
+          soldQty: lot.soldQty + used,
+          soldTotal: lot.soldTotal + exitTotal,
+          remainingQty: lot.remainingQty - used,
+          lotPnl: lot.lotPnl + pnlPart,
+        );
+
+        remaining -= used;
+        if (lots[lotIndex].remainingQty <= eps) {
+          openLotQueue.removeAt(0);
+        }
+      }
+
+      if (remaining > eps) {
         lots.add(
           _CariLotView(
             buyTxId: tx.id,
             buyDate: tx.date,
-            buyQty: qty,
-            buyTotal: tx.amount,
+            buyQty: remaining,
+            buyTotal: remaining * unitPrice,
             buyUnitPrice: unitPrice,
             soldQty: 0,
             soldTotal: 0,
-            remainingQty: qty,
+            remainingQty: remaining,
             lotPnl: 0,
+            isDebtEntry: txIsDebt,
           ),
         );
-        continue;
-      }
-
-      if (tx.type == 'debt') {
-        var remainingSellQty = qty;
-        for (int i = 0; i < lots.length; i++) {
-          if (remainingSellQty <= 1e-9) break;
-          final lot = lots[i];
-          if (lot.remainingQty <= 1e-9) continue;
-
-          final used = remainingSellQty <= lot.remainingQty
-              ? remainingSellQty
-              : lot.remainingQty;
-          final sellPartTotal = used * unitPrice;
-          final pnlPart = used * (unitPrice - lot.buyUnitPrice);
-
-          lots[i] = lot.copyWith(
-            soldQty: lot.soldQty + used,
-            soldTotal: lot.soldTotal + sellPartTotal,
-            remainingQty: lot.remainingQty - used,
-            lotPnl: lot.lotPnl + pnlPart,
-          );
-          remainingSellQty -= used;
-        }
+        openLotQueue.add(lots.length - 1);
       }
     }
     return lots;
@@ -343,11 +378,11 @@ class _CariCardSummaryForeignScreenState extends State<CariCardSummaryForeignScr
           ? tx.unitPrice!
           : (tx.amount / q);
 
-      // Cari dış finans rapor mantığı (miktar):
-      // gelen (collection): birim artar (+)
-      // giden (debt): birim azalır (-)
-      double delta = tx.type == 'collection' ? q : -q;
-      if (tx.type == 'collection') {
+      // Cari bakiye işaret kuralı:
+      // debt (+): borcum artar
+      // collection (-): alacağım artar
+      double delta = tx.type == 'debt' ? q : -q;
+      if (tx.type == 'debt') {
         inQty += q;
         inTl += tx.amount;
       } else {
@@ -382,9 +417,8 @@ class _CariCardSummaryForeignScreenState extends State<CariCardSummaryForeignScr
     }
 
     final displayNetQty = inQty - outQty;
-    final positionQty = lots.fold<double>(0, (sum, l) => sum + l.qtySigned);
     final openCostTl = lots.fold<double>(0, (sum, l) => sum + (l.qtySigned * l.unitPrice));
-    final currentValue = currentUnitPrice == null ? null : (positionQty * currentUnitPrice);
+    final currentValue = currentUnitPrice == null ? null : (displayNetQty * currentUnitPrice);
     final unrealizedPnl = currentValue == null ? null : (currentValue - openCostTl);
     final totalPnl = unrealizedPnl == null ? null : (realizedPnl + unrealizedPnl);
     return _ForeignMetrics(
@@ -632,10 +666,15 @@ class _CariCardSummaryForeignScreenState extends State<CariCardSummaryForeignScr
                           ...groupedItems[group]!.map((item) {
                             final m = item.metrics;
                             final unit = _unitLabel(item.card);
+                            final instrumentName = _currencyLabel(item.card);
                             final isExpanded = _expandedTrackCards.contains(item.card.id);
                             final valueText = m.currentValueTl == null
                                 ? 'Tutar: veri yok'
-                                : 'Tutar: ${_fmtAmount(m.currentValueTl!)} TL';
+                                : 'Tutar: ${_fmtSignedAmount(m.currentValueTl!)} TL';
+                            final rateText = m.currentUnitPrice == null
+                                ? 'veri yok'
+                                : '${_fmtAmount(m.currentUnitPrice!)} TL';
+                            final sentimentColor = _sentimentColor(m.currentValueTl);
                             return Dismissible(
                               key: ValueKey('cari-summary-$group-${item.card.id}'),
                               direction: DismissDirection.endToStart,
@@ -659,7 +698,7 @@ class _CariCardSummaryForeignScreenState extends State<CariCardSummaryForeignScr
                               child: Card(
                                 child: Column(
                                   children: [
-                                    ListTile(
+                                    InkWell(
                                       onTap: () {
                                         setState(() {
                                           if (isExpanded) {
@@ -669,41 +708,76 @@ class _CariCardSummaryForeignScreenState extends State<CariCardSummaryForeignScr
                                           }
                                         });
                                       },
-                                      title: Text(
-                                        _cardName(item.card),
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w600,
-                                          decoration:
-                                              item.card.isActive ? null : TextDecoration.lineThrough,
-                                        ),
-                                      ),
-                                      subtitle: Text(
-                                        'Kalan Miktar: ${_fmtQuantity(m.netQty)} $unit\n'
-                                        '$valueText',
-                                      ),
-                                      isThreeLine: false,
-                                      trailing: Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        crossAxisAlignment: CrossAxisAlignment.end,
-                                        children: [
-                                          Icon(
-                                            isExpanded
-                                                ? Icons.keyboard_arrow_up
-                                                : Icons.chevron_left,
-                                            size: 20,
-                                            color: Colors.black45,
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            valueText,
-                                            style: TextStyle(
-                                              color: m.currentValueTl == null
-                                                  ? Colors.black54
-                                                  : Colors.blue,
-                                              fontWeight: FontWeight.bold,
+                                      child: Padding(
+                                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Row(
+                                              children: [
+                                                Expanded(
+                                                  child: Text(
+                                                    _cardName(item.card),
+                                                    style: TextStyle(
+                                                      fontWeight: FontWeight.w600,
+                                                      decoration: item.card.isActive
+                                                          ? null
+                                                          : TextDecoration.lineThrough,
+                                                    ),
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 8),
+                                                Column(
+                                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                                  children: [
+                                                    Icon(
+                                                      isExpanded
+                                                          ? Icons.keyboard_arrow_up
+                                                          : Icons.chevron_left,
+                                                      size: 20,
+                                                      color: Colors.black45,
+                                                    ),
+                                                    const SizedBox(height: 4),
+                                                    Text(
+                                                      valueText,
+                                                      style: TextStyle(
+                                                        color: sentimentColor,
+                                                        fontWeight: FontWeight.bold,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ],
                                             ),
-                                          ),
-                                        ],
+                                            const SizedBox(height: 8),
+                                            Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Text('Cins: $instrumentName'),
+                                                Text(
+                                                  'Kalan Toplam: ${_fmtSignedQuantity(m.netQty)} $unit',
+                                                ),
+                                                Text(
+                                                  'Güncel Kur (${_fmtDate(DateTime.now())}): $rateText',
+                                                ),
+                                                Text(
+                                                  'Durum: ${_sentimentLabel(m.currentValueTl)}',
+                                                  style: TextStyle(
+                                                    color: sentimentColor,
+                                                    fontWeight: FontWeight.w700,
+                                                  ),
+                                                ),
+                                                Text(
+                                                  valueText,
+                                                  style: TextStyle(
+                                                    color: sentimentColor,
+                                                    fontWeight: FontWeight.w700,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ],
+                                        ),
                                       ),
                                     ),
                                     if (isExpanded) ...[
@@ -729,13 +803,13 @@ class _CariCardSummaryForeignScreenState extends State<CariCardSummaryForeignScr
                                               scrollDirection: Axis.horizontal,
                                               child: DataTable(
                                                 columns: const [
-                                                  DataColumn(label: Text('Alış #')),
+                                                  DataColumn(label: Text('Giriş #')),
                                                   DataColumn(label: Text('Tarih')),
                                                   DataColumn(label: Text('Giriş Adet')),
-                                                  DataColumn(label: Text('Alış Tutarı')),
-                                                  DataColumn(label: Text('Alış Birim')),
+                                                  DataColumn(label: Text('Giriş Tutarı')),
+                                                  DataColumn(label: Text('Giriş Birim')),
                                                   DataColumn(label: Text('Çıkan Adet')),
-                                                  DataColumn(label: Text('Satış Tutarı')),
+                                                  DataColumn(label: Text('Çıkış Tutarı')),
                                                   DataColumn(label: Text('Kalan Adet')),
                                                   DataColumn(label: Text('Lot K/Z')),
                                                 ],
@@ -854,6 +928,7 @@ class _CariLotView {
   final double soldTotal;
   final double remainingQty;
   final double lotPnl;
+  final bool isDebtEntry;
 
   const _CariLotView({
     required this.buyTxId,
@@ -865,6 +940,7 @@ class _CariLotView {
     required this.soldTotal,
     required this.remainingQty,
     required this.lotPnl,
+    required this.isDebtEntry,
   });
 
   _CariLotView copyWith({
@@ -883,6 +959,7 @@ class _CariLotView {
       soldTotal: soldTotal ?? this.soldTotal,
       remainingQty: remainingQty ?? this.remainingQty,
       lotPnl: lotPnl ?? this.lotPnl,
+      isDebtEntry: isDebtEntry,
     );
   }
 }

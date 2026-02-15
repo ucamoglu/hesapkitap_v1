@@ -148,7 +148,10 @@ class _TransferEntryScreenState extends State<TransferEntryScreen> {
     return Scaffold(
       drawer: buildAppMenuDrawer(),
       appBar: AppBar(
-        leading: buildMenuLeading(),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => popToDashboard(context),
+        ),
         title: const Text('Transfer'),
         actions: [buildHomeAction(context)],
       ),

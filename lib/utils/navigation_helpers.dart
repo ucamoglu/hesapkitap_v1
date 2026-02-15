@@ -9,6 +9,7 @@ import '../screens/calendar_transactions_screen.dart';
 import '../screens/cari_card_summary_screen.dart';
 import '../screens/cari_card_summary_foreign_screen.dart';
 import '../screens/cari_cards_screen.dart';
+import '../screens/cari_transactions_screen.dart';
 import '../screens/crypto_tracking_screen.dart';
 import '../screens/currency_tracking_screen.dart';
 import '../screens/expense_category_screen.dart';
@@ -23,7 +24,7 @@ import '../screens/stock_tracking_screen.dart';
 import '../services/user_profile_service.dart';
 import '../theme/app_colors.dart';
 
-enum _MenuSection { definition, transactions, planning, rates }
+enum _MenuSection { definition, transactions, cariOperations, planning, rates }
 
 _MenuSection? _lastExpandedSection;
 
@@ -33,6 +34,7 @@ enum _MenuItem {
   incomeCategories,
   expenseCategories,
   cariCards,
+  cariTransactionsHistory,
   transactionsHistory,
   accountHistory,
   investmentTracking,
@@ -74,7 +76,12 @@ void rememberDrawerSelectionForScreen(Widget screen) {
   }
   if (screen is CariCardsScreen) {
     _lastSelectedMenuItem = _MenuItem.cariCards;
-    _lastExpandedSection = _MenuSection.definition;
+    _lastExpandedSection = _MenuSection.cariOperations;
+    return;
+  }
+  if (screen is CariTransactionsScreen) {
+    _lastSelectedMenuItem = _MenuItem.cariTransactionsHistory;
+    _lastExpandedSection = _MenuSection.cariOperations;
     return;
   }
   if (screen is IncomeExpenseTransactionsScreen) {
@@ -99,12 +106,12 @@ void rememberDrawerSelectionForScreen(Widget screen) {
   }
   if (screen is CariCardSummaryScreen) {
     _lastSelectedMenuItem = _MenuItem.cariSummary;
-    _lastExpandedSection = null;
+    _lastExpandedSection = _MenuSection.cariOperations;
     return;
   }
   if (screen is CariCardSummaryForeignScreen) {
     _lastSelectedMenuItem = _MenuItem.cariSummaryForeign;
-    _lastExpandedSection = null;
+    _lastExpandedSection = _MenuSection.cariOperations;
     return;
   }
   if (screen is IncomePlanningScreen) {
@@ -437,19 +444,6 @@ class _AppMenuDrawerState extends State<_AppMenuDrawer> {
                   _openScreen(const ExpenseCategoryScreen());
                 },
               ),
-              _menuItem(
-                item: _MenuItem.cariCards,
-                icon: Icons.badge,
-                color: AppColors.brand,
-                title: 'Cari Kartlar',
-                onTap: () {
-                  _rememberSelection(
-                    item: _MenuItem.cariCards,
-                    section: _MenuSection.definition,
-                  );
-                  _openScreen(const CariCardsScreen());
-                },
-              ),
             ],
           ),
           ExpansionTile(
@@ -520,10 +514,32 @@ class _AppMenuDrawerState extends State<_AppMenuDrawer> {
           ),
           ExpansionTile(
             leading: const Icon(Icons.people_alt_outlined, color: Colors.orange),
-            title: const Text('Cari Kart Özetleri'),
-            initiallyExpanded: _lastSelectedMenuItem == _MenuItem.cariSummary ||
+            title: const Text('Cari Kart İşlemleri'),
+            initiallyExpanded: _lastExpandedSection == _MenuSection.cariOperations ||
+                _lastSelectedMenuItem == _MenuItem.cariTransactionsHistory ||
+                _lastSelectedMenuItem == _MenuItem.cariSummary ||
                 _lastSelectedMenuItem == _MenuItem.cariSummaryForeign,
+            onExpansionChanged: (expanded) {
+              if (expanded) {
+                _lastExpandedSection = _MenuSection.cariOperations;
+              } else if (_lastExpandedSection == _MenuSection.cariOperations) {
+                _lastExpandedSection = null;
+              }
+            },
             children: [
+              _menuItem(
+                item: _MenuItem.cariCards,
+                icon: Icons.badge,
+                color: AppColors.brand,
+                title: 'Cari Kart Tanım',
+                onTap: () {
+                  _rememberSelection(
+                    item: _MenuItem.cariCards,
+                    section: _MenuSection.cariOperations,
+                  );
+                  _openScreen(const CariCardsScreen());
+                },
+              ),
               _menuItem(
                 item: _MenuItem.cariSummary,
                 icon: Icons.circle,
@@ -542,6 +558,19 @@ class _AppMenuDrawerState extends State<_AppMenuDrawer> {
                 onTap: () {
                   _rememberSelection(item: _MenuItem.cariSummaryForeign);
                   _openScreen(const CariCardSummaryForeignScreen());
+                },
+              ),
+              _menuItem(
+                item: _MenuItem.cariTransactionsHistory,
+                icon: Icons.swap_vert_circle,
+                color: Colors.orange,
+                title: 'Cari Kart İşlem Geçmişi',
+                onTap: () {
+                  _rememberSelection(
+                    item: _MenuItem.cariTransactionsHistory,
+                    section: _MenuSection.cariOperations,
+                  );
+                  _openScreen(const CariTransactionsScreen());
                 },
               ),
             ],
