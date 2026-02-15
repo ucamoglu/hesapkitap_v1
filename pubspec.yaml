@@ -1,0 +1,41 @@
+name: hesapkitap_v1
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  isar: ^3.1.0
+  isar_flutter_libs: ^3.1.0
+  path_provider: ^2.1.2
+  intl: ^0.20.2
+  file_picker: ^8.1.4
+  image_picker: ^1.1.2
+  flutter_local_notifications: ^19.4.0
+  flutter_timezone: ^4.1.1
+  pdf: ^3.11.3
+  printing: ^5.14.2
+  table_calendar: ^3.1.2
+  timezone: ^0.10.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+  isar_generator: ^3.1.0
+  build_runner: ^2.4.6
+
+flutter:
+  uses-material-design: true
+  fonts:
+    - family: RobotoPdf
+      fonts:
+        - asset: assets/fonts/Roboto-Regular.ttf
+        - asset: assets/fonts/Roboto-Bold.ttf
+          weight: 700
