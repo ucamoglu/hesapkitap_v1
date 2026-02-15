@@ -56,4 +56,30 @@ class TransferTransactionService {
     items.sort((a, b) => b.date.compareTo(a.date));
     return items;
   }
+
+  static Future<TransferTransaction> deleteAndReturn(int transactionId) async {
+    final isar = IsarService.isar;
+    late TransferTransaction deleted;
+
+    await isar.writeTxn(() async {
+      final tx = await isar.transferTransactions.get(transactionId);
+      if (tx == null) throw Exception('Transfer işlemi bulunamadı.');
+
+      final from = await isar.accounts.get(tx.fromAccountId);
+      final to = await isar.accounts.get(tx.toAccountId);
+      if (from == null || to == null) {
+        throw Exception('Transfer hesapları bulunamadı.');
+      }
+
+      from.balance += tx.amount;
+      to.balance -= tx.amount;
+
+      await isar.accounts.put(from);
+      await isar.accounts.put(to);
+      await isar.transferTransactions.delete(tx.id);
+      deleted = tx;
+    });
+
+    return deleted;
+  }
 }

@@ -11,6 +11,7 @@ import '../models/investment_transaction.dart';
 import '../screens/cari_account_screen.dart';
 import '../screens/expense_entry_screen.dart';
 import '../screens/income_entry_screen.dart';
+import '../screens/investment_entry_screen.dart';
 import '../services/account_service.dart';
 import '../services/cari_card_service.dart';
 import '../services/cari_transaction_service.dart';
@@ -60,6 +61,8 @@ class _CalendarTransactionsScreenState extends State<CalendarTransactionsScreen>
   Map<int, String> _expenseCategoryNames = {};
   Map<int, String> _cariCardNames = {};
   Map<int, String> _cariRawTypeByTxId = {};
+  Map<int, CariTransaction> _cariTxBySyntheticId = {};
+  Map<int, InvestmentTransaction> _investmentById = {};
   Map<int, _InvestmentCalendarMeta> _investmentMetaByTxId = {};
 
   @override
@@ -149,6 +152,10 @@ class _CalendarTransactionsScreenState extends State<CalendarTransactionsScreen>
         _cariRawTypeByTxId = {
           for (final c in cariTx) -(c.id + 1): c.type,
         };
+        _cariTxBySyntheticId = {
+          for (final c in cariTx) -(c.id + 1): c,
+        };
+        _investmentById = {for (final it in investmentTx) it.id: it};
         _investmentMetaByTxId = mappedInvestment.$2;
         _loading = false;
       });
@@ -306,6 +313,7 @@ class _CalendarTransactionsScreenState extends State<CalendarTransactionsScreen>
         isAssetSide: false,
         linkedAccountName:
             accountNames[it.investmentAccountId] ?? 'Yatırım #${it.investmentAccountId}',
+        investmentTransactionId: it.id,
       );
 
       final asset = FinanceTransaction()
@@ -325,10 +333,93 @@ class _CalendarTransactionsScreenState extends State<CalendarTransactionsScreen>
         isAssetSide: true,
         linkedAccountName:
             accountNames[it.cashAccountId] ?? 'Hesap #${it.cashAccountId}',
+        investmentTransactionId: it.id,
       );
     }
 
     return (result, metaById);
+  }
+
+  Future<void> _editTransaction(FinanceTransaction tx) async {
+    bool? changed;
+    final invMeta = _investmentMetaByTxId[tx.id];
+    if (invMeta != null) {
+      final invTx = _investmentById[invMeta.investmentTransactionId];
+      if (invTx == null) return;
+      changed = await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => InvestmentEntryScreen(initialTransaction: invTx),
+        ),
+      );
+    } else if (_isCariTx(tx)) {
+      final cariTx = _cariTxBySyntheticId[tx.id];
+      if (cariTx == null) return;
+      changed = await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => CariAccountScreen(initialTransaction: cariTx),
+        ),
+      );
+    } else {
+      changed = await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => tx.type == 'income'
+              ? IncomeEntryScreen(initialTransaction: tx)
+              : ExpenseEntryScreen(initialTransaction: tx),
+        ),
+      );
+    }
+    if (changed == true && mounted) {
+      await _load();
+    }
+  }
+
+  Future<void> _deleteTransaction(FinanceTransaction tx) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('İşlemi Sil'),
+        content: const Text('Bu işlem silinsin mi?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Vazgeç'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Sil'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+
+    try {
+      final invMeta = _investmentMetaByTxId[tx.id];
+      if (invMeta != null) {
+        await InvestmentTransactionService.deleteAndReturn(
+          invMeta.investmentTransactionId,
+        );
+      } else if (_isCariTx(tx)) {
+        final cariId = -tx.id - 1;
+        await CariTransactionService.deleteAndReturn(cariId);
+      } else {
+        await FinanceTransactionService.deleteAndReturn(tx.id);
+      }
+      if (!mounted) return;
+      await _load();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('İşlem silindi.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Silme hatası: $e')),
+      );
+    }
   }
 
   Future<void> _openManualTransactionMenu() async {
@@ -843,12 +934,36 @@ class _CalendarTransactionsScreenState extends State<CalendarTransactionsScreen>
                                       'Açıklama: ${(tx.description ?? '').trim().isEmpty ? '-' : tx.description!.trim()}',
                                     ),
                                     isThreeLine: true,
-                                    trailing: Text(
-                                      amountText,
-                                      style: TextStyle(
-                                        color: isIncome ? Colors.green : Colors.red,
-                                        fontWeight: FontWeight.bold,
-                                      ),
+                                    trailing: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          amountText,
+                                          style: TextStyle(
+                                            color: isIncome ? Colors.green : Colors.red,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                        PopupMenuButton<String>(
+                                          onSelected: (v) async {
+                                            if (v == 'edit') {
+                                              await _editTransaction(tx);
+                                            } else if (v == 'delete') {
+                                              await _deleteTransaction(tx);
+                                            }
+                                          },
+                                          itemBuilder: (_) => const [
+                                            PopupMenuItem<String>(
+                                              value: 'edit',
+                                              child: Text('Düzenle'),
+                                            ),
+                                            PopupMenuItem<String>(
+                                              value: 'delete',
+                                              child: Text('Sil'),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
                                     ),
                                   ),
                                   const Divider(height: 1),
@@ -903,11 +1018,13 @@ class _InvestmentCalendarMeta {
   final String rawType;
   final bool isAssetSide;
   final String linkedAccountName;
+  final int investmentTransactionId;
 
   const _InvestmentCalendarMeta({
     required this.symbol,
     required this.rawType,
     required this.isAssetSide,
     required this.linkedAccountName,
+    required this.investmentTransactionId,
   });
 }

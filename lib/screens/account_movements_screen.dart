@@ -12,6 +12,10 @@ import '../models/cari_transaction.dart';
 import '../models/finance_transaction.dart';
 import '../models/investment_transaction.dart';
 import '../models/transfer_transaction.dart';
+import 'cari_account_screen.dart';
+import 'expense_entry_screen.dart';
+import 'income_entry_screen.dart';
+import 'investment_entry_screen.dart';
 import '../services/account_service.dart';
 import '../services/cari_card_service.dart';
 import '../services/cari_transaction_service.dart';
@@ -21,6 +25,7 @@ import '../services/transfer_transaction_service.dart';
 import '../utils/navigation_helpers.dart';
 
 enum _DatePreset { all, day, week, month, year, custom }
+enum _MovementSourceType { finance, cari, transfer, investment }
 
 class AccountMovementsScreen extends StatefulWidget {
   const AccountMovementsScreen({super.key});
@@ -36,6 +41,9 @@ class _AccountMovementsScreenState extends State<AccountMovementsScreen> {
   List<Account> _accounts = [];
   Map<int, List<_AccountMovement>> _movementsByAccount = {};
   Map<int, double> _displayBalanceByAccount = {};
+  Map<int, FinanceTransaction> _financeById = {};
+  Map<int, CariTransaction> _cariById = {};
+  Map<int, InvestmentTransaction> _investmentById = {};
 
   int? _selectedAccountId;
   _DatePreset _datePreset = _DatePreset.month;
@@ -86,6 +94,9 @@ class _AccountMovementsScreenState extends State<AccountMovementsScreen> {
       final transfer = results[3] as List<TransferTransaction>;
       final investment = results[4] as List<InvestmentTransaction>;
       final cards = results[5] as List<CariCard>;
+      final financeById = {for (final tx in finance) tx.id: tx};
+      final cariById = {for (final tx in cari) tx.id: tx};
+      final investmentById = {for (final tx in investment) tx.id: tx};
 
       final cardNames = <int, String>{
         for (final c in cards)
@@ -114,6 +125,8 @@ class _AccountMovementsScreenState extends State<AccountMovementsScreen> {
                 ? '-'
                 : tx.description!.trim(),
             sourceLabel: 'Finans',
+            sourceType: _MovementSourceType.finance,
+            sourceId: tx.id,
           ),
         );
       }
@@ -130,6 +143,8 @@ class _AccountMovementsScreenState extends State<AccountMovementsScreen> {
                 ? '-'
                 : tx.description!.trim(),
             sourceLabel: cardNames[tx.cariCardId] ?? 'Cari #${tx.cariCardId}',
+            sourceType: _MovementSourceType.cari,
+            sourceId: tx.id,
           ),
         );
       }
@@ -146,6 +161,8 @@ class _AccountMovementsScreenState extends State<AccountMovementsScreen> {
                   ? '-'
                   : tx.description!.trim(),
               sourceLabel: 'Alıcı: ${accountNames[tx.toAccountId] ?? tx.toAccountId}',
+              sourceType: _MovementSourceType.transfer,
+              sourceId: tx.id,
             ),
           );
         }
@@ -160,6 +177,8 @@ class _AccountMovementsScreenState extends State<AccountMovementsScreen> {
                   : tx.description!.trim(),
               sourceLabel:
                   'Gönderen: ${accountNames[tx.fromAccountId] ?? tx.fromAccountId}',
+              sourceType: _MovementSourceType.transfer,
+              sourceId: tx.id,
             ),
           );
         }
@@ -192,6 +211,8 @@ class _AccountMovementsScreenState extends State<AccountMovementsScreen> {
               amountSigned: cashSigned,
               description: detail,
               sourceLabel: 'Yatırım: $investmentAccountName',
+              sourceType: _MovementSourceType.investment,
+              sourceId: tx.id,
             ),
           );
         }
@@ -203,6 +224,8 @@ class _AccountMovementsScreenState extends State<AccountMovementsScreen> {
               amountSigned: isBuy ? tx.total : -tx.total,
               description: detail,
               sourceLabel: 'Nakit: $cashAccountName',
+              sourceType: _MovementSourceType.investment,
+              sourceId: tx.id,
             ),
           );
 
@@ -223,6 +246,9 @@ class _AccountMovementsScreenState extends State<AccountMovementsScreen> {
         _accounts = accounts;
         _movementsByAccount = movementMap;
         _displayBalanceByAccount = displayBalanceMap;
+        _financeById = financeById;
+        _cariById = cariById;
+        _investmentById = investmentById;
         _selectedAccountId = _resolveSelectedAccountId(_selectedAccountId, accounts);
         _loading = false;
       });
@@ -555,6 +581,93 @@ class _AccountMovementsScreenState extends State<AccountMovementsScreen> {
     ];
   }
 
+  Future<void> _editMovement(_AccountMovement movement) async {
+    bool? changed;
+    if (movement.sourceType == _MovementSourceType.finance) {
+      final tx = _financeById[movement.sourceId];
+      if (tx == null) return;
+      changed = await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => tx.type == 'income'
+              ? IncomeEntryScreen(initialTransaction: tx)
+              : ExpenseEntryScreen(initialTransaction: tx),
+        ),
+      );
+    } else if (movement.sourceType == _MovementSourceType.cari) {
+      final tx = _cariById[movement.sourceId];
+      if (tx == null) return;
+      changed = await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => CariAccountScreen(initialTransaction: tx),
+        ),
+      );
+    } else if (movement.sourceType == _MovementSourceType.investment) {
+      final tx = _investmentById[movement.sourceId];
+      if (tx == null) return;
+      changed = await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => InvestmentEntryScreen(initialTransaction: tx),
+        ),
+      );
+    } else {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Transfer düzenleme bu ekranda yok.')),
+      );
+      return;
+    }
+    if (changed == true && mounted) {
+      await _load();
+    }
+  }
+
+  Future<void> _deleteMovement(_AccountMovement movement) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('İşlemi Sil'),
+        content: const Text('Bu işlem silinsin mi?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Vazgeç'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Sil'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+
+    try {
+      if (movement.sourceType == _MovementSourceType.finance) {
+        await FinanceTransactionService.deleteAndReturn(movement.sourceId);
+      } else if (movement.sourceType == _MovementSourceType.cari) {
+        await CariTransactionService.deleteAndReturn(movement.sourceId);
+      } else if (movement.sourceType == _MovementSourceType.transfer) {
+        await TransferTransactionService.deleteAndReturn(movement.sourceId);
+      } else {
+        await InvestmentTransactionService.deleteAndReturn(movement.sourceId);
+      }
+      if (!mounted) return;
+      await _load();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('İşlem silindi.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Silme hatası: $e')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final account = _selectedAccount();
@@ -827,13 +940,36 @@ class _AccountMovementsScreenState extends State<AccountMovementsScreen> {
                                           '${_fmtDateTime(m.date)}\nAçıklama: ${m.description}',
                                         ),
                                         isThreeLine: true,
-                                        trailing: Text(
-                                          '${positive ? '+' : '-'}${_fmtAmount(m.amountSigned.abs())} TL',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            color:
-                                                positive ? Colors.green : Colors.red,
-                                          ),
+                                        trailing: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(
+                                              '${positive ? '+' : '-'}${_fmtAmount(m.amountSigned.abs())} TL',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                color: positive ? Colors.green : Colors.red,
+                                              ),
+                                            ),
+                                            PopupMenuButton<String>(
+                                              onSelected: (v) async {
+                                                if (v == 'edit') {
+                                                  await _editMovement(m);
+                                                } else if (v == 'delete') {
+                                                  await _deleteMovement(m);
+                                                }
+                                              },
+                                              itemBuilder: (_) => [
+                                                const PopupMenuItem<String>(
+                                                  value: 'edit',
+                                                  child: Text('Düzenle'),
+                                                ),
+                                                const PopupMenuItem<String>(
+                                                  value: 'delete',
+                                                  child: Text('Sil'),
+                                                ),
+                                              ],
+                                            ),
+                                          ],
                                         ),
                                       ),
                                     );
@@ -852,6 +988,8 @@ class _AccountMovement {
   final String sourceLabel;
   final String description;
   final double amountSigned;
+  final _MovementSourceType sourceType;
+  final int sourceId;
 
   const _AccountMovement({
     required this.date,
@@ -859,5 +997,7 @@ class _AccountMovement {
     required this.sourceLabel,
     required this.description,
     required this.amountSigned,
+    required this.sourceType,
+    required this.sourceId,
   });
 }

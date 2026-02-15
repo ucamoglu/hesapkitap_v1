@@ -161,6 +161,7 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
+  static const double _zeroEpsilon = 1e-9;
   int totalAccounts = 0;
   int cashBankAccounts = 0;
   int investmentAccounts = 0;
@@ -386,7 +387,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final next = tx.type == 'debt' ? (prev + qty) : (prev - qty);
       foreignNetQtyByCard[tx.cariCardId] = next;
     }
-    double foreignSignedTotal = 0;
     for (final entry in foreignNetQtyByCard.entries) {
       final card = foreignCardsById[entry.key];
       if (card == null) continue;
@@ -395,7 +395,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final unitPrice = ratesByCode[code];
       if (unitPrice == null || unitPrice <= 0) continue;
       final signedValue = entry.value * unitPrice;
-      foreignSignedTotal += signedValue;
       cariNetByCard[entry.key] = signedValue;
     }
     final cardNameById = <int, String>{};
@@ -417,6 +416,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
       );
     }
+    final cariNetPreviewTotal = cariRows.fold<double>(0, (sum, row) => sum + row.net);
     cariRows.sort((a, b) {
       if (a.currencyLabel == b.currencyLabel) {
         return a.ownerName.compareTo(b.ownerName);
@@ -706,7 +706,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       hasMissingInvestmentPrice = missingInvestmentPrice;
       cariReceivableTotal = cariReceivable;
       cariDebtTotal = cariDebt;
-      cariNetTotal = (cariReceivable - cariDebt) + foreignSignedTotal;
+      cariNetTotal = cariNetPreviewTotal;
       trackedQuotes = trackedRows;
       plannedIncomeTotal = dueIncomeTotal;
       plannedExpenseTotal = dueExpenseTotal;
@@ -718,6 +718,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
       totalBalance = cash + bank + investmentCurrent;
       profileName = displayName;
       profilePhoto = photoBytes == null ? null : Uint8List.fromList(photoBytes);
+      if (selectedAccountTypePreview == 'cash' && cash.abs() <= _zeroEpsilon) {
+        selectedAccountTypePreview = null;
+      } else if (selectedAccountTypePreview == 'bank' &&
+          bank.abs() <= _zeroEpsilon) {
+        selectedAccountTypePreview = null;
+      } else if (selectedAccountTypePreview == 'investment' &&
+          investmentCurrent.abs() <= _zeroEpsilon) {
+        selectedAccountTypePreview = null;
+      }
+      if (trackedRows.isEmpty) {
+        showTrackedPreview = false;
+      }
     });
   }
 
@@ -1251,16 +1263,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
             padding: const EdgeInsets.all(16),
             children: [
               _buildHeroSummaryCard(),
-              const SizedBox(height: 12),
-              _buildAccountTypeSummaryRow(),
-              if (selectedAccountTypePreview != null) ...[
-                const SizedBox(height: 8),
-                _buildAccountTypePreviewCard(),
+              if (cashTotal.abs() > _zeroEpsilon ||
+                  bankTotal.abs() > _zeroEpsilon ||
+                  investmentCurrentTotal.abs() > _zeroEpsilon) ...[
+                const SizedBox(height: 12),
+                _buildAccountTypeSummaryRow(),
+                if (selectedAccountTypePreview != null) ...[
+                  const SizedBox(height: 8),
+                  _buildAccountTypePreviewCard(),
+                ],
               ],
               const SizedBox(height: 10),
               _buildCariAndTrackedRow(),
-              const SizedBox(height: 10),
-              _buildPlannedTodayCard(),
+              if (plannedIncomeTotal.abs() > _zeroEpsilon ||
+                  plannedExpenseTotal.abs() > _zeroEpsilon ||
+                  todayPlans.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                _buildPlannedTodayCard(),
+              ],
               const SizedBox(height: 14),
               _buildActionHintCard(),
             ],
@@ -1388,6 +1408,45 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildAccountTypeSummaryRow() {
+    final cards = <Widget>[];
+    if (cashTotal.abs() > _zeroEpsilon) {
+      cards.add(
+        _buildTypeBalanceCard(
+          title: 'Kasa',
+          value: cashTotal,
+          icon: Icons.account_balance_wallet,
+          color: Colors.blue,
+          onTap: () => _toggleAccountTypePreview('cash'),
+          isSelected: selectedAccountTypePreview == 'cash',
+        ),
+      );
+    }
+    if (bankTotal.abs() > _zeroEpsilon) {
+      cards.add(
+        _buildTypeBalanceCard(
+          title: 'Banka',
+          value: bankTotal,
+          icon: Icons.account_balance,
+          color: Colors.indigo,
+          onTap: () => _toggleAccountTypePreview('bank'),
+          isSelected: selectedAccountTypePreview == 'bank',
+        ),
+      );
+    }
+    if (investmentCurrentTotal.abs() > _zeroEpsilon) {
+      cards.add(
+        _buildTypeBalanceCard(
+          title: 'Yatırım',
+          value: investmentCurrentTotal,
+          icon: Icons.trending_up,
+          color: Colors.teal,
+          onTap: () => _toggleAccountTypePreview('investment'),
+          isSelected: selectedAccountTypePreview == 'investment',
+        ),
+      );
+    }
+    if (cards.isEmpty) return const SizedBox.shrink();
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final compact = constraints.maxWidth < 760;
@@ -1395,69 +1454,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _buildTypeBalanceCard(
-                title: 'Kasa',
-                value: cashTotal,
-                icon: Icons.account_balance_wallet,
-                color: Colors.blue,
-                onTap: () => _toggleAccountTypePreview('cash'),
-                isSelected: selectedAccountTypePreview == 'cash',
-              ),
-              const SizedBox(height: 8),
-              _buildTypeBalanceCard(
-                title: 'Banka',
-                value: bankTotal,
-                icon: Icons.account_balance,
-                color: Colors.indigo,
-                onTap: () => _toggleAccountTypePreview('bank'),
-                isSelected: selectedAccountTypePreview == 'bank',
-              ),
-              const SizedBox(height: 8),
-              _buildTypeBalanceCard(
-                title: 'Yatırım',
-                value: investmentCurrentTotal,
-                icon: Icons.trending_up,
-                color: Colors.teal,
-                onTap: () => _toggleAccountTypePreview('investment'),
-                isSelected: selectedAccountTypePreview == 'investment',
-              ),
+              for (int i = 0; i < cards.length; i++) ...[
+                cards[i],
+                if (i != cards.length - 1) const SizedBox(height: 8),
+              ],
             ],
           );
         }
         return Row(
           children: [
-            Expanded(
-              child: _buildTypeBalanceCard(
-                title: 'Kasa',
-                value: cashTotal,
-                icon: Icons.account_balance_wallet,
-                color: Colors.blue,
-                onTap: () => _toggleAccountTypePreview('cash'),
-                isSelected: selectedAccountTypePreview == 'cash',
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _buildTypeBalanceCard(
-                title: 'Banka',
-                value: bankTotal,
-                icon: Icons.account_balance,
-                color: Colors.indigo,
-                onTap: () => _toggleAccountTypePreview('bank'),
-                isSelected: selectedAccountTypePreview == 'bank',
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _buildTypeBalanceCard(
-                title: 'Yatırım',
-                value: investmentCurrentTotal,
-                icon: Icons.trending_up,
-                color: Colors.teal,
-                onTap: () => _toggleAccountTypePreview('investment'),
-                isSelected: selectedAccountTypePreview == 'investment',
-              ),
-            ),
+            for (int i = 0; i < cards.length; i++) ...[
+              Expanded(child: cards[i]),
+              if (i != cards.length - 1) const SizedBox(width: 8),
+            ],
           ],
         );
       },
@@ -1522,6 +1531,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildCariAndTrackedRow() {
+    final hasTracked = trackedQuotes.isNotEmpty;
     return LayoutBuilder(
       builder: (context, constraints) {
         final compact = constraints.maxWidth < 1080;
@@ -1533,11 +1543,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 const SizedBox(height: 8),
                 _buildCariPreviewCard(),
               ],
-              const SizedBox(height: 8),
-              _buildTrackedSummaryCard(),
-              if (showTrackedPreview) ...[
+              if (hasTracked) ...[
                 const SizedBox(height: 8),
-                _buildTrackedItemsCard(compact: true, showHeader: false),
+                _buildTrackedSummaryCard(),
+                if (showTrackedPreview) ...[
+                  const SizedBox(height: 8),
+                  _buildTrackedItemsCard(compact: true, showHeader: false),
+                ],
+              ],
+            ],
+          );
+        }
+        if (!hasTracked) {
+          return Column(
+            children: [
+              _buildCariSummaryCard(),
+              if (showCariPreview) ...[
+                const SizedBox(height: 8),
+                _buildCariPreviewCard(),
               ],
             ],
           );
@@ -2121,6 +2144,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildPlannedTodayCard() {
+    final hasPlannedContent = plannedIncomeTotal.abs() > _zeroEpsilon ||
+        plannedExpenseTotal.abs() > _zeroEpsilon ||
+        todayPlans.isNotEmpty;
+    if (!hasPlannedContent) return const SizedBox.shrink();
+
     final net = plannedIncomeTotal - plannedExpenseTotal;
     final netPositive = net >= 0;
     final maxItems = 5;
