@@ -4,6 +4,8 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'core/runtime/app_messenger.dart';
+import 'core/runtime/app_runtime.dart';
 import 'database/isar_service.dart';
 import 'screens/accounts_screen.dart';
 import 'screens/cari_account_screen.dart';
@@ -55,6 +57,7 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('tr_TR');
   await IsarService.init();
+  await AppRuntime.initialize();
   runApp(const MyApp());
 
   // Do not block first frame with notification setup.
@@ -73,6 +76,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'HesapKitap',
+      scaffoldMessengerKey: appScaffoldMessengerKey,
       locale: const Locale('tr', 'TR'),
       supportedLocales: const [
         Locale('tr', 'TR'),

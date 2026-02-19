@@ -11,6 +11,7 @@ import '../services/finance_transaction_service.dart';
 import '../services/income_category_service.dart';
 import '../services/transaction_attachment_service.dart';
 import '../theme/app_colors.dart';
+import '../utils/app_feedback.dart';
 import '../utils/camera_support.dart';
 import '../utils/navigation_helpers.dart';
 import '../utils/turkish_money_input_formatter.dart';
@@ -168,6 +169,7 @@ class _IncomeEntryScreenState extends State<IncomeEntryScreen> {
       }
 
       if (!mounted) return;
+      _isEditMode ? AppFeedback.updated() : AppFeedback.saved();
       Navigator.pop(context, true);
     } catch (_) {
       if (!mounted) return;
@@ -210,6 +212,7 @@ class _IncomeEntryScreenState extends State<IncomeEntryScreen> {
     try {
       await FinanceTransactionService.deleteAndReturn(widget.initialTransaction!.id);
       if (!mounted) return;
+      AppFeedback.deleted();
       Navigator.pop(context, true);
     } catch (e) {
       if (!mounted) return;

@@ -6,6 +6,7 @@ import '../services/account_service.dart';
 import '../services/investment_transaction_service.dart';
 import '../services/tracked_currency_service.dart';
 import '../services/tracked_metal_service.dart';
+import '../utils/app_feedback.dart';
 import '../utils/navigation_helpers.dart';
 import '../utils/turkish_money_input_formatter.dart';
 
@@ -356,6 +357,7 @@ class _InvestmentEntryScreenState extends State<InvestmentEntryScreen> {
       }
 
       if (!mounted) return;
+      _isEditMode ? AppFeedback.updated() : AppFeedback.saved();
       Navigator.pop(context, true);
     } catch (e) {
       if (!mounted) return;
@@ -398,6 +400,7 @@ class _InvestmentEntryScreenState extends State<InvestmentEntryScreen> {
     try {
       await InvestmentTransactionService.deleteAndReturn(widget.initialTransaction!.id);
       if (!mounted) return;
+      AppFeedback.deleted();
       Navigator.pop(context, true);
     } catch (e) {
       if (!mounted) return;

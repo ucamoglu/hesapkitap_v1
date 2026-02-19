@@ -10,6 +10,7 @@ import '../services/account_service.dart';
 import '../services/cari_card_service.dart';
 import '../services/cari_transaction_service.dart';
 import '../services/transaction_attachment_service.dart';
+import '../utils/app_feedback.dart';
 import '../utils/camera_support.dart';
 import '../utils/navigation_helpers.dart';
 import '../utils/turkish_money_input_formatter.dart';
@@ -386,6 +387,7 @@ class _CariAccountScreenState extends State<CariAccountScreen> {
       }
 
       if (!mounted) return;
+      _isEditMode ? AppFeedback.updated() : AppFeedback.saved();
       Navigator.pop(context, true);
     } catch (e) {
       if (!mounted) return;
@@ -428,6 +430,7 @@ class _CariAccountScreenState extends State<CariAccountScreen> {
     try {
       await CariTransactionService.deleteAndReturn(widget.initialTransaction!.id);
       if (!mounted) return;
+      AppFeedback.deleted();
       Navigator.pop(context, true);
     } catch (e) {
       if (!mounted) return;

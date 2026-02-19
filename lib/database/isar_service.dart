@@ -23,6 +23,7 @@ import '../models/tracked_crypto_state.dart';
 
 class IsarService {
   static late Isar isar;
+  static bool get encryptedAtRest => false;
 
   static Future<void> init() async {
     final dir = await getApplicationDocumentsDirectory();

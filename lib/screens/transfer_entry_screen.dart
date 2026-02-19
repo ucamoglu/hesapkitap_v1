@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/account.dart';
 import '../services/account_service.dart';
 import '../services/transfer_transaction_service.dart';
+import '../utils/app_feedback.dart';
 import '../utils/navigation_helpers.dart';
 import '../utils/turkish_money_input_formatter.dart';
 import '../utils/turkish_upper_case_formatter.dart';
@@ -128,6 +129,7 @@ class _TransferEntryScreenState extends State<TransferEntryScreen> {
         description: _descriptionController.text,
       );
       if (!mounted) return;
+      AppFeedback.saved();
       Navigator.pop(context, true);
     } catch (e) {
       if (!mounted) return;
