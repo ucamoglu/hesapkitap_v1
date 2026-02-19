@@ -241,7 +241,7 @@ class _AppMenuDrawerState extends State<_AppMenuDrawer> {
         applicationName: 'HesapKitap',
         applicationVersion: 'v1',
         children: const [
-          Text('Bu uygulama UC Digital Studio tarafından oluşturulmaktadır.'),
+          Text('Bu uygulama Pagumex Teknoloji tarafından oluşturulmaktadır.'),
         ],
       );
     });
@@ -382,7 +382,7 @@ class _AppMenuDrawerState extends State<_AppMenuDrawer> {
                   ),
                   const SizedBox(height: 4),
                   const Text(
-                    'by UC Digital Studio',
+                    'by Pagumex Teknoloji',
                     style: TextStyle(
                       color: Colors.white70,
                       fontSize: 12,

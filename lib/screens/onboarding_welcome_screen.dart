@@ -38,7 +38,7 @@ class OnboardingWelcomeScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 14),
                         const Text(
-                          'Bu uygulama UC Digital Studio ürünüdür.\n'
+                          'Bu uygulama Pagumex Teknoloji ürünüdür.\n'
                           'Bireysel finans yönetiminizi sağlıklı bir şekilde takip edebilmeniz amacı ile hazırlanmıştır.',
                           style: TextStyle(
                             fontSize: 16,
