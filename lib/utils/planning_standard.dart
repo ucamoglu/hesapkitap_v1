@@ -35,4 +35,30 @@ class PlanningStandard {
       ),
     );
   }
+
+  static int maxFrequencyForPeriod(String periodType) {
+    if (periodType == 'daily') return 30;
+    if (periodType == 'weekly') return 12;
+    if (periodType == 'yearly') return 10;
+    return 12;
+  }
+
+  static String frequencyUnitLabel(String periodType) {
+    if (periodType == 'daily') return 'Gün';
+    if (periodType == 'weekly') return 'Hafta';
+    if (periodType == 'yearly') return 'Yıl';
+    return 'Ay';
+  }
+
+  static List<DropdownMenuItem<int>> frequencyItemsForPeriod(String periodType) {
+    final max = maxFrequencyForPeriod(periodType);
+    final unit = frequencyUnitLabel(periodType);
+    return List.generate(
+      max,
+      (i) => DropdownMenuItem<int>(
+        value: i + 1,
+        child: Text('Her ${i + 1} $unit'),
+      ),
+    );
+  }
 }

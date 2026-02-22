@@ -39,6 +39,8 @@ class _IncomePlanningScreenState extends State<IncomePlanningScreen> {
   String _periodType = 'monthly';
   int _frequency = 1;
   DateTime _startDate = DateTime.now();
+  int _selectedWeekday = DateTime.now().weekday;
+  TimeOfDay _selectedTime = TimeOfDay.now();
   DateTime? _endDate;
 
   @override
@@ -176,10 +178,57 @@ class _IncomePlanningScreenState extends State<IncomePlanningScreen> {
     });
   }
 
+  Future<void> _pickTime() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: _selectedTime,
+    );
+    if (picked == null) return;
+    setState(() => _selectedTime = picked);
+  }
+
+  DateTime _nextWeekdayDate(int weekday, DateTime from) {
+    final base = DateTime(from.year, from.month, from.day);
+    final offset = (weekday - base.weekday + 7) % 7;
+    return base.add(Duration(days: offset));
+  }
+
+  DateTime _buildPlanStartDate() {
+    if (_periodType == 'weekly') {
+      return _nextWeekdayDate(_selectedWeekday, _startDate);
+    }
+    if (_periodType == 'daily') {
+      return DateTime(
+        _startDate.year,
+        _startDate.month,
+        _startDate.day,
+        _selectedTime.hour,
+        _selectedTime.minute,
+      );
+    }
+    return DateTime(_startDate.year, _startDate.month, _startDate.day);
+  }
+
   String _fmtDate(DateTime d) {
     final dd = d.day.toString().padLeft(2, '0');
     final mm = d.month.toString().padLeft(2, '0');
     return '$dd.$mm.${d.year}';
+  }
+
+  String _fmtTime(TimeOfDay t) {
+    final hh = t.hour.toString().padLeft(2, '0');
+    final mm = t.minute.toString().padLeft(2, '0');
+    return '$hh:$mm';
+  }
+
+  String _weekdayLabel(int weekday) {
+    if (weekday == DateTime.monday) return 'Pazartesi';
+    if (weekday == DateTime.tuesday) return 'Salı';
+    if (weekday == DateTime.wednesday) return 'Çarşamba';
+    if (weekday == DateTime.thursday) return 'Perşembe';
+    if (weekday == DateTime.friday) return 'Cuma';
+    if (weekday == DateTime.saturday) return 'Cumartesi';
+    return 'Pazar';
   }
 
   String _fmtAmount(double value) {
@@ -230,6 +279,7 @@ class _IncomePlanningScreenState extends State<IncomePlanningScreen> {
 
     setState(() => _saving = true);
     try {
+      final planStartDate = _buildPlanStartDate();
       final plan = IncomePlan()
         ..accountId = _selectedAccountId!
         ..incomeCategoryId = _selectedCategoryId!
@@ -237,11 +287,11 @@ class _IncomePlanningScreenState extends State<IncomePlanningScreen> {
         ..description = _descController.text.trim().isEmpty ? null : _descController.text.trim()
         ..periodType = _periodType
         ..frequency = _frequency
-        ..startDate = DateTime(_startDate.year, _startDate.month, _startDate.day)
+        ..startDate = planStartDate
         ..endDate = _endDate == null
             ? null
             : DateTime(_endDate!.year, _endDate!.month, _endDate!.day)
-        ..nextDueDate = DateTime(_startDate.year, _startDate.month, _startDate.day)
+        ..nextDueDate = planStartDate
         ..isActive = true
         ..createdAt = DateTime.now();
 
@@ -253,6 +303,8 @@ class _IncomePlanningScreenState extends State<IncomePlanningScreen> {
       _frequency = 1;
       _periodType = 'monthly';
       _startDate = DateTime.now();
+      _selectedWeekday = DateTime.now().weekday;
+      _selectedTime = TimeOfDay.now();
       _endDate = null;
 
       await _load();
@@ -384,7 +436,16 @@ class _IncomePlanningScreenState extends State<IncomePlanningScreen> {
                                       items: PlanningStandard.periodItems(),
                                       onChanged: (v) {
                                         if (v == null) return;
-                                        setState(() => _periodType = v);
+                                        setState(() {
+                                          _periodType = v;
+                                          final maxFreq = PlanningStandard.maxFrequencyForPeriod(_periodType);
+                                          if (_frequency > maxFreq) _frequency = maxFreq;
+                                          if (_periodType == 'weekly') {
+                                            _selectedWeekday = _startDate.weekday;
+                                          } else if (_periodType == 'daily') {
+                                            _selectedTime = TimeOfDay.fromDateTime(_startDate);
+                                          }
+                                        });
                                       },
                                     ),
                                   ),
@@ -395,7 +456,7 @@ class _IncomePlanningScreenState extends State<IncomePlanningScreen> {
                                       decoration: const InputDecoration(
                                         labelText: 'Sıklık',
                                       ),
-                                      items: PlanningStandard.frequencyItems(),
+                                      items: PlanningStandard.frequencyItemsForPeriod(_periodType),
                                       onChanged: (v) {
                                         if (v == null) return;
                                         setState(() => _frequency = v);
@@ -408,13 +469,39 @@ class _IncomePlanningScreenState extends State<IncomePlanningScreen> {
                               Row(
                                 children: [
                                   Expanded(
-                                    child: InkWell(
-                                      onTap: () => _pickDate(start: true),
-                                      child: InputDecorator(
-                                        decoration: const InputDecoration(labelText: 'Başlama'),
-                                        child: Text(_fmtDate(_startDate)),
-                                      ),
-                                    ),
+                                    child: _periodType == 'weekly'
+                                        ? DropdownButtonFormField<int>(
+                                            initialValue: _selectedWeekday,
+                                            decoration: const InputDecoration(labelText: 'Hafta Günü'),
+                                            items: List.generate(
+                                              7,
+                                              (i) => DropdownMenuItem<int>(
+                                                value: i + 1,
+                                                child: Text(_weekdayLabel(i + 1)),
+                                              ),
+                                            ),
+                                            onChanged: (v) {
+                                              if (v == null) return;
+                                              setState(() => _selectedWeekday = v);
+                                            },
+                                          )
+                                        : InkWell(
+                                            onTap: _periodType == 'daily'
+                                                ? _pickTime
+                                                : () => _pickDate(start: true),
+                                            child: InputDecorator(
+                                              decoration: InputDecoration(
+                                                labelText: _periodType == 'daily'
+                                                    ? 'Saat'
+                                                    : 'Başlama',
+                                              ),
+                                              child: Text(
+                                                _periodType == 'daily'
+                                                    ? _fmtTime(_selectedTime)
+                                                    : _fmtDate(_startDate),
+                                              ),
+                                            ),
+                                          ),
                                   ),
                                   const SizedBox(width: 8),
                                   Expanded(

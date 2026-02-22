@@ -129,10 +129,10 @@ class IncomePlanService {
   static DateTime _nextByPlan(DateTime from, String periodType, int frequency) {
     final f = frequency < 1 ? 1 : frequency;
     if (periodType == 'daily') {
-      return DateTime(from.year, from.month, from.day + f);
+      return from.add(Duration(days: f));
     }
     if (periodType == 'weekly') {
-      return DateTime(from.year, from.month, from.day + (7 * f));
+      return from.add(Duration(days: 7 * f));
     }
     if (periodType == 'yearly') {
       return _addYearsSafe(from, f);
