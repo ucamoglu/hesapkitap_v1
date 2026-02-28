@@ -37,6 +37,7 @@ class _InvestmentTrackingScreenState extends State<InvestmentTrackingScreen> {
     _load();
   }
 
+  // Portfoy ekraninda kullanilan yatirim hareketlerini ve canli fiyatlari toplar.
   Future<void> _load() async {
     setState(() {
       _loading = true;

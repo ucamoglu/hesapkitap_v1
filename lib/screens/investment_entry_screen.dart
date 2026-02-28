@@ -58,6 +58,7 @@ class _InvestmentEntryScreenState extends State<InvestmentEntryScreen> {
     super.dispose();
   }
 
+  // Yatirim formu icin hesaplar, fiyatlar ve varsa mevcut hareketi yukler.
   Future<void> _load() async {
     final results = await Future.wait([
       AccountService.getActiveAccounts(),
@@ -169,6 +170,7 @@ class _InvestmentEntryScreenState extends State<InvestmentEntryScreen> {
     return upper;
   }
 
+  // Yatirim hareket tarih secimini yonetir.
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
       context: context,
@@ -266,6 +268,7 @@ class _InvestmentEntryScreenState extends State<InvestmentEntryScreen> {
     });
   }
 
+  // Alis/satis hareketini dogrulayip kaydeder.
   Future<void> _save() async {
     if (_saving) return;
     if (!_formKey.currentState!.validate()) return;
@@ -373,6 +376,7 @@ class _InvestmentEntryScreenState extends State<InvestmentEntryScreen> {
     }
   }
 
+  // Edit modundaki yatirim hareketini geri sararak siler.
   Future<void> _deleteCurrent() async {
     if (!_isEditMode || _saving) return;
     final ok = await showDialog<bool>(

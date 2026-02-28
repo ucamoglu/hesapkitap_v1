@@ -5,6 +5,7 @@ import '../models/account.dart';
 import '../models/transfer_transaction.dart';
 
 class TransferTransactionService {
+  /// Iki hesap arasinda transfer kaydi olusturur ve bakiyeleri ayni anda gunceller.
   static Future<int> addTransfer({
     required int fromAccountId,
     required int toAccountId,
@@ -50,6 +51,7 @@ class TransferTransactionService {
     return createdId;
   }
 
+  /// Transfer hareketlerini tarihe gore yeni->eski sirada getirir.
   static Future<List<TransferTransaction>> getAll() async {
     final isar = IsarService.isar;
     final items = await isar.transferTransactions.where().anyId().findAll();
@@ -57,6 +59,7 @@ class TransferTransactionService {
     return items;
   }
 
+  /// Transferi silmeden once her iki hesap bakiyesini eski haline dondurur.
   static Future<TransferTransaction> deleteAndReturn(int transactionId) async {
     final isar = IsarService.isar;
     late TransferTransaction deleted;

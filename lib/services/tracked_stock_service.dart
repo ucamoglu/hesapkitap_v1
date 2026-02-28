@@ -130,6 +130,7 @@ class TrackedStockService {
     'ZOREN': 'Zorlu Enerji',
   };
 
+  /// Takip ekranindaki secim diyaloğu icin sabit BIST katalogu uretir.
   static List<MarketRateItem> allBistStocks() {
     final list = _bistNameMap.entries
         .map(
@@ -145,6 +146,7 @@ class TrackedStockService {
     return list;
   }
 
+  /// Veri kaynagi farkli isim gonderse bile uygulamanin kanonik hisse adini korur.
   static String canonicalName(String code, String currentName) {
     final upper = code.toUpperCase();
     final mapped = _bistNameMap[upper];
@@ -152,6 +154,7 @@ class TrackedStockService {
     return currentName.trim().isEmpty ? upper : currentName;
   }
 
+  /// Kod bazinda tek hisse takip kaydini state bilgisiyle dondurur.
   static Future<TrackedStockItem?> getByCode(String code) async {
     final isar = IsarService.isar;
     final stock = await isar.trackedStocks.getByCode(code.toUpperCase());
@@ -168,6 +171,7 @@ class TrackedStockService {
     );
   }
 
+  /// Tum hisse takip kayitlarini state tablosuyla birlestirir.
   static Future<List<TrackedStockItem>> getAll() async {
     final isar = IsarService.isar;
     final stocks = await isar.trackedStocks.where().anyId().findAll();
@@ -191,6 +195,7 @@ class TrackedStockService {
         .toList();
   }
 
+  /// Takip kaydini ekler veya gunceller; state tablosunu da aktifler.
   static Future<void> addOrUpdate(MarketRateItem item) async {
     final isar = IsarService.isar;
     final code = item.code.toUpperCase().trim();
@@ -214,6 +219,7 @@ class TrackedStockService {
     });
   }
 
+  /// Hisse kaydinin aktif/pasif gorunum durumunu degistirir.
   static Future<void> setActiveByCode(String code, bool value) async {
     final isar = IsarService.isar;
     await isar.writeTxn(() async {
@@ -224,6 +230,7 @@ class TrackedStockService {
     });
   }
 
+  /// Hisse tanimi ile state kaydini birlikte siler.
   static Future<void> removeByCode(String code) async {
     final isar = IsarService.isar;
     final clean = code.toUpperCase().trim();

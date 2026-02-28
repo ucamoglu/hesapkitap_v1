@@ -10,6 +10,7 @@ import '../services/tracked_metal_service.dart';
 class PreciousMetalTrackingScreen extends StatelessWidget {
   const PreciousMetalTrackingScreen({super.key});
 
+  // Maden fiyatlarini ekranda sabit bir formatta gosterir.
   String _fmt(double value, {int decimals = 6}) {
     final fixed = value.toStringAsFixed(decimals);
     final parts = fixed.split('.');
@@ -24,6 +25,7 @@ class PreciousMetalTrackingScreen extends StatelessWidget {
     return '${b.toString()},$decPart';
   }
 
+  // Bu madene bagli yatirim hesabi var mi kontrolu.
   Future<TrackingLinkStatus> _linkStatus(String code) async {
     final accounts = await AccountService.getAllAccounts();
     bool any = false;
@@ -57,6 +59,7 @@ class PreciousMetalTrackingScreen extends StatelessWidget {
       linkedPassiveLabel: 'Bağlı pasif yatırım hesabı var',
       linkedNoneLabel: 'Bağlı yatırım hesabı yok',
       loadData: () async {
+        // Takip listesi ile anlik maden fiyatlari birlikte yuklenir.
         final results = await Future.wait([
           TrackedMetalService.getAll(),
           MarketRateService.fetchAllMetals(),
@@ -88,6 +91,7 @@ class PreciousMetalTrackingScreen extends StatelessWidget {
       linkStatusByCode: _linkStatus,
       trailingBuilder: (MarketRateItem? rate) {
         if (rate == null) return const Text('Veri yok');
+        // Madenlerde alis ve satis birlikte gosterildigi icin iki satirli gorunum kullanilir.
         return Column(
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.end,

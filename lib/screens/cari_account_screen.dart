@@ -62,6 +62,7 @@ class _CariAccountScreenState extends State<CariAccountScreen> {
     super.dispose();
   }
 
+  // Aynı kaydin iki kez ekrana dusmesini onlemek icin kart listesini ID bazinda tekiller.
   List<CariCard> _uniqueCardsById(Iterable<CariCard> items) {
     final map = <int, CariCard>{};
     for (final item in items) {
@@ -70,6 +71,7 @@ class _CariAccountScreenState extends State<CariAccountScreen> {
     return map.values.toList();
   }
 
+  // Aynı hesabin iki kez ekrana dusmesini onlemek icin hesap listesini ID bazinda tekiller.
   List<Account> _uniqueAccountsById(Iterable<Account> items) {
     final map = <int, Account>{};
     for (final item in items) {
@@ -78,6 +80,7 @@ class _CariAccountScreenState extends State<CariAccountScreen> {
     return map.values.toList();
   }
 
+  // Form icin gerekli cari kart, hesap ve varsa mevcut hareket verisini yukler.
   Future<void> _load() async {
     final allCards = await CariCardService.getAll();
     final activeAccounts = await AccountService.getActiveAccounts();
@@ -206,6 +209,7 @@ class _CariAccountScreenState extends State<CariAccountScreen> {
     }
   }
 
+  // Hareket tarih secimini tek helper ile yonetir.
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
       context: context,
@@ -253,6 +257,7 @@ class _CariAccountScreenState extends State<CariAccountScreen> {
     return double.tryParse(normalized);
   }
 
+  // Kamera veya galeriden yeni ek gorsel alip gecici listeye koyar.
   Future<void> _pickAttachment(ImageSource source) async {
     try {
       if (source == ImageSource.camera && !isCameraSourceAvailable()) {
@@ -316,6 +321,7 @@ class _CariAccountScreenState extends State<CariAccountScreen> {
     );
   }
 
+  // Borc/tahsilat formunu kaydeder; edit modunda mevcut hareketi gunceller.
   Future<void> _save() async {
     if (_saving) return;
     if (!_formKey.currentState!.validate()) return;
@@ -403,6 +409,7 @@ class _CariAccountScreenState extends State<CariAccountScreen> {
     }
   }
 
+  // Duzenlenen cari hareketi ve eklerini onay alarak siler.
   Future<void> _deleteCurrent() async {
     if (!_isEditMode || _saving) return;
     final ok = await showDialog<bool>(

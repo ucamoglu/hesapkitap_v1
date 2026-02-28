@@ -6,9 +6,9 @@ part 'tracked_stock_state.g.dart';
 class TrackedStockState {
   Id id = Isar.autoIncrement;
 
+  // State tablosu, hisse tanimindan ayri olarak aktiflik durumunu tutar.
   @Index(unique: true, replace: true)
   late String code;
 
   bool isActive = true;
 }
-

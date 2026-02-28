@@ -37,6 +37,7 @@ class _CariCardSummaryForeignScreenState extends State<CariCardSummaryForeignScr
     _load();
   }
 
+  // Yabanci para/varlik bazli cari kart ozetlerini ve lot hesaplarini kurar.
   Future<void> _load() async {
     setState(() {
       _loading = true;

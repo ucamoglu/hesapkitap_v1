@@ -5,13 +5,14 @@ import '../models/finance_transaction.dart';
 import '../models/income_category.dart';
 
 class IncomeCategoryService {
-
+  /// Tum gelir kategorilerini getirir.
   static Future<List<IncomeCategory>> getAll() async {
     final isar = IsarService.isar;
 
     return await isar.incomeCategorys.where().findAll();
   }
 
+  /// Aktif gelir kategorilerini formlarda kullanmak icin filtreler.
   static Future<List<IncomeCategory>> getActive() async {
     final isar = IsarService.isar;
 
@@ -22,6 +23,7 @@ class IncomeCategoryService {
         .findAll();
   }
 
+  /// Sistem tarafindan uretilmeyen aktif gelir kategorilerini getirir.
   static Future<List<IncomeCategory>> getActiveManual() async {
     final isar = IsarService.isar;
 
@@ -34,6 +36,7 @@ class IncomeCategoryService {
         .findAll();
   }
 
+  /// Manuel tum gelir kategorilerini yonetim ekranina hazirlar.
   static Future<List<IncomeCategory>> getAllManual() async {
     final isar = IsarService.isar;
 
@@ -44,6 +47,7 @@ class IncomeCategoryService {
         .findAll();
   }
 
+  /// Yeni gelir kategorisi ekler.
   static Future<void> add(String name) async {
     final isar = IsarService.isar;
 
@@ -56,6 +60,7 @@ class IncomeCategoryService {
     });
   }
 
+  /// Kategoriyi silmeden aktif/pasif hale getirir.
   static Future<void> setActive(int id, bool value) async {
     final isar = IsarService.isar;
 
@@ -71,6 +76,7 @@ class IncomeCategoryService {
     });
   }
 
+  /// Sistem kategorilerini koruyarak mevcut kaydi gunceller.
   static Future<void> update(IncomeCategory category) async {
     final isar = IsarService.isar;
     if (category.isSystemGenerated) {
@@ -82,6 +88,7 @@ class IncomeCategoryService {
     });
   }
 
+  /// Sistem kategorilerini koruyarak manuel kaydi siler.
   static Future<void> delete(int id) async {
     final isar = IsarService.isar;
     final existing = await isar.incomeCategorys.get(id);
@@ -94,6 +101,7 @@ class IncomeCategoryService {
     });
   }
 
+  /// Kategorinin mevcut gelir hareketlerinde kullanilip kullanilmadigini kontrol eder.
   static Future<bool> isCategoryUsed(int categoryId) async {
     final isar = IsarService.isar;
 
@@ -108,6 +116,7 @@ class IncomeCategoryService {
     return count > 0;
   }
 
+  /// Bos kurulumda varsayilan gelir kategorilerini olusturur.
   static Future<void> seedDefaultsIfEmpty() async {
     final isar = IsarService.isar;
 

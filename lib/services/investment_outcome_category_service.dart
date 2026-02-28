@@ -29,17 +29,21 @@ class InvestmentOutcomeCategoryService {
     'BTC': 'Bitcoin',
   };
 
+  /// Sembol kodunu kullaniciya gosterilecek daha okunur ada cevirir.
   static String displayNameForSymbol(String symbol) {
     final key = symbol.trim().toUpperCase();
     return _symbolNameMap[key] ?? key;
   }
 
+  /// Yatirim kâr kategorisi icin sabit sistem anahtari uretir.
   static String incomeSystemKey(String symbol) =>
       'investment_pnl_income_${symbol.trim().toUpperCase()}';
 
+  /// Yatirim zarar kategorisi icin sabit sistem anahtari uretir.
   static String expenseSystemKey(String symbol) =>
       'investment_pnl_expense_${symbol.trim().toUpperCase()}';
 
+  /// Bir sembol icin kâr/zarar kategorilerini bulur, yoksa olusturur.
   static Future<OutcomeCategoryPair> ensurePairForSymbol({
     required Isar isar,
     required String symbol,

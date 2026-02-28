@@ -11,6 +11,7 @@ class OnboardingWelcomeScreen extends StatelessWidget {
   final Future<void> Function() onCompleted;
 
   @override
+  // Uygulamaya ilk giriste kullaniciyi profil olusturma akimina yonlendirir.
   Widget build(BuildContext context) {
     return PopScope(
       canPop: false,

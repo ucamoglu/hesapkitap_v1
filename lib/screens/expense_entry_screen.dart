@@ -61,6 +61,7 @@ class _ExpenseEntryScreenState extends State<ExpenseEntryScreen> {
     super.dispose();
   }
 
+  // Form icin hesaplari, kategorileri ve varsa mevcut ekleri yukler.
   Future<void> _loadData() async {
     await CategoryService.seedExpenseDefaultsIfEmpty();
 
@@ -102,6 +103,7 @@ class _ExpenseEntryScreenState extends State<ExpenseEntryScreen> {
     });
   }
 
+  // Gider hareketinin tarih secimini yonetir.
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
       context: context,
@@ -117,6 +119,7 @@ class _ExpenseEntryScreenState extends State<ExpenseEntryScreen> {
     });
   }
 
+  // Yeni gider ekler veya var olan gideri duzenler.
   Future<void> _save() async {
     if (_isSaving) return;
     if (!_formKey.currentState!.validate()) return;
@@ -185,6 +188,7 @@ class _ExpenseEntryScreenState extends State<ExpenseEntryScreen> {
     }
   }
 
+  // Edit modundaki gider hareketini geri sararak siler.
   Future<void> _deleteCurrent() async {
     if (!_isEditMode || _isSaving) return;
     final ok = await showDialog<bool>(
@@ -249,6 +253,7 @@ class _ExpenseEntryScreenState extends State<ExpenseEntryScreen> {
     return "$day.$month.${d.year}";
   }
 
+  // Gider kaydina eklenecek gorseli gecici ek listesine koyar.
   Future<void> _pickAttachment(ImageSource source) async {
     try {
       if (source == ImageSource.camera && !isCameraSourceAvailable()) {

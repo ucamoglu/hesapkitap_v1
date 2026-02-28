@@ -4,6 +4,7 @@ import '../database/isar_service.dart';
 import '../models/transaction_attachment.dart';
 
 class TransactionAttachmentService {
+  /// Isleme bagli coklu gorsel eklerini tek transaction icinde kaydeder.
   static Future<void> addMany({
     required String ownerType,
     required int ownerId,
@@ -25,6 +26,7 @@ class TransactionAttachmentService {
     });
   }
 
+  /// Bir hareketin tum gecerli gorsel eklerini getirir.
   static Future<List<TransactionAttachment>> getByOwner({
     required String ownerType,
     required int ownerId,
@@ -40,6 +42,7 @@ class TransactionAttachmentService {
     return items.where((e) => e.imageBytes.isNotEmpty).toList();
   }
 
+  /// Liste ekranlarinda hizli sayim icin ek adetlerini owner bazinda ozetler.
   static Future<Map<String, int>> getCountMap() async {
     final isar = IsarService.isar;
     final all = await isar.transactionAttachments.where().findAll();
@@ -52,6 +55,7 @@ class TransactionAttachmentService {
     return map;
   }
 
+  /// Bir harekete ait tum ekleri topluca siler.
   static Future<void> deleteByOwner({
     required String ownerType,
     required int ownerId,

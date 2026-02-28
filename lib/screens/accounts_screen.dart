@@ -21,6 +21,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
   List<Account> accounts = [];
   Map<String, double> _livePriceBySymbol = {};
 
+  // Ekranda kullanilan kisa bilgi mesajlarini tek yerden gosterir.
   void _showSnack(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -28,6 +29,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
     );
   }
 
+  // TL tutarlarinin liste kartlarinda ayni bicimde gorunmesini saglar.
   String _fmtAmount(double value) {
     final fixed = value.toStringAsFixed(2);
     final parts = fixed.split('.');
@@ -43,6 +45,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
     return '${b.toString()},$decPart';
   }
 
+  // Yatirim miktarlarinda gereksiz sifirlari kirparak okunabilirlik saglar.
   String _fmtQuantity(double value) {
     final fixed = value.toStringAsFixed(4);
     final normalized = fixed.replaceFirst(RegExp(r'([.,]?)0+$'), '');
@@ -60,6 +63,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
     return '${b.toString()},$decPart';
   }
 
+  // Hesap tipine gore kart alt aciklamasini ve gerekiyorsa canli degeri uretir.
   String _accountSubtitle(Account acc) {
     if (acc.type != 'investment') {
       final label = acc.type == "cash" ? "Kasa" : "Banka";
@@ -84,6 +88,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
     loadAccounts();
   }
 
+  // Hesaplari ve canli piyasa degerlerini birlikte yukleyip listeyi tazeler.
   Future<void> loadAccounts() async {
     final data = await AccountService.getAllAccounts();
     final livePriceMap = <String, double>{};

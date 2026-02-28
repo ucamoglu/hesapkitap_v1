@@ -10,6 +10,7 @@ import '../services/tracked_currency_service.dart';
 class CurrencyTrackingScreen extends StatelessWidget {
   const CurrencyTrackingScreen({super.key});
 
+  // Kur degerlerini klasik TR para bicimiyle gosterir.
   String _fmt(double value, {int decimals = 4}) {
     final fixed = value.toStringAsFixed(decimals);
     final parts = fixed.split('.');
@@ -24,6 +25,7 @@ class CurrencyTrackingScreen extends StatelessWidget {
     return '${b.toString()},$decPart';
   }
 
+  // Takip edilen dovize bagli hesap varsa durum etiketi buna gore uretilir.
   Future<TrackingLinkStatus> _linkStatus(String code) async {
     final accounts = await AccountService.getAllAccounts();
     bool any = false;
@@ -57,6 +59,7 @@ class CurrencyTrackingScreen extends StatelessWidget {
       linkedPassiveLabel: 'Bağlı pasif yatırım hesabı var',
       linkedNoneLabel: 'Bağlı yatırım hesabı yok',
       loadData: () async {
+        // Kayitli doviz listesi ile guncel kur verisi ayni anda cekilir.
         final results = await Future.wait([
           TrackedCurrencyService.getAll(),
           MarketRateService.fetchAllCurrencies(),
@@ -88,6 +91,7 @@ class CurrencyTrackingScreen extends StatelessWidget {
       linkStatusByCode: _linkStatus,
       trailingBuilder: (MarketRateItem? rate) {
         if (rate == null) return const Text('Veri yok');
+        // Doviz tarafinda alis ve satis ayrimi kullaniciya ayni kartta sunulur.
         return Column(
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.end,

@@ -15,6 +15,7 @@ class CryptoTrackingScreen extends StatefulWidget {
 }
 
 class _CryptoTrackingScreenState extends State<CryptoTrackingScreen> {
+  // Fiyat degerlerini TR biciminde gostermek icin ortak formatter.
   String _fmt(double value, {int decimals = 6}) {
     final fixed = value.toStringAsFixed(decimals);
     final parts = fixed.split('.');
@@ -29,6 +30,7 @@ class _CryptoTrackingScreenState extends State<CryptoTrackingScreen> {
     return '${b.toString()},$decPart';
   }
 
+  // Takipteki sembole bagli yatirim hesabi olup olmadigini kontrol eder.
   Future<TrackingLinkStatus> _linkStatus(String code) async {
     final accounts = await AccountService.getAllAccounts();
     bool any = false;
@@ -63,6 +65,7 @@ class _CryptoTrackingScreenState extends State<CryptoTrackingScreen> {
       linkedPassiveLabel: 'Bagli pasif yatirim hesabi var',
       linkedNoneLabel: 'Bagli yatirim hesabi yok',
       loadData: () async {
+        // Once kayitli takip listesi okunur, sonra canli fiyatlar ustune bindirilir.
         final tracked = await TrackedCryptoService.getAll();
         final catalog = TrackedCryptoService.allCryptos();
         final trackedCodes = tracked.map((e) => e.code).toList();
@@ -106,6 +109,7 @@ class _CryptoTrackingScreenState extends State<CryptoTrackingScreen> {
         if (rate == null || (rate.sell <= 0 && rate.buy <= 0)) {
           return const Text('Veri yok');
         }
+        // Kripto tarafinda alis/satis yerine tek fiyat gostermek yeterli.
         final price = rate.sell > 0 ? rate.sell : rate.buy;
         return Text(
           'Fiyat: ${_fmt(price)}',

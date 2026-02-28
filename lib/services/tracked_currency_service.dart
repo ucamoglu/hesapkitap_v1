@@ -19,6 +19,7 @@ class TrackedCurrencyItem {
 }
 
 class TrackedCurrencyService {
+  /// Kod bazinda tek doviz takip kaydini state bilgisiyle getirir.
   static Future<TrackedCurrencyItem?> getByCode(String code) async {
     final isar = IsarService.isar;
     final currency = await isar.trackedCurrencys.getByCode(code);
@@ -30,6 +31,7 @@ class TrackedCurrencyService {
     );
   }
 
+  /// Tum doviz takip kayitlarini state tablosuyla birlestirir.
   static Future<List<TrackedCurrencyItem>> getAll() async {
     final isar = IsarService.isar;
     final currencies = await isar.trackedCurrencys.where().anyId().findAll();
@@ -47,6 +49,7 @@ class TrackedCurrencyService {
         .toList();
   }
 
+  /// Dovizi takip listesine ekler veya adini gunceller; state kaydini aktifler.
   static Future<void> addOrUpdate(MarketRateItem item) async {
     final isar = IsarService.isar;
     await isar.writeTxn(() async {
@@ -73,6 +76,7 @@ class TrackedCurrencyService {
     });
   }
 
+  /// Doviz kaydinin aktif/pasif gorunum durumunu degistirir.
   static Future<void> setActiveByCode(String code, bool value) async {
     final isar = IsarService.isar;
     await isar.writeTxn(() async {
@@ -83,6 +87,7 @@ class TrackedCurrencyService {
     });
   }
 
+  /// Doviz tanimi ile state kaydini birlikte siler.
   static Future<void> removeByCode(String code) async {
     final isar = IsarService.isar;
     await isar.writeTxn(() async {

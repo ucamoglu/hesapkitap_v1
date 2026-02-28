@@ -31,6 +31,7 @@ class _AssetStatusScreenState extends State<AssetStatusScreen> {
     _load();
   }
 
+  // Varlik ozet ekraninda kullanilan tum kaynak verileri toplayip hesaplar.
   Future<void> _load() async {
     setState(() {
       _loading = true;
@@ -146,6 +147,7 @@ class _AssetStatusScreenState extends State<AssetStatusScreen> {
     }
   }
 
+  // Parasal degerleri sabit bir para formatinda gosterir.
   String _fmtMoney(double value) {
     final fixed = value.toStringAsFixed(2);
     final parts = fixed.split('.');
@@ -161,6 +163,7 @@ class _AssetStatusScreenState extends State<AssetStatusScreen> {
     return '${b.toString()},$decPart';
   }
 
+  // Yatirim miktarlarinda daha hassas bir gorunum kullanir.
   String _fmtQuantity(double value) {
     final fixed = value.toStringAsFixed(4);
     final normalized = fixed.replaceFirst(RegExp(r'([.,]?)0+$'), '');

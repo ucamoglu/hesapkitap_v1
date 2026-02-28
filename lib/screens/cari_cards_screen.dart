@@ -49,6 +49,7 @@ class _CariCardsScreenState extends State<CariCardsScreen> {
     loadCards();
   }
 
+  // Cari kart listesini ekrana tekrar yukler.
   Future<void> loadCards() async {
     final data = await CariCardService.getAll();
     setState(() {
@@ -89,6 +90,7 @@ class _CariCardsScreenState extends State<CariCardsScreen> {
     return symbol.isEmpty ? market : '$market • $symbol';
   }
 
+  // Ekleme ve duzenleme akislarini ayni dialog uzerinden yurutur.
   Future<void> _openDialog({CariCard? edit}) async {
     String selectedType = edit?.type ?? 'person';
     String selectedCurrencyType = edit?.currencyType ?? 'tl';
@@ -410,6 +412,7 @@ class _CariCardsScreenState extends State<CariCardsScreen> {
     );
   }
 
+  // Karti silmeden aktif/pasif hale getirir.
   Future<void> _toggle(CariCard card) async {
     await CariCardService.setActive(card.id, !card.isActive);
     await loadCards();

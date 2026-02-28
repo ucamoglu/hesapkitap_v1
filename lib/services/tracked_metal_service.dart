@@ -34,6 +34,7 @@ class TrackedMetalService {
     'KULCEALTIN': 'Külçe Altın',
   };
 
+  /// Veri kaynaklarindaki farkli maden adlarini uygulamanin tek isimlendirmesine indirger.
   static String canonicalName(String code, String currentName) {
     final upper = code.toUpperCase();
     final mapped = _displayNameMap[upper];
@@ -41,6 +42,7 @@ class TrackedMetalService {
     return currentName.trim().isEmpty ? upper : currentName;
   }
 
+  /// Kod bazinda tek maden takip kaydini state bilgisiyle dondurur.
   static Future<TrackedMetalItem?> getByCode(String code) async {
     final isar = IsarService.isar;
     final metal = await isar.trackedMetals.getByCode(code);
@@ -57,6 +59,7 @@ class TrackedMetalService {
     );
   }
 
+  /// Tum maden takip kayitlarini state tablosuyla birlestirir.
   static Future<List<TrackedMetalItem>> getAll() async {
     final isar = IsarService.isar;
     final metals = await isar.trackedMetals.where().anyId().findAll();
@@ -77,6 +80,7 @@ class TrackedMetalService {
         .toList();
   }
 
+  /// Takip kaydini ekler/gunceller ve state kaydini aktif hale getirir.
   static Future<void> addOrUpdate(MarketRateItem item) async {
     final isar = IsarService.isar;
     await isar.writeTxn(() async {
@@ -99,6 +103,7 @@ class TrackedMetalService {
     });
   }
 
+  /// Maden kaydinin ekranda aktif gorunup gorunmeyecegini degistirir.
   static Future<void> setActiveByCode(String code, bool value) async {
     final isar = IsarService.isar;
     await isar.writeTxn(() async {
@@ -109,6 +114,7 @@ class TrackedMetalService {
     });
   }
 
+  /// Maden tanimi ile state kaydini birlikte kaldirir.
   static Future<void> removeByCode(String code) async {
     final isar = IsarService.isar;
     await isar.writeTxn(() async {

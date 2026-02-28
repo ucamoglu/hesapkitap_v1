@@ -43,11 +43,13 @@ class _IncomeCategoryScreenState extends State<IncomeCategoryScreen> {
     init();
   }
 
+  // Gerekirse varsayilan gelir kategorilerini olusturup listeyi ilk kez yukler.
   Future<void> init() async {
     await IncomeCategoryService.seedDefaultsIfEmpty();
     await loadCategories();
   }
 
+  // Gelir kategori listesini veritabanindan tazeler.
   Future<void> loadCategories() async {
     final data = await IncomeCategoryService.getAll();
     setState(() {
@@ -90,6 +92,7 @@ class _IncomeCategoryScreenState extends State<IncomeCategoryScreen> {
     );
   }
 
+  // Kategori kaydini silmeden aktif/pasif duruma getirir.
   Future<void> _toggleActive(IncomeCategory category) async {
     if (category.isSystemGenerated) {
       if (!mounted) return;
@@ -149,6 +152,7 @@ class _IncomeCategoryScreenState extends State<IncomeCategoryScreen> {
     );
   }
 
+  // Kategoriyi kullanim durumuna gore kontrollu bicimde siler.
   Future<void> _deleteCategory(IncomeCategory category) async {
     if (category.isSystemGenerated) {
       if (!mounted) return;

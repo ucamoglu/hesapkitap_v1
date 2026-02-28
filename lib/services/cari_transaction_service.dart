@@ -6,6 +6,7 @@ import '../models/cari_transaction.dart';
 import '../models/transaction_attachment.dart';
 
 class CariTransactionService {
+  /// Cari hareketleri tarihe gore yeni->eski sirada dondurur.
   static Future<List<CariTransaction>> getAll() async {
     final isar = IsarService.isar;
     final items = await isar.cariTransactions.where().anyId().findAll();
@@ -13,6 +14,7 @@ class CariTransactionService {
     return items;
   }
 
+  /// Cari borc kaydi olusturmak icin kolay sarmalayici metottur.
   static Future<void> addDebt({
     required int cariCardId,
     required int accountId,
@@ -33,6 +35,7 @@ class CariTransactionService {
     );
   }
 
+  /// Cari borc kaydini ekler ve bagli hesabin bakiyesini ayni transaction icinde azaltir.
   static Future<int> addDebtAndGetId({
     required int cariCardId,
     required int accountId,
@@ -73,6 +76,7 @@ class CariTransactionService {
     return createdId;
   }
 
+  /// Tahsilat kaydi icin kolay sarmalayici metottur.
   static Future<void> addCollection({
     required int cariCardId,
     required int accountId,
@@ -93,6 +97,7 @@ class CariTransactionService {
     );
   }
 
+  /// Tahsilat kaydini ekler ve bagli hesabin bakiyesini ayni transaction icinde artirir.
   static Future<int> addCollectionAndGetId({
     required int cariCardId,
     required int accountId,
@@ -133,6 +138,7 @@ class CariTransactionService {
     return createdId;
   }
 
+  /// Cari hareket degisince eski ve yeni hesap bakiyelerini yeniden dengeler.
   static Future<void> updateTransaction({
     required int transactionId,
     required int cariCardId,
@@ -205,6 +211,7 @@ class CariTransactionService {
     });
   }
 
+  /// Cari hareketi silmeden once hesap bakiyesini geri sarar ve ekleri temizler.
   static Future<CariTransaction> deleteAndReturn(int transactionId) async {
     final isar = IsarService.isar;
     late CariTransaction deleted;

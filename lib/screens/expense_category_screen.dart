@@ -41,11 +41,13 @@ class _ExpenseCategoryScreenState extends State<ExpenseCategoryScreen> {
     init();
   }
 
+  // Gerekirse varsayilan kategorileri olusturup listeyi ilk kez yukler.
   Future<void> init() async {
     await CategoryService.seedExpenseDefaultsIfEmpty();
     await loadCategories();
   }
 
+  // Gider kategori listesini veritabanindan tazeler.
   Future<void> loadCategories() async {
     final data = await CategoryService.getAllExpenseCategories();
     setState(() {
@@ -87,6 +89,7 @@ class _ExpenseCategoryScreenState extends State<ExpenseCategoryScreen> {
     );
   }
 
+  // Kategori kaydini silmeden aktif/pasif duruma getirir.
   Future<void> _toggleActive(Category category) async {
     if (category.isSystemGenerated) {
       if (!mounted) return;
@@ -144,6 +147,7 @@ class _ExpenseCategoryScreenState extends State<ExpenseCategoryScreen> {
     );
   }
 
+  // Kategoriyi kullanim durumuna gore kontrollu bicimde siler.
   Future<void> _deleteCategory(Category category) async {
     if (category.isSystemGenerated) {
       if (!mounted) return;

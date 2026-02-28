@@ -15,6 +15,7 @@ class StockTrackingScreen extends StatefulWidget {
 }
 
 class _StockTrackingScreenState extends State<StockTrackingScreen> {
+  // Hisse fiyatlarini ekranda okunur bicimde gosterir.
   String _fmt(double value, {int decimals = 2}) {
     final fixed = value.toStringAsFixed(decimals);
     final parts = fixed.split('.');
@@ -29,6 +30,7 @@ class _StockTrackingScreenState extends State<StockTrackingScreen> {
     return '${b.toString()},$decPart';
   }
 
+  // Ilgili hisseye bagli yatirim hesabi varsa silme/pasiflestirme kurallari degisir.
   Future<TrackingLinkStatus> _linkStatus(String code) async {
     final accounts = await AccountService.getAllAccounts();
     bool any = false;
@@ -63,6 +65,7 @@ class _StockTrackingScreenState extends State<StockTrackingScreen> {
       linkedPassiveLabel: 'Bagli pasif yatirim hesabi var',
       linkedNoneLabel: 'Bagli yatirim hesabi yok',
       loadData: () async {
+        // Sabit BIST katalogu ile canli fiyat verisi tek listede birlestirilir.
         final tracked = await TrackedStockService.getAll();
         final catalog = TrackedStockService.allBistStocks();
 

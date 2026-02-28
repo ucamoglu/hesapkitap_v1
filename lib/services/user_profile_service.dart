@@ -4,6 +4,7 @@ import '../database/isar_service.dart';
 import '../models/user_profile.dart';
 
 class UserProfileService {
+  /// Tekil profil kaydini getirir; schema uyumsuzlugunda veritabani instance'ini yeniler.
   static Future<UserProfile?> getProfile() async {
     try {
       final isar = IsarService.isar;
@@ -23,6 +24,7 @@ class UserProfileService {
     }
   }
 
+  /// Profili ekler ya da tek kayit mantigiyla mevcut profilin ustune yazar.
   static Future<void> save(UserProfile profile) async {
     try {
       await _saveInternal(profile);
@@ -36,6 +38,7 @@ class UserProfileService {
     }
   }
 
+  /// Tek profil kaydi ilkesini koruyarak create/update islemini yapar.
   static Future<void> _saveInternal(UserProfile profile) async {
     final isar = IsarService.isar;
     final existing = await getProfile();

@@ -61,6 +61,7 @@ class _IncomeEntryScreenState extends State<IncomeEntryScreen> {
     super.dispose();
   }
 
+  // Form icin hesaplari, gelir kategorilerini ve varsa mevcut ekleri yukler.
   Future<void> _loadData() async {
     await IncomeCategoryService.seedDefaultsIfEmpty();
 
@@ -102,6 +103,7 @@ class _IncomeEntryScreenState extends State<IncomeEntryScreen> {
     });
   }
 
+  // Gelir hareketinin tarih secimini yonetir.
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
       context: context,
@@ -117,6 +119,7 @@ class _IncomeEntryScreenState extends State<IncomeEntryScreen> {
     });
   }
 
+  // Yeni gelir ekler veya var olan gelir kaydini duzenler.
   Future<void> _save() async {
     if (_isSaving) return;
     if (!_formKey.currentState!.validate()) return;
@@ -185,6 +188,7 @@ class _IncomeEntryScreenState extends State<IncomeEntryScreen> {
     }
   }
 
+  // Edit modundaki gelir hareketini geri sararak siler.
   Future<void> _deleteCurrent() async {
     if (!_isEditMode || _isSaving) return;
     final ok = await showDialog<bool>(
@@ -249,6 +253,7 @@ class _IncomeEntryScreenState extends State<IncomeEntryScreen> {
     return "$day.$month.${d.year}";
   }
 
+  // Gelir kaydina eklenecek gorseli gecici ek listesine koyar.
   Future<void> _pickAttachment(ImageSource source) async {
     try {
       if (source == ImageSource.camera && !isCameraSourceAvailable()) {

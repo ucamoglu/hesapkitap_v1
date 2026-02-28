@@ -64,6 +64,7 @@ class MarketRateService {
     'T': 'Tam Altın',
   };
 
+  /// Hisse sembolleri icin sirali fallback mantigiyla canli fiyat toplar.
   static Future<List<MarketRateItem>> fetchStocksByCodes(
     List<String> codes,
   ) async {
@@ -102,6 +103,7 @@ class MarketRateService {
     return merged.values.toList();
   }
 
+  /// Kripto sembolleri icin once Binance, sonra fallback servislerden fiyat dener.
   static Future<List<MarketRateItem>> fetchCryptosByCodes(
     List<String> codes,
   ) async {
@@ -154,6 +156,7 @@ class MarketRateService {
     }
   }
 
+  /// Tum doviz kurlarini TCMB XML kaynagindan ceker.
   static Future<CurrencyRateListResult> fetchAllCurrencies() async {
     final currencyXml = await _fetchStringFromAny(_currencyUrls);
     final items = _buildAllCurrenciesFromXml(currencyXml, _currencyNameMap);
@@ -163,6 +166,7 @@ class MarketRateService {
     );
   }
 
+  /// Tum maden fiyatlarini ana kaynak ve fallback kaynaklar ile toplar.
   static Future<MetalRateListResult> fetchAllMetals() async {
     final metalXml = await _fetchStringFromAny(_metalXmlUrls);
     var items = _buildMetalsFromXml(metalXml, _metalNameMap);
@@ -179,6 +183,7 @@ class MarketRateService {
     );
   }
 
+  /// TCMB XML icindeki doviz bloklarini MarketRateItem listesine cevirir.
   static List<MarketRateItem> _buildAllCurrenciesFromXml(
     String xml,
     Map<String, String> nameMap,
@@ -208,6 +213,7 @@ class MarketRateService {
     return items;
   }
 
+  /// TCMB XML icindeki maden bloklarini parse eder; eksikse fallback JSON kullanilir.
   static List<MarketRateItem> _buildMetalsFromXml(
     String xml,
     Map<String, String> nameMap,

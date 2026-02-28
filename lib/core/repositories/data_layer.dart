@@ -11,6 +11,7 @@ import 'local/local_finance_repository.dart';
 import 'local/local_investment_repository.dart';
 
 class DataLayer {
+  // Hesap, finans ve sync bagimliliklarini tek yerde toplar.
   final AccountRepository accounts;
   final FinanceRepository finance;
   final CariCardRepository cariCards;
@@ -18,7 +19,7 @@ class DataLayer {
   final InvestmentRepository investments;
   final SyncEngine syncEngine;
 
-  const DataLayer({
+  DataLayer({
     required this.accounts,
     required this.finance,
     required this.cariCards,
@@ -28,13 +29,14 @@ class DataLayer {
   });
 
   factory DataLayer.localOnly() {
-    return const DataLayer(
+    // Bugun tum repository'ler local Isar servislerine bagli calisir.
+    return DataLayer(
       accounts: LocalAccountRepository(),
       finance: LocalFinanceRepository(),
       cariCards: LocalCariCardRepository(),
       cariTransactions: LocalCariTransactionRepository(),
       investments: LocalInvestmentRepository(),
-      syncEngine: NoopSyncEngine(),
+      syncEngine: RemoteSyncEngine(),
     );
   }
 }

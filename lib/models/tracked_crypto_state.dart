@@ -6,9 +6,9 @@ part 'tracked_crypto_state.g.dart';
 class TrackedCryptoState {
   Id id = Isar.autoIncrement;
 
+  // State tablosu, kripto tanimindan ayri olarak aktiflik durumunu tutar.
   @Index(unique: true, replace: true)
   late String code;
 
   bool isActive = true;
 }
-

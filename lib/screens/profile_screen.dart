@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
+import '../core/runtime/app_runtime.dart';
 import '../database/isar_service.dart';
 import '../models/user_profile.dart';
 import '../services/user_profile_service.dart';
@@ -10,6 +11,7 @@ import '../utils/camera_support.dart';
 import '../utils/navigation_helpers.dart';
 import '../utils/tr_phone_input_formatter.dart';
 import '../utils/turkish_upper_case_formatter.dart';
+import 'cloud_sync_setup_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({
@@ -53,6 +55,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     super.dispose();
   }
 
+  // Profil verisini forma yerlestirir ve mevcut resmi bellekte hazirlar.
   Future<void> _loadProfile() async {
     try {
       final profile = await UserProfileService.getProfile();
@@ -86,6 +89,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  // Profil fotografini kamera veya galeriden alir.
   Future<void> _pickImage(ImageSource source) async {
     try {
       if (source == ImageSource.camera && !isCameraSourceAvailable()) {
@@ -156,6 +160,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  // Dogum tarihi secimini yonetir.
   Future<void> _pickBirthDate() async {
     final now = DateTime.now();
     final selected = await showDatePicker(
@@ -172,6 +177,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
   }
 
+  // Tekil profil kaydini create/update mantigiyla saklar.
   Future<void> _save() async {
     if (_saving) return;
     setState(() {
@@ -283,6 +289,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _resetting = false;
       });
     }
+  }
+
+  // Profil ekranindan cloud hazirlik akisina gecis saglar.
+  Future<void> _openCloudSyncSetup() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => const CloudSyncSetupScreen(),
+      ),
+    );
+    if (!mounted) return;
+    setState(() {});
   }
 
   @override
@@ -471,6 +488,52 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                       ),
                       if (!widget.forceSetup) ...[
+                        const SizedBox(height: 28),
+                        const Divider(),
+                        const SizedBox(height: 8),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: AnimatedBuilder(
+                            animation: AppRuntime.subscriptions,
+                            builder: (context, _) {
+                              final canUseCloud =
+                                  AppRuntime.subscriptions.state.canUseCloud;
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Cloud Sync Hazırlığı',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    canUseCloud
+                                        ? 'Plus aktif. Bu cihazi ilk cloud esitlemesine hazirlayabilirsiniz.'
+                                        : 'Plus acildiginda veri kaybi olmadan gecis icin bu cihazi bugunden hazirlayabilirsiniz.',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodySmall,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: OutlinedButton.icon(
+                                      onPressed: _openCloudSyncSetup,
+                                      icon: const Icon(Icons.cloud_sync_outlined),
+                                      label: Text(
+                                        canUseCloud
+                                            ? 'Cloud Sync Yonet'
+                                            : 'Cloud Sync Hazirligi',
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
+                          ),
+                        ),
                         const SizedBox(height: 28),
                         const Divider(),
                         const SizedBox(height: 8),

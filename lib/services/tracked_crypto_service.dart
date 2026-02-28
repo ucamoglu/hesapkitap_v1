@@ -42,6 +42,7 @@ class TrackedCryptoService {
     'FIL': 'Filecoin',
   };
 
+  /// Ekranda secilebilecek sabit kripto katalogunu uretir.
   static List<MarketRateItem> allCryptos() {
     final list = _nameMap.entries
         .map(
@@ -57,6 +58,7 @@ class TrackedCryptoService {
     return list;
   }
 
+  /// Koddan kanonik gorunen adi uretir; veri kaynagi farklarini normalize eder.
   static String canonicalName(String code, String currentName) {
     final upper = code.toUpperCase();
     final mapped = _nameMap[upper];
@@ -64,6 +66,7 @@ class TrackedCryptoService {
     return currentName.trim().isEmpty ? upper : currentName;
   }
 
+  /// Kod bazinda tek bir takip kaydini ve aktiflik durumunu getirir.
   static Future<TrackedCryptoItem?> getByCode(String code) async {
     final isar = IsarService.isar;
     final crypto = await isar.trackedCryptos.getByCode(code.toUpperCase());
@@ -80,6 +83,7 @@ class TrackedCryptoService {
     );
   }
 
+  /// Tum kripto takip kayitlarini aktiflik durumlariyla birlestirir.
   static Future<List<TrackedCryptoItem>> getAll() async {
     final isar = IsarService.isar;
     final cryptos = await isar.trackedCryptos.where().anyId().findAll();
@@ -102,6 +106,7 @@ class TrackedCryptoService {
         .toList();
   }
 
+  /// Takip kaydini ekler veya adini gunceller; state kaydini da aktif yapar.
   static Future<void> addOrUpdate(MarketRateItem item) async {
     final isar = IsarService.isar;
     final code = item.code.toUpperCase().trim();
@@ -125,6 +130,7 @@ class TrackedCryptoService {
     });
   }
 
+  /// Kripto kaydinin UI aktiflik durumunu degistirir.
   static Future<void> setActiveByCode(String code, bool value) async {
     final isar = IsarService.isar;
     await isar.writeTxn(() async {
@@ -135,6 +141,7 @@ class TrackedCryptoService {
     });
   }
 
+  /// Takip kaydini ve state bilgisini birlikte siler.
   static Future<void> removeByCode(String code) async {
     final isar = IsarService.isar;
     final clean = code.toUpperCase().trim();
@@ -144,4 +151,3 @@ class TrackedCryptoService {
     });
   }
 }
-

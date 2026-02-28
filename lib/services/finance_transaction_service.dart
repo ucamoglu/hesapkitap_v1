@@ -8,6 +8,7 @@ import '../models/income_plan.dart';
 import '../models/transaction_attachment.dart';
 
 class FinanceTransactionService {
+  /// Gelir ve gider hareketlerini tarihe gore yeni->eski sirada dondurur.
   static Future<List<FinanceTransaction>> getAll() async {
     final isar = IsarService.isar;
     final items = await isar.financeTransactions.where().anyId().findAll();
@@ -15,6 +16,7 @@ class FinanceTransactionService {
     return items;
   }
 
+  /// Gelir ekleme icin ID donmeyen kolay sarmalayici metottur.
   static Future<void> addIncome({
     required int accountId,
     required int categoryId,
@@ -35,6 +37,7 @@ class FinanceTransactionService {
     );
   }
 
+  /// Gelir hareketini ekler ve hesap bakiyesini ayni transaction icinde artirir.
   static Future<int> addIncomeAndGetId({
     required int accountId,
     required int categoryId,
@@ -75,6 +78,7 @@ class FinanceTransactionService {
     return createdId;
   }
 
+  /// Gider ekleme icin ID donmeyen kolay sarmalayici metottur.
   static Future<void> addExpense({
     required int accountId,
     required int categoryId,
@@ -93,6 +97,7 @@ class FinanceTransactionService {
     );
   }
 
+  /// Gider hareketini ekler ve hesap bakiyesini ayni transaction icinde azaltir.
   static Future<int> addExpenseAndGetId({
     required int accountId,
     required int categoryId,
@@ -132,6 +137,7 @@ class FinanceTransactionService {
     return createdId;
   }
 
+  /// Sadece gelir tipi hareketler icin basit geri alma yardimcisidir.
   static Future<void> deleteIncomeAndRevertBalance(int transactionId) async {
     final isar = IsarService.isar;
 
@@ -155,6 +161,7 @@ class FinanceTransactionService {
     });
   }
 
+  /// Hareket degisince eski etkisini geri alip yeni degerleri tekrar uygular.
   static Future<void> updateTransaction({
     required int transactionId,
     required int accountId,
@@ -228,6 +235,7 @@ class FinanceTransactionService {
     });
   }
 
+  /// Hareketi silmeden once bakiye, plan ve ek temizligini geri sarar.
   static Future<FinanceTransaction> deleteAndReturn(int transactionId) async {
     final isar = IsarService.isar;
     late FinanceTransaction deleted;

@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../repositories/data_layer.dart';
+import '../sync/cloud_sync_migration_service.dart';
 import '../subscription/gateways/in_app_purchase_gateway.dart';
 import '../subscription/gateways/noop_purchase_gateway.dart';
 import '../subscription/gateways/purchase_gateway.dart';
@@ -11,6 +12,8 @@ class AppRuntime {
     purchaseGateway: _buildPurchaseGateway(),
   );
   static final DataLayer dataLayer = DataLayer.localOnly();
+  static final CloudSyncMigrationService cloudSyncMigration =
+      CloudSyncMigrationService();
 
   static Future<void> initialize() async {
     await subscriptions.initialize();

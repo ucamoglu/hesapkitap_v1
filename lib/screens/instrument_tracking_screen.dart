@@ -109,6 +109,7 @@ class _InstrumentTrackingScreenState extends State<InstrumentTrackingScreen> {
     super.dispose();
   }
 
+  // Genel takip ekraninin veri kaynagini tazeleyip kartlarin son halini kurar.
   Future<void> _load({bool silent = false}) async {
     if (!silent) {
       setState(() {
@@ -137,6 +138,7 @@ class _InstrumentTrackingScreenState extends State<InstrumentTrackingScreen> {
     }
   }
 
+  // Takip listesine yeni enstruman eklemek icin ortak secim arayuzunu acar.
   Future<void> _openAddDialog() async {
     if (_loading) return;
     final trackedCodes = _tracked.map((e) => e.code).toSet();
@@ -214,6 +216,7 @@ class _InstrumentTrackingScreenState extends State<InstrumentTrackingScreen> {
     await _load(silent: true);
   }
 
+  // Bagli hesap durumuna gore kaydi siler veya pasife alir.
   Future<void> _deleteOrPassive(TrackingItemView tracked) async {
     final link = await widget.linkStatusByCode(tracked.code);
     if (link.hasAny) {

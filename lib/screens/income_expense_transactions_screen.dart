@@ -131,6 +131,7 @@ class _IncomeExpenseTransactionsScreenState
     super.dispose();
   }
 
+  // Liste, ozet kartlari ve filtreler icin gereken tum hareket verisini yukler.
   Future<void> _load() async {
     setState(() {
       _loading = true;
@@ -690,6 +691,7 @@ class _IncomeExpenseTransactionsScreenState
     );
   }
 
+  // Ozel tarih filtresi icin baslangic/bitis secimini yonetir.
   Future<void> _pickCustomDate({required bool start}) async {
     final current = start ? _customStart : _customEnd;
     final picked = await showDatePicker(
@@ -708,6 +710,7 @@ class _IncomeExpenseTransactionsScreenState
     });
   }
 
+  // Hafta/ay bazli filtrelerde referans gunu degistirir.
   Future<void> _pickReferenceDate() async {
     final picked = await showDatePicker(
       context: context,
@@ -1595,6 +1598,7 @@ class _IncomeExpenseTransactionsScreenState
     );
   }
 
+  // Hareket ekini tam ekran onizleme modunda acar.
   Future<void> _openAttachmentFullscreen(Uint8List imageBytes) async {
     await Navigator.of(context).push(
       MaterialPageRoute(
@@ -1618,6 +1622,7 @@ class _IncomeExpenseTransactionsScreenState
     );
   }
 
+  // Secili hareketi dogru forma acarak duzenleme akisina sokar.
   Future<void> _editTransaction(FinanceTransaction tx) async {
     bool? changed;
     final investmentTx = _linkedInvestmentTransaction(tx);
@@ -1663,6 +1668,7 @@ class _IncomeExpenseTransactionsScreenState
     }
   }
 
+  // Hareket tipine gore dogru silme akisina yonlendirir.
   Future<void> _deleteTransaction(FinanceTransaction tx) async {
     final ok = await showDialog<bool>(
       context: context,

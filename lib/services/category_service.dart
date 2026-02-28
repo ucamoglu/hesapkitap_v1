@@ -5,6 +5,7 @@ import '../models/category.dart';
 import '../models/finance_transaction.dart';
 
 class CategoryService {
+  /// Tum gider kategorilerini getirir.
   static Future<List<Category>> getAllExpenseCategories() async {
     final isar = IsarService.isar;
 
@@ -15,6 +16,7 @@ class CategoryService {
         .findAll();
   }
 
+  /// Aktif gider kategorilerini form ekranlari icin filtreler.
   static Future<List<Category>> getActiveExpenseCategories() async {
     final isar = IsarService.isar;
 
@@ -27,6 +29,7 @@ class CategoryService {
         .findAll();
   }
 
+  /// Sistem tarafindan olusturulmamis aktif gider kategorilerini getirir.
   static Future<List<Category>> getActiveManualExpenseCategories() async {
     final isar = IsarService.isar;
 
@@ -41,6 +44,7 @@ class CategoryService {
         .findAll();
   }
 
+  /// Manuel tum gider kategorilerini yonetim ekranlari icin dondurur.
   static Future<List<Category>> getAllManualExpenseCategories() async {
     final isar = IsarService.isar;
 
@@ -53,6 +57,7 @@ class CategoryService {
         .findAll();
   }
 
+  /// Yeni manuel gider kategorisi olusturur.
   static Future<void> addExpenseCategory(String name) async {
     final isar = IsarService.isar;
 
@@ -67,6 +72,7 @@ class CategoryService {
     });
   }
 
+  /// Sistem kategorilerinin duzenlenmesini engelleyerek mevcut kaydi gunceller.
   static Future<void> updateExpenseCategory(Category category) async {
     final isar = IsarService.isar;
     if (category.isSystemGenerated) {
@@ -78,6 +84,7 @@ class CategoryService {
     });
   }
 
+  /// Sistem kategorilerinin silinmesini engelleyerek kaydi kaldirir.
   static Future<void> deleteExpenseCategory(int id) async {
     final isar = IsarService.isar;
     final existing = await isar.categorys.get(id);
@@ -90,6 +97,7 @@ class CategoryService {
     });
   }
 
+  /// Bir gider kategorisinin hareketlerde kullanilip kullanilmadigini denetler.
   static Future<bool> isExpenseCategoryUsed(int categoryId) async {
     final isar = IsarService.isar;
 
@@ -104,6 +112,7 @@ class CategoryService {
     return count > 0;
   }
 
+  /// Kategoriyi ekrandan gizlemek icin aktiflik bayragini degistirir.
   static Future<void> setActive(int id, bool value) async {
     final isar = IsarService.isar;
     final category = await isar.categorys.get(id);
@@ -118,6 +127,7 @@ class CategoryService {
     });
   }
 
+  /// Uygulama ilk acildiginda temel gider kategorilerini bos veritabanina ekler.
   static Future<void> seedExpenseDefaultsIfEmpty() async {
     final isar = IsarService.isar;
     final existing = await isar.categorys

@@ -9,6 +9,7 @@ class AccountService {
   static const String _defaultCashName = 'CÜZDAN';
   static const String _defaultCashType = 'cash';
 
+  /// Uygulamanin her zaman kullanabilecegi varsayilan cüzdan hesabini garanti eder.
   static Future<void> ensureDefaultCashAccount() async {
     final isar = IsarService.isar;
     final existing = await isar.accounts
@@ -43,6 +44,7 @@ class AccountService {
     }
   }
 
+  /// Yeni bir hesap kaydini kalici olarak yazar.
   static Future<void> addAccount(Account account) async {
     final isar = IsarService.isar;
 
@@ -51,6 +53,7 @@ class AccountService {
     });
   }
   
+  /// Hesabin baska hareketler tarafindan kullanilip kullanilmadigini kontrol eder.
   static Future<bool> isAccountUsed(int id) async {
     final isar = IsarService.isar;
 
@@ -79,6 +82,7 @@ class AccountService {
     return financeCount > 0 || investmentCount > 0 || transferCount > 0;
   }
 
+  /// Kullanilan hesaplari silmek yerine kosullara gore pasife alir.
   static Future<bool> deleteAccount(int id) async {
     final isar = IsarService.isar;
     final used = await isAccountUsed(id);
@@ -102,6 +106,7 @@ class AccountService {
     return true;
   }
 
+  /// Tum hesaplari getirir; gerekirse bozuk kayitlari temizleyerek toparlanir.
   static Future<List<Account>> getAllAccounts() async {
     final isar = IsarService.isar;
     await ensureDefaultCashAccount();
@@ -118,11 +123,13 @@ class AccountService {
     }
   }
 
+  /// Sadece aktif hesaplari UI'da listelemek icin filtreler.
   static Future<List<Account>> getActiveAccounts() async {
     final all = await getAllAccounts();
     return all.where((a) => a.isActive).toList();
   }
 
+  /// Hesabin aktiflik durumunu is kurallarina uygun sekilde degistirir.
   static Future<void> setActive(int id, bool value) async {
     final isar = IsarService.isar;
     final account = await isar.accounts.get(id);
@@ -137,6 +144,7 @@ class AccountService {
     });
   }
 
+  /// Mevcut hesap kaydini gunceller.
   static Future<void> updateAccount(Account account) async {
     final isar = IsarService.isar;
 
@@ -145,6 +153,7 @@ class AccountService {
     });
   }
 
+  /// Eski/hatali schema nedeniyle okunamayan hesaplari temizleyip sorguyu kurtarir.
   static Future<void> _cleanupCorruptedAccounts() async {
     final isar = IsarService.isar;
     final ids = await isar.accounts.where().idProperty().findAll();

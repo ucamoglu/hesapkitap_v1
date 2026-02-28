@@ -40,6 +40,7 @@ class _TransferEntryScreenState extends State<TransferEntryScreen> {
     super.dispose();
   }
 
+  // Transfer formu icin aktif hesap listesini yukler.
   Future<void> _load() async {
     final accounts = (await AccountService.getActiveAccounts())
         .where((a) => a.type != 'investment')
@@ -53,6 +54,7 @@ class _TransferEntryScreenState extends State<TransferEntryScreen> {
     });
   }
 
+  // Transfer tarih secimini yonetir.
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
       context: context,
@@ -92,6 +94,7 @@ class _TransferEntryScreenState extends State<TransferEntryScreen> {
     return '${a.name}  •  $sign ${_fmtAmount(a.balance)} TL';
   }
 
+  // Kaynak ve hedef hesap arasinda transfer hareketi olusturur.
   Future<void> _save() async {
     if (_saving) return;
     if (!_formKey.currentState!.validate()) return;

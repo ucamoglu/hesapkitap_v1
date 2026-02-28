@@ -19,6 +19,7 @@ class FifoSellPreview {
 }
 
 class InvestmentTransactionService {
+  /// Yatirim hareketlerini tarihe gore yeni->eski sirada getirir.
   static Future<List<InvestmentTransaction>> getAll() async {
     final isar = IsarService.isar;
     final items = await isar.investmentTransactions.where().anyId().findAll();
@@ -26,6 +27,7 @@ class InvestmentTransactionService {
     return items;
   }
 
+  /// Alis/satis hareketini ekler; nakit ve yatirim hesap bakiyelerini ayni anda gunceller.
   static Future<int> addAndGetId({
     required int investmentAccountId,
     required int cashAccountId,
@@ -134,6 +136,7 @@ class InvestmentTransactionService {
     return createdId;
   }
 
+  /// Eski islemi geri alip yeni degerleri uygulayarak yatirim hareketini gunceller.
   static Future<void> updateTransaction({
     required int transactionId,
     required int investmentAccountId,
@@ -271,6 +274,7 @@ class InvestmentTransactionService {
     });
   }
 
+  /// Yatirim hareketini ve bagli PnL kaydini geri sararak siler.
   static Future<void> deleteAndReturn(int transactionId) async {
     final isar = IsarService.isar;
     await isar.writeTxn(() async {
@@ -307,6 +311,7 @@ class InvestmentTransactionService {
     });
   }
 
+  /// Satistan once FIFO maliyet ve gerceklesen kâr/zarar onizlemesi uretir.
   static Future<FifoSellPreview> previewSell({
     required int investmentAccountId,
     required String symbol,
@@ -325,6 +330,7 @@ class InvestmentTransactionService {
     );
   }
 
+  /// Acik lotlari FIFO mantigiyla gezerek satis maliyet tabanini hesaplar.
   static Future<FifoSellPreview> _calculateFifoSellPreview({
     required Isar isar,
     required int investmentAccountId,
@@ -396,6 +402,7 @@ class InvestmentTransactionService {
     );
   }
 
+  /// Satis hareketi icin uretilmis sentetik finans kaydini bulmaya calisir.
   static Future<FinanceTransaction?> _findLinkedPnlFinanceTx({
     required Isar isar,
     required InvestmentTransaction tx,

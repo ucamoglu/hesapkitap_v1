@@ -32,6 +32,7 @@ class _CariCardSummaryScreenState extends State<CariCardSummaryScreen> {
     _load();
   }
 
+  // Cari kart ozetlerini, tahsilat ve borc toplamlarini hesaplayarak olusturur.
   Future<void> _load() async {
     setState(() {
       _loading = true;
