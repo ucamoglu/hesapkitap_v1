@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:isar/isar.dart';
 import 'package:path_provider/path_provider.dart';
+
 import '../models/account.dart';
 import '../models/category.dart';
 import '../models/finance_transaction.dart';
@@ -24,6 +27,10 @@ import '../models/tracked_crypto_state.dart';
 class IsarService {
   static late Isar isar;
   static bool get encryptedAtRest => false;
+  static const _resettableSupportFiles = <String>[
+    'sync_metadata_v1.json',
+    'sync_preferences_v1.json',
+  ];
 
   static Future<void> init() async {
     final dir = await getApplicationDocumentsDirectory();
@@ -61,6 +68,13 @@ class IsarService {
   static Future<void> resetDatabase() async {
     for (final name in Isar.instanceNames) {
       await Isar.getInstance(name)?.close(deleteFromDisk: true);
+    }
+    final dir = await getApplicationDocumentsDirectory();
+    for (final fileName in _resettableSupportFiles) {
+      final file = File('${dir.path}/$fileName');
+      if (await file.exists()) {
+        await file.delete();
+      }
     }
     await init();
   }

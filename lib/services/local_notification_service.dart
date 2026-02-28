@@ -1,4 +1,5 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:isar/isar.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
@@ -89,14 +90,12 @@ class LocalNotificationService {
       macOS: DarwinNotificationDetails(),
     );
 
-    await _plugin.zonedSchedule(
-      notificationId,
-      'Gelir Planı Hatırlatma',
-      'Planlı gelir zamanı geldi. Gerçekleşti mi kontrol edin.',
-      tzTarget,
-      details,
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-      matchDateTimeComponents: null,
+    await _schedulePlanNotification(
+      notificationId: notificationId,
+      title: 'Gelir Planı Hatırlatma',
+      body: 'Planlı gelir zamanı geldi. Gerçekleşti mi kontrol edin.',
+      target: tzTarget,
+      details: details,
     );
   }
 
@@ -137,14 +136,12 @@ class LocalNotificationService {
       macOS: DarwinNotificationDetails(),
     );
 
-    await _plugin.zonedSchedule(
-      notificationId,
-      'Gider Planı Hatırlatma',
-      'Planlı gider zamanı geldi. Gerçekleşti mi kontrol edin.',
-      tzTarget,
-      details,
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-      matchDateTimeComponents: null,
+    await _schedulePlanNotification(
+      notificationId: notificationId,
+      title: 'Gider Planı Hatırlatma',
+      body: 'Planlı gider zamanı geldi. Gerçekleşti mi kontrol edin.',
+      target: tzTarget,
+      details: details,
     );
   }
 
@@ -215,5 +212,57 @@ class LocalNotificationService {
     }
 
     return target;
+  }
+
+  static Future<void> _schedulePlanNotification({
+    required int notificationId,
+    required String title,
+    required String body,
+    required tz.TZDateTime target,
+    required NotificationDetails details,
+  }) async {
+    final scheduleMode = await _preferredAndroidScheduleMode();
+
+    try {
+      await _plugin.zonedSchedule(
+        notificationId,
+        title,
+        body,
+        target,
+        details,
+        androidScheduleMode: scheduleMode,
+        matchDateTimeComponents: null,
+      );
+    } on PlatformException catch (error) {
+      if (error.code != 'exact_alarms_not_permitted' ||
+          scheduleMode == AndroidScheduleMode.inexactAllowWhileIdle) {
+        rethrow;
+      }
+
+      await _plugin.zonedSchedule(
+        notificationId,
+        title,
+        body,
+        target,
+        details,
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        matchDateTimeComponents: null,
+      );
+    }
+  }
+
+  static Future<AndroidScheduleMode> _preferredAndroidScheduleMode() async {
+    final androidPlugin = _plugin.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    if (androidPlugin == null) {
+      return AndroidScheduleMode.exactAllowWhileIdle;
+    }
+
+    final canScheduleExact =
+        await androidPlugin.canScheduleExactNotifications() ?? false;
+    if (canScheduleExact) {
+      return AndroidScheduleMode.exactAllowWhileIdle;
+    }
+    return AndroidScheduleMode.inexactAllowWhileIdle;
   }
 }

@@ -36,6 +36,7 @@ class _ExpensePlanningScreenState extends State<ExpensePlanningScreen> {
 
   int? _selectedAccountId;
   int? _selectedCategoryId;
+  String _recurrencePreset = 'monthly';
   String _periodType = 'monthly';
   int _frequency = 1;
   int _reminderMinutesBefore = 10;
@@ -47,7 +48,7 @@ class _ExpensePlanningScreenState extends State<ExpensePlanningScreen> {
   @override
   void initState() {
     super.initState();
-    _load(checkDue: true);
+    _load();
   }
 
   @override
@@ -259,6 +260,79 @@ class _ExpensePlanningScreenState extends State<ExpensePlanningScreen> {
     );
   }
 
+  List<DateTime> _previewDatesForForm() {
+    return PlanningStandard.previewDates(
+      startDate: _buildPlanStartDate(),
+      periodType: _periodType,
+      frequency:
+          _periodType == 'monthly' || _periodType == 'yearly' ? _frequency : 1,
+      endDate: _endDate,
+    );
+  }
+
+  List<DateTime> _datesToPersist() {
+    final startDate = _buildPlanStartDate();
+    if (_endDate == null || _periodType == 'once') {
+      return [startDate];
+    }
+
+    return PlanningStandard.previewDates(
+      startDate: startDate,
+      periodType: _periodType,
+      frequency:
+          _periodType == 'monthly' || _periodType == 'yearly' ? _frequency : 1,
+      endDate: _endDate,
+      maxCount: 1000,
+    );
+  }
+
+  List<DateTime> _previewDatesForPlan(ExpensePlan plan) {
+    return PlanningStandard.previewDates(
+      startDate: plan.startDate,
+      periodType: plan.periodType,
+      frequency: plan.frequency,
+      endDate: plan.endDate,
+    );
+  }
+
+  Widget _buildPreviewWrap(List<DateTime> dates) {
+    if (dates.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Wrap(
+      spacing: 6,
+      runSpacing: 6,
+      children: dates
+          .map(
+            (date) => Chip(
+              visualDensity: VisualDensity.compact,
+              label: Text(_fmtDate(date)),
+            ),
+          )
+          .toList(),
+    );
+  }
+
+  void _applyRecurrencePreset(String preset) {
+    _recurrencePreset = preset;
+    if (preset == 'custom') {
+      if (_periodType == 'once') {
+        _periodType = 'monthly';
+      }
+      return;
+    }
+
+    _periodType = preset;
+    _frequency = 1;
+    _reminderMinutesBefore = preset == 'daily' ? 10 : 0;
+    if (preset == 'weekly') {
+      _selectedWeekday = _startDate.weekday;
+    } else if (preset == 'daily') {
+      _selectedTime = TimeOfDay.fromDateTime(_buildPlanStartDate());
+    }
+  }
+
   String _accountName(int id) {
     for (final a in _accounts) {
       if (a.id == id) return a.name;
@@ -289,32 +363,43 @@ class _ExpensePlanningScreenState extends State<ExpensePlanningScreen> {
 
     setState(() => _saving = true);
     try {
-      final planStartDate = _buildPlanStartDate();
-      final plan = ExpensePlan()
-        ..accountId = _selectedAccountId!
-        ..expenseCategoryId = _selectedCategoryId!
-        ..amount = amount
-        ..description = _descController.text.trim().isEmpty
-            ? null
-            : _descController.text.trim()
-        ..periodType = _periodType
-        ..frequency =
-            _periodType == 'monthly' || _periodType == 'yearly' ? _frequency : 1
-        ..reminderMinutesBefore =
-            _periodType == 'daily' ? _reminderMinutesBefore : 0
-        ..startDate = planStartDate
-        ..endDate = _endDate == null
-            ? null
-            : DateTime(_endDate!.year, _endDate!.month, _endDate!.day)
-        ..nextDueDate = planStartDate
-        ..isActive = true
-        ..createdAt = DateTime.now();
+      final datesToPersist = _datesToPersist();
+      final normalizedEndDate = _endDate == null
+          ? null
+          : DateTime(_endDate!.year, _endDate!.month, _endDate!.day);
+      final shouldExpandRecurring =
+          normalizedEndDate != null && _periodType != 'once';
 
-      await ExpensePlanService.save(plan);
+      for (final dueDate in datesToPersist) {
+        final plan = ExpensePlan()
+          ..accountId = _selectedAccountId!
+          ..expenseCategoryId = _selectedCategoryId!
+          ..amount = amount
+          ..description = _descController.text.trim().isEmpty
+              ? null
+              : _descController.text.trim()
+          ..periodType = shouldExpandRecurring ? 'once' : _periodType
+          ..frequency = shouldExpandRecurring
+              ? 1
+              : (_periodType == 'monthly' || _periodType == 'yearly'
+                  ? _frequency
+                  : 1)
+          ..reminderMinutesBefore = shouldExpandRecurring
+              ? 0
+              : (_periodType == 'daily' ? _reminderMinutesBefore : 0)
+          ..startDate = dueDate
+          ..endDate = shouldExpandRecurring ? null : normalizedEndDate
+          ..nextDueDate = dueDate
+          ..isActive = true
+          ..createdAt = DateTime.now();
+
+        await ExpensePlanService.save(plan);
+      }
       if (!mounted) return;
 
       _amountController.clear();
       _descController.clear();
+      _recurrencePreset = 'monthly';
       _frequency = 1;
       _reminderMinutesBefore = 10;
       _periodType = 'monthly';
@@ -326,7 +411,13 @@ class _ExpensePlanningScreenState extends State<ExpensePlanningScreen> {
       await _load();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Gider planı kaydedildi.')),
+        SnackBar(
+          content: Text(
+            shouldExpandRecurring
+                ? '${datesToPersist.length} gider planı kaydedildi.'
+                : 'Gider planı kaydedildi.',
+          ),
+        ),
       );
     } catch (e) {
       if (!mounted) return;
@@ -347,7 +438,7 @@ class _ExpensePlanningScreenState extends State<ExpensePlanningScreen> {
         title: const Text('Gider Planlama'),
         actions: [
           IconButton(
-            onPressed: _load,
+            onPressed: () => _load(checkDue: true),
             icon: const Icon(Icons.refresh),
           ),
           buildHomeAction(context),
@@ -455,102 +546,123 @@ class _ExpensePlanningScreenState extends State<ExpensePlanningScreen> {
                                       },
                                     ),
                                     const SizedBox(height: 10),
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child:
-                                              DropdownButtonFormField<String>(
-                                            initialValue: _periodType,
-                                            decoration: const InputDecoration(
-                                              labelText: 'Plan Dönemi',
-                                            ),
-                                            items:
-                                                PlanningStandard.periodItems(),
-                                            onChanged: (v) {
-                                              if (v == null) return;
-                                              setState(() {
-                                                _periodType = v;
-                                                if (_periodType == 'weekly') {
-                                                  _frequency = 1;
-                                                  _reminderMinutesBefore = 0;
-                                                  _selectedWeekday =
-                                                      _startDate.weekday;
-                                                } else if (_periodType ==
-                                                    'daily') {
-                                                  _frequency = 1;
-                                                  _reminderMinutesBefore =
-                                                      _reminderMinutesBefore ==
-                                                              0
-                                                          ? 10
-                                                          : _reminderMinutesBefore;
-                                                  _selectedTime =
-                                                      TimeOfDay.fromDateTime(
-                                                          _buildPlanStartDate());
-                                                } else {
-                                                  final maxFreq =
-                                                      PlanningStandard
-                                                          .maxFrequencyForPeriod(
-                                                              _periodType);
-                                                  if (_frequency > maxFreq) {
-                                                    _frequency = maxFreq;
-                                                  }
-                                                  _reminderMinutesBefore = 0;
-                                                }
-                                              });
-                                            },
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Expanded(
-                                          child: PlanningStandard
-                                                  .usesReminderSelector(
-                                                      _periodType)
-                                              ? DropdownButtonFormField<int>(
-                                                  initialValue:
-                                                      _reminderMinutesBefore,
-                                                  decoration:
-                                                      const InputDecoration(
-                                                    labelText: 'Hatırlatma',
-                                                  ),
-                                                  items: PlanningStandard
-                                                      .dailyReminderItems(),
-                                                  onChanged: (v) {
-                                                    if (v == null) return;
-                                                    setState(() =>
-                                                        _reminderMinutesBefore =
-                                                            v);
-                                                  },
-                                                )
-                                              : PlanningStandard
-                                                      .disablesFrequencySelector(
-                                                          _periodType)
-                                                  ? InputDecorator(
-                                                      decoration:
-                                                          const InputDecoration(
-                                                        labelText: 'Sıklık',
-                                                      ),
-                                                      child: const Text(
-                                                          'Haftalık planda pasif'),
-                                                    )
-                                                  : DropdownButtonFormField<
-                                                      int>(
-                                                      initialValue: _frequency,
-                                                      decoration:
-                                                          const InputDecoration(
-                                                        labelText: 'Sıklık',
-                                                      ),
-                                                      items: PlanningStandard
-                                                          .frequencyItemsForPeriod(
-                                                              _periodType),
-                                                      onChanged: (v) {
-                                                        if (v == null) return;
-                                                        setState(() =>
-                                                            _frequency = v);
-                                                      },
-                                                    ),
-                                        ),
-                                      ],
+                                    DropdownButtonFormField<String>(
+                                      initialValue: _recurrencePreset,
+                                      decoration: const InputDecoration(
+                                        labelText: 'Yineleme',
+                                      ),
+                                      items: PlanningStandard
+                                          .recurrencePresetItems(),
+                                      onChanged: (v) {
+                                        if (v == null) return;
+                                        setState(
+                                            () => _applyRecurrencePreset(v));
+                                      },
                                     ),
+                                    if (_recurrencePreset == 'custom') ...[
+                                      const SizedBox(height: 10),
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child:
+                                                DropdownButtonFormField<String>(
+                                              initialValue: _periodType,
+                                              decoration: const InputDecoration(
+                                                labelText: 'Plan Dönemi',
+                                              ),
+                                              items: PlanningStandard
+                                                  .periodItems(),
+                                              onChanged: (v) {
+                                                if (v == null) return;
+                                                setState(() {
+                                                  _periodType = v;
+                                                  if (_periodType == 'weekly') {
+                                                    _frequency = 1;
+                                                    _reminderMinutesBefore = 0;
+                                                    _selectedWeekday =
+                                                        _startDate.weekday;
+                                                  } else if (_periodType ==
+                                                      'daily') {
+                                                    _frequency = 1;
+                                                    _reminderMinutesBefore =
+                                                        _reminderMinutesBefore ==
+                                                                0
+                                                            ? 10
+                                                            : _reminderMinutesBefore;
+                                                    _selectedTime =
+                                                        TimeOfDay.fromDateTime(
+                                                            _buildPlanStartDate());
+                                                  } else {
+                                                    final maxFreq =
+                                                        PlanningStandard
+                                                            .maxFrequencyForPeriod(
+                                                                _periodType);
+                                                    if (_frequency > maxFreq) {
+                                                      _frequency = maxFreq;
+                                                    }
+                                                    _reminderMinutesBefore = 0;
+                                                  }
+                                                  _recurrencePreset = 'custom';
+                                                });
+                                              },
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: PlanningStandard
+                                                    .usesReminderSelector(
+                                                        _periodType)
+                                                ? DropdownButtonFormField<int>(
+                                                    initialValue:
+                                                        _reminderMinutesBefore,
+                                                    decoration:
+                                                        const InputDecoration(
+                                                      labelText: 'Hatırlatma',
+                                                    ),
+                                                    items: PlanningStandard
+                                                        .dailyReminderItems(),
+                                                    onChanged: (v) {
+                                                      if (v == null) return;
+                                                      setState(() =>
+                                                          _reminderMinutesBefore =
+                                                              v);
+                                                    },
+                                                  )
+                                                : PlanningStandard
+                                                        .disablesFrequencySelector(
+                                                            _periodType)
+                                                    ? InputDecorator(
+                                                        decoration:
+                                                            const InputDecoration(
+                                                          labelText: 'Sıklık',
+                                                        ),
+                                                        child: const Text(
+                                                            'Haftalık planda pasif'),
+                                                      )
+                                                    : DropdownButtonFormField<
+                                                        int>(
+                                                        initialValue:
+                                                            _frequency,
+                                                        decoration:
+                                                            const InputDecoration(
+                                                          labelText: 'Sıklık',
+                                                        ),
+                                                        items: PlanningStandard
+                                                            .frequencyItemsForPeriod(
+                                                                _periodType),
+                                                        onChanged: (v) {
+                                                          if (v == null) return;
+                                                          setState(() {
+                                                            _frequency = v;
+                                                            _recurrencePreset =
+                                                                'custom';
+                                                          });
+                                                        },
+                                                      ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
                                     const SizedBox(height: 10),
                                     Row(
                                       children: [
@@ -630,6 +742,23 @@ class _ExpensePlanningScreenState extends State<ExpensePlanningScreen> {
                                         labelText: 'Açıklama (opsiyonel)',
                                       ),
                                     ),
+                                    const SizedBox(height: 10),
+                                    Align(
+                                      alignment: Alignment.centerLeft,
+                                      child: Text(
+                                        _endDate == null
+                                            ? 'Önizleme: ilk 12 plan tarihi'
+                                            : 'Önizleme: ${_previewDatesForForm().length} plan kaydedilecek',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    _buildPreviewWrap(_previewDatesForForm()),
                                     const SizedBox(height: 14),
                                     SizedBox(
                                       width: double.infinity,
@@ -659,46 +788,69 @@ class _ExpensePlanningScreenState extends State<ExpensePlanningScreen> {
                     const SizedBox(height: 6),
                     ..._plans.where((p) => p.isActive).map((p) {
                       return Card(
-                        child: ListTile(
-                          title: Text(
-                              '${_categoryName(p.expenseCategoryId)} • ${_fmtAmount(p.amount)} TL'),
-                          subtitle: Text(
-                            'Sonraki Tarih: ${_fmtDate(p.nextDueDate)}\n'
-                            'Hesap: ${_accountName(p.accountId)} • ${_planSummary(p)}',
-                          ),
-                          trailing: PopupMenuButton<String>(
-                            onSelected: (v) async {
-                              if (v == 'done') {
-                                await ExpensePlanService.markCompleted(p);
-                              } else if (v == 'postpone') {
-                                final picked = await showDatePicker(
-                                  context: context,
-                                  initialDate: p.nextDueDate
-                                      .add(const Duration(days: 1)),
-                                  firstDate: DateTime(2000),
-                                  lastDate: DateTime(2100),
-                                );
-                                if (picked != null) {
-                                  await ExpensePlanService.postpone(p, picked);
-                                }
-                              } else if (v == 'cancel') {
-                                await ExpensePlanService.cancel(p);
-                              } else if (v == 'delete') {
-                                await ExpensePlanService.delete(p.id);
-                              }
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              ListTile(
+                                contentPadding: EdgeInsets.zero,
+                                title: Text(
+                                    '${_categoryName(p.expenseCategoryId)} • ${_fmtAmount(p.amount)} TL'),
+                                subtitle: Text(
+                                  'Sonraki Tarih: ${_fmtDate(p.nextDueDate)}\n'
+                                  'Hesap: ${_accountName(p.accountId)} • ${_planSummary(p)}',
+                                ),
+                                isThreeLine: true,
+                                trailing: PopupMenuButton<String>(
+                                  onSelected: (v) async {
+                                    if (v == 'done') {
+                                      await ExpensePlanService.markCompleted(p);
+                                    } else if (v == 'postpone') {
+                                      final picked = await showDatePicker(
+                                        context: context,
+                                        initialDate: p.nextDueDate
+                                            .add(const Duration(days: 1)),
+                                        firstDate: DateTime(2000),
+                                        lastDate: DateTime(2100),
+                                      );
+                                      if (picked != null) {
+                                        await ExpensePlanService.postpone(
+                                          p,
+                                          picked,
+                                        );
+                                      }
+                                    } else if (v == 'cancel') {
+                                      await ExpensePlanService.cancel(p);
+                                    } else if (v == 'delete') {
+                                      await ExpensePlanService.delete(p.id);
+                                    }
 
-                              if (!mounted) return;
-                              await _load();
-                            },
-                            itemBuilder: (_) => const [
-                              PopupMenuItem(
-                                  value: 'done', child: Text('Gerçekleşti')),
-                              PopupMenuItem(
-                                  value: 'postpone', child: Text('Ertele')),
-                              PopupMenuItem(
-                                  value: 'cancel', child: Text('İptal Et')),
-                              PopupMenuItem(
-                                  value: 'delete', child: Text('Sil')),
+                                    if (!mounted) return;
+                                    await _load();
+                                  },
+                                  itemBuilder: (_) => const [
+                                    PopupMenuItem(
+                                        value: 'done',
+                                        child: Text('Gerçekleşti')),
+                                    PopupMenuItem(
+                                        value: 'postpone',
+                                        child: Text('Ertele')),
+                                    PopupMenuItem(
+                                        value: 'cancel',
+                                        child: Text('İptal Et')),
+                                    PopupMenuItem(
+                                        value: 'delete', child: Text('Sil')),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              const Text(
+                                'Gelecek plan tarihleri',
+                                style: TextStyle(fontWeight: FontWeight.w600),
+                              ),
+                              const SizedBox(height: 6),
+                              _buildPreviewWrap(_previewDatesForPlan(p)),
                             ],
                           ),
                         ),

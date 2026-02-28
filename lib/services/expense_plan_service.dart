@@ -56,11 +56,16 @@ class ExpensePlanService {
       expensePlanId: plan.id,
     );
 
-    final next = _nextByPlan(plan.nextDueDate, plan.periodType, plan.frequency);
-    plan.nextDueDate = next;
-
-    if (plan.endDate != null && plan.nextDueDate.isAfter(plan.endDate!)) {
+    if (plan.periodType == 'once') {
       plan.isActive = false;
+    } else {
+      final next =
+          _nextByPlan(plan.nextDueDate, plan.periodType, plan.frequency);
+      plan.nextDueDate = next;
+
+      if (plan.endDate != null && plan.nextDueDate.isAfter(plan.endDate!)) {
+        plan.isActive = false;
+      }
     }
 
     await save(plan);
@@ -97,6 +102,9 @@ class ExpensePlanService {
   /// Tekrarlayan planin bir sonraki vadesini period tipine gore hesaplar.
   static DateTime _nextByPlan(DateTime from, String periodType, int frequency) {
     final f = frequency < 1 ? 1 : frequency;
+    if (periodType == 'once') {
+      return from;
+    }
     if (periodType == 'daily') {
       return from.add(Duration(days: f));
     }

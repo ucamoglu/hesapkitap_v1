@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
-import '../core/runtime/app_runtime.dart';
 import '../database/isar_service.dart';
 import '../models/user_profile.dart';
 import '../services/user_profile_service.dart';
@@ -11,7 +10,6 @@ import '../utils/camera_support.dart';
 import '../utils/navigation_helpers.dart';
 import '../utils/tr_phone_input_formatter.dart';
 import '../utils/turkish_upper_case_formatter.dart';
-import 'cloud_sync_setup_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({
@@ -183,7 +181,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     setState(() {
       _showValidationHints = true;
     });
-    if (!_formKey.currentState!.validate() || _birthDate == null || _photoBytes == null) {
+    if (!_formKey.currentState!.validate() ||
+        _birthDate == null ||
+        _photoBytes == null) {
       return;
     }
 
@@ -291,17 +291,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  // Profil ekranindan cloud hazirlik akisina gecis saglar.
-  Future<void> _openCloudSyncSetup() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => const CloudSyncSetupScreen(),
-      ),
-    );
-    if (!mounted) return;
-    setState(() {});
-  }
-
   @override
   Widget build(BuildContext context) {
     return PopScope(
@@ -311,9 +300,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         appBar: AppBar(
           leading: widget.forceSetup ? null : buildMenuLeading(),
           automaticallyImplyLeading: !widget.forceSetup,
-          title: Text(widget.forceSetup
-              ? 'Profil Oluştur'
-              : 'Kullanıcı Profili'),
+          title:
+              Text(widget.forceSetup ? 'Profil Oluştur' : 'Kullanıcı Profili'),
           actions: widget.forceSetup ? null : [buildHomeAction(context)],
         ),
         body: _loading
@@ -353,8 +341,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       const SizedBox(height: 6),
                       CircleAvatar(
                         radius: 44,
-                        backgroundImage:
-                            _photoBytes != null ? MemoryImage(_photoBytes!) : null,
+                        backgroundImage: _photoBytes != null
+                            ? MemoryImage(_photoBytes!)
+                            : null,
                         child: _photoBytes == null
                             ? const Icon(Icons.person, size: 44)
                             : null,
@@ -421,7 +410,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       InkWell(
                         onTap: _pickBirthDate,
                         child: InputDecorator(
-                          decoration: _requiredDecoration('Doğum Tarihi').copyWith(
+                          decoration:
+                              _requiredDecoration('Doğum Tarihi').copyWith(
                             suffixIcon: Icon(Icons.calendar_today),
                           ),
                           child: Text(
@@ -465,7 +455,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         keyboardType: TextInputType.phone,
                         inputFormatters: const [TrPhoneInputFormatter()],
                         validator: (value) {
-                          final digits = (value ?? '').replaceAll(RegExp(r'[^0-9]'), '');
+                          final digits =
+                              (value ?? '').replaceAll(RegExp(r'[^0-9]'), '');
                           if (digits.isEmpty) return 'Telefon zorunludur';
                           if (digits.length != 10) {
                             return 'Telefon formatı: (537)324 84 52';
@@ -488,52 +479,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                       ),
                       if (!widget.forceSetup) ...[
-                        const SizedBox(height: 28),
-                        const Divider(),
-                        const SizedBox(height: 8),
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: AnimatedBuilder(
-                            animation: AppRuntime.subscriptions,
-                            builder: (context, _) {
-                              final canUseCloud =
-                                  AppRuntime.subscriptions.state.canUseCloud;
-                              return Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Cloud Sync Hazırlığı',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    canUseCloud
-                                        ? 'Plus aktif. Bu cihazi ilk cloud esitlemesine hazirlayabilirsiniz.'
-                                        : 'Plus acildiginda veri kaybi olmadan gecis icin bu cihazi bugunden hazirlayabilirsiniz.',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodySmall,
-                                  ),
-                                  const SizedBox(height: 8),
-                                  SizedBox(
-                                    width: double.infinity,
-                                    child: OutlinedButton.icon(
-                                      onPressed: _openCloudSyncSetup,
-                                      icon: const Icon(Icons.cloud_sync_outlined),
-                                      label: Text(
-                                        canUseCloud
-                                            ? 'Cloud Sync Yonet'
-                                            : 'Cloud Sync Hazirligi',
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              );
-                            },
-                          ),
-                        ),
                         const SizedBox(height: 28),
                         const Divider(),
                         const SizedBox(height: 8),
