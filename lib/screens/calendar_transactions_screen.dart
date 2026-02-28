@@ -33,7 +33,8 @@ class CalendarTransactionsScreen extends StatefulWidget {
       _CalendarTransactionsScreenState();
 }
 
-class _CalendarTransactionsScreenState extends State<CalendarTransactionsScreen> {
+class _CalendarTransactionsScreenState
+    extends State<CalendarTransactionsScreen> {
   bool _loading = true;
   String? _error;
 
@@ -42,11 +43,13 @@ class _CalendarTransactionsScreenState extends State<CalendarTransactionsScreen>
   List<FinanceTransaction> _all = [];
   List<IncomePlan> _plans = [];
   List<ExpensePlan> _expensePlans = [];
-  final LinkedHashMap<DateTime, int> _txCountByDay = LinkedHashMap<DateTime, int>(
+  final LinkedHashMap<DateTime, int> _txCountByDay =
+      LinkedHashMap<DateTime, int>(
     equals: isSameDay,
     hashCode: _getHashCode,
   );
-  final LinkedHashMap<DateTime, int> _planCountByDay = LinkedHashMap<DateTime, int>(
+  final LinkedHashMap<DateTime, int> _planCountByDay =
+      LinkedHashMap<DateTime, int>(
     equals: isSameDay,
     hashCode: _getHashCode,
   );
@@ -71,6 +74,7 @@ class _CalendarTransactionsScreenState extends State<CalendarTransactionsScreen>
     _load();
   }
 
+  // Takvim gunleri icin hareket ve plan sayilarini hesaplayip ekrana hazirlar.
   Future<void> _load() async {
     setState(() {
       _loading = true;
@@ -112,8 +116,8 @@ class _CalendarTransactionsScreenState extends State<CalendarTransactionsScreen>
         hashCode: _getHashCode,
       );
       for (final p in plans.where((e) => e.isActive)) {
-        final dayKey =
-            DateTime(p.nextDueDate.year, p.nextDueDate.month, p.nextDueDate.day);
+        final dayKey = DateTime(
+            p.nextDueDate.year, p.nextDueDate.month, p.nextDueDate.day);
         planCounts[dayKey] = (planCounts[dayKey] ?? 0) + 1;
       }
       final expensePlanCounts = LinkedHashMap<DateTime, int>(
@@ -121,8 +125,8 @@ class _CalendarTransactionsScreenState extends State<CalendarTransactionsScreen>
         hashCode: _getHashCode,
       );
       for (final p in expensePlans.where((e) => e.isActive)) {
-        final dayKey =
-            DateTime(p.nextDueDate.year, p.nextDueDate.month, p.nextDueDate.day);
+        final dayKey = DateTime(
+            p.nextDueDate.year, p.nextDueDate.month, p.nextDueDate.day);
         expensePlanCounts[dayKey] = (expensePlanCounts[dayKey] ?? 0) + 1;
       }
 
@@ -141,12 +145,16 @@ class _CalendarTransactionsScreenState extends State<CalendarTransactionsScreen>
           ..addAll(expensePlanCounts);
         _accountNames = {for (final a in accounts) a.id: a.name};
         _incomeCategoryNames = {for (final c in incomeCategories) c.id: c.name};
-        _expenseCategoryNames = {for (final c in expenseCategories) c.id: c.name};
+        _expenseCategoryNames = {
+          for (final c in expenseCategories) c.id: c.name
+        };
         _cariCardNames = {
           for (final c in cariCards)
             c.id: (c.type == 'company'
                     ? (c.title?.trim().isNotEmpty == true ? c.title! : null)
-                    : (c.fullName?.trim().isNotEmpty == true ? c.fullName! : null)) ??
+                    : (c.fullName?.trim().isNotEmpty == true
+                        ? c.fullName!
+                        : null)) ??
                 'Cari #${c.id}',
         };
         _cariRawTypeByTxId = {
@@ -171,7 +179,8 @@ class _CalendarTransactionsScreenState extends State<CalendarTransactionsScreen>
   static int _getHashCode(DateTime key) =>
       key.day * 1000000 + key.month * 10000 + key.year;
 
-  bool _isCariTx(FinanceTransaction tx) => _cariRawTypeByTxId.containsKey(tx.id);
+  bool _isCariTx(FinanceTransaction tx) =>
+      _cariRawTypeByTxId.containsKey(tx.id);
 
   bool _isInvestmentAssetTx(FinanceTransaction tx) =>
       _investmentMetaByTxId[tx.id]?.isAssetSide == true;
@@ -180,7 +189,8 @@ class _CalendarTransactionsScreenState extends State<CalendarTransactionsScreen>
       _cariRawTypeByTxId[tx.id] == 'collection';
 
   List<IncomePlan> _selectedDayPlans() {
-    final list = _plans.where((p) => isSameDay(p.nextDueDate, _selectedDate)).toList();
+    final list =
+        _plans.where((p) => isSameDay(p.nextDueDate, _selectedDate)).toList();
     list.sort((a, b) => a.nextDueDate.compareTo(b.nextDueDate));
     return list;
   }
@@ -218,13 +228,16 @@ class _CalendarTransactionsScreenState extends State<CalendarTransactionsScreen>
   }
 
   String _categoryName(FinanceTransaction tx) {
-    if (_isCariTx(tx)) return _cariCardNames[tx.categoryId] ?? 'Cari #${tx.categoryId}';
+    if (_isCariTx(tx)) {
+      return _cariCardNames[tx.categoryId] ?? 'Cari #${tx.categoryId}';
+    }
     final invMeta = _investmentMetaByTxId[tx.id];
     if (invMeta != null) {
       return invMeta.symbol;
     }
     if (tx.type == 'income') {
-      return _incomeCategoryNames[tx.categoryId] ?? 'Kategori #${tx.categoryId}';
+      return _incomeCategoryNames[tx.categoryId] ??
+          'Kategori #${tx.categoryId}';
     }
     return _expenseCategoryNames[tx.categoryId] ?? 'Kategori #${tx.categoryId}';
   }
@@ -261,8 +274,20 @@ class _CalendarTransactionsScreenState extends State<CalendarTransactionsScreen>
     return '${_fmtDate(dt)} $h:$min';
   }
 
-  String _periodLabel(String v) {
-    return PlanningStandard.periodLabel(v);
+  String _incomePlanSummary(IncomePlan plan) {
+    return PlanningStandard.planSummary(
+      periodType: plan.periodType,
+      frequency: plan.frequency,
+      reminderMinutesBefore: plan.reminderMinutesBefore,
+    );
+  }
+
+  String _expensePlanSummary(ExpensePlan plan) {
+    return PlanningStandard.planSummary(
+      periodType: plan.periodType,
+      frequency: plan.frequency,
+      reminderMinutesBefore: plan.reminderMinutesBefore,
+    );
   }
 
   bool _isSyntheticInvestmentPnlTx(FinanceTransaction tx) {
@@ -311,8 +336,8 @@ class _CalendarTransactionsScreenState extends State<CalendarTransactionsScreen>
         symbol: it.symbol,
         rawType: it.type,
         isAssetSide: false,
-        linkedAccountName:
-            accountNames[it.investmentAccountId] ?? 'Yatırım #${it.investmentAccountId}',
+        linkedAccountName: accountNames[it.investmentAccountId] ??
+            'Yatırım #${it.investmentAccountId}',
         investmentTransactionId: it.id,
       );
 
@@ -340,6 +365,7 @@ class _CalendarTransactionsScreenState extends State<CalendarTransactionsScreen>
     return (result, metaById);
   }
 
+  // Takvimden secilen islemi ilgili duzenleme ekranina acarak gunceller.
   Future<void> _editTransaction(FinanceTransaction tx) async {
     bool? changed;
     final invMeta = _investmentMetaByTxId[tx.id];
@@ -376,6 +402,7 @@ class _CalendarTransactionsScreenState extends State<CalendarTransactionsScreen>
     }
   }
 
+  // Takvimdeki hareketi tipine gore dogru servis uzerinden siler.
   Future<void> _deleteTransaction(FinanceTransaction tx) async {
     final ok = await showDialog<bool>(
       context: context,
@@ -422,6 +449,7 @@ class _CalendarTransactionsScreenState extends State<CalendarTransactionsScreen>
     }
   }
 
+  // Gelir/gider/transfer icin manuel kayit menusu acar.
   Future<void> _openManualTransactionMenu() async {
     await showModalBottomSheet<void>(
       context: context,
@@ -440,7 +468,8 @@ class _CalendarTransactionsScreenState extends State<CalendarTransactionsScreen>
                   Navigator.pop(ctx);
                   await Navigator.push<bool>(
                     context,
-                    MaterialPageRoute(builder: (_) => const IncomeEntryScreen()),
+                    MaterialPageRoute(
+                        builder: (_) => const IncomeEntryScreen()),
                   );
                   if (!mounted) return;
                   await _load();
@@ -453,7 +482,8 @@ class _CalendarTransactionsScreenState extends State<CalendarTransactionsScreen>
                   Navigator.pop(ctx);
                   await Navigator.push<bool>(
                     context,
-                    MaterialPageRoute(builder: (_) => const ExpenseEntryScreen()),
+                    MaterialPageRoute(
+                        builder: (_) => const ExpenseEntryScreen()),
                   );
                   if (!mounted) return;
                   await _load();
@@ -466,7 +496,8 @@ class _CalendarTransactionsScreenState extends State<CalendarTransactionsScreen>
                   Navigator.pop(ctx);
                   await Navigator.push<bool>(
                     context,
-                    MaterialPageRoute(builder: (_) => const CariAccountScreen()),
+                    MaterialPageRoute(
+                        builder: (_) => const CariAccountScreen()),
                   );
                   if (!mounted) return;
                   await _load();
@@ -616,120 +647,128 @@ class _CalendarTransactionsScreenState extends State<CalendarTransactionsScreen>
                         child: Padding(
                           padding: const EdgeInsets.all(8),
                           child: TableCalendar<String>(
-                          locale: 'tr_TR',
-                          firstDay: DateTime(2000),
-                          lastDay: DateTime(2100),
-                          focusedDay: _focusedDay,
-                          selectedDayPredicate: (day) => isSameDay(day, _selectedDate),
-                          eventLoader: (day) {
-                            final result = <String>[];
-                            final txCount = _txCountByDay[day] ?? 0;
-                            final planCount = _planCountByDay[day] ?? 0;
-                            final expensePlanCount = _expensePlanCountByDay[day] ?? 0;
-                            result.addAll(List.filled(txCount, 'tx'));
-                            result.addAll(List.filled(planCount, 'plan'));
-                            result.addAll(List.filled(expensePlanCount, 'expense_plan'));
-                            return result;
-                          },
-                          startingDayOfWeek: StartingDayOfWeek.monday,
-                          calendarStyle: CalendarStyle(
-                            outsideDaysVisible: false,
-                            selectedDecoration: const BoxDecoration(
-                              color: Colors.deepPurple,
-                              shape: BoxShape.circle,
-                            ),
-                            todayDecoration: BoxDecoration(
-                              color: Colors.deepPurple.shade200,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          calendarBuilders: CalendarBuilders(
-                            defaultBuilder: (context, day, focusedDay) {
-                              final hasTx = (_txCountByDay[day] ?? 0) > 0;
-                              final hasPlan = (_planCountByDay[day] ?? 0) > 0;
-                              final hasExpensePlan =
-                                  (_expensePlanCountByDay[day] ?? 0) > 0;
-                              if (!hasTx && !hasPlan && !hasExpensePlan) return null;
-                              final borderColor = (hasPlan || hasExpensePlan)
-                                  ? (hasExpensePlan
-                                      ? Colors.red.shade400
-                                      : Colors.orange.shade500)
-                                  : Colors.deepPurple.shade300;
-                              final bgColor = (hasPlan || hasExpensePlan)
-                                  ? (hasExpensePlan
-                                      ? Colors.red.shade50
-                                      : Colors.orange.shade50)
-                                  : Colors.deepPurple.shade50;
-                              return Container(
-                                margin: const EdgeInsets.all(6),
-                                decoration: BoxDecoration(
-                                  color: bgColor,
-                                  shape: BoxShape.circle,
-                                  border: Border.all(color: borderColor),
-                                ),
-                                alignment: Alignment.center,
-                                child: Text(
-                                  '${day.day}',
-                                  style: const TextStyle(fontWeight: FontWeight.w600),
-                                ),
-                              );
+                            locale: 'tr_TR',
+                            firstDay: DateTime(2000),
+                            lastDay: DateTime(2100),
+                            focusedDay: _focusedDay,
+                            selectedDayPredicate: (day) =>
+                                isSameDay(day, _selectedDate),
+                            eventLoader: (day) {
+                              final result = <String>[];
+                              final txCount = _txCountByDay[day] ?? 0;
+                              final planCount = _planCountByDay[day] ?? 0;
+                              final expensePlanCount =
+                                  _expensePlanCountByDay[day] ?? 0;
+                              result.addAll(List.filled(txCount, 'tx'));
+                              result.addAll(List.filled(planCount, 'plan'));
+                              result.addAll(List.filled(
+                                  expensePlanCount, 'expense_plan'));
+                              return result;
                             },
-                            markerBuilder: (context, day, events) {
-                              final hasTx = events.contains('tx');
-                              final hasPlan = events.contains('plan');
-                              final hasExpensePlan = events.contains('expense_plan');
-                              if (!hasTx && !hasPlan && !hasExpensePlan) {
-                                return const SizedBox.shrink();
-                              }
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: 4),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    if (hasTx)
-                                      Container(
-                                        width: 6,
-                                        height: 6,
-                                        decoration: BoxDecoration(
-                                          color: Colors.deepPurple.shade400,
-                                          shape: BoxShape.circle,
+                            startingDayOfWeek: StartingDayOfWeek.monday,
+                            calendarStyle: CalendarStyle(
+                              outsideDaysVisible: false,
+                              selectedDecoration: const BoxDecoration(
+                                color: Colors.deepPurple,
+                                shape: BoxShape.circle,
+                              ),
+                              todayDecoration: BoxDecoration(
+                                color: Colors.deepPurple.shade200,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            calendarBuilders: CalendarBuilders(
+                              defaultBuilder: (context, day, focusedDay) {
+                                final hasTx = (_txCountByDay[day] ?? 0) > 0;
+                                final hasPlan = (_planCountByDay[day] ?? 0) > 0;
+                                final hasExpensePlan =
+                                    (_expensePlanCountByDay[day] ?? 0) > 0;
+                                if (!hasTx && !hasPlan && !hasExpensePlan) {
+                                  return null;
+                                }
+                                final borderColor = (hasPlan || hasExpensePlan)
+                                    ? (hasExpensePlan
+                                        ? Colors.red.shade400
+                                        : Colors.orange.shade500)
+                                    : Colors.deepPurple.shade300;
+                                final bgColor = (hasPlan || hasExpensePlan)
+                                    ? (hasExpensePlan
+                                        ? Colors.red.shade50
+                                        : Colors.orange.shade50)
+                                    : Colors.deepPurple.shade50;
+                                return Container(
+                                  margin: const EdgeInsets.all(6),
+                                  decoration: BoxDecoration(
+                                    color: bgColor,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: borderColor),
+                                  ),
+                                  alignment: Alignment.center,
+                                  child: Text(
+                                    '${day.day}',
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.w600),
+                                  ),
+                                );
+                              },
+                              markerBuilder: (context, day, events) {
+                                final hasTx = events.contains('tx');
+                                final hasPlan = events.contains('plan');
+                                final hasExpensePlan =
+                                    events.contains('expense_plan');
+                                if (!hasTx && !hasPlan && !hasExpensePlan) {
+                                  return const SizedBox.shrink();
+                                }
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 4),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      if (hasTx)
+                                        Container(
+                                          width: 6,
+                                          height: 6,
+                                          decoration: BoxDecoration(
+                                            color: Colors.deepPurple.shade400,
+                                            shape: BoxShape.circle,
+                                          ),
                                         ),
-                                      ),
-                                    if (hasTx && hasPlan) const SizedBox(width: 3),
-                                    if (hasPlan)
-                                      Container(
-                                        width: 6,
-                                        height: 6,
-                                        decoration: BoxDecoration(
-                                          color: Colors.orange.shade600,
-                                          shape: BoxShape.circle,
+                                      if (hasTx && hasPlan)
+                                        const SizedBox(width: 3),
+                                      if (hasPlan)
+                                        Container(
+                                          width: 6,
+                                          height: 6,
+                                          decoration: BoxDecoration(
+                                            color: Colors.orange.shade600,
+                                            shape: BoxShape.circle,
+                                          ),
                                         ),
-                                      ),
-                                    if ((hasTx || hasPlan) && hasExpensePlan)
-                                      const SizedBox(width: 3),
-                                    if (hasExpensePlan)
-                                      Container(
-                                        width: 6,
-                                        height: 6,
-                                        decoration: BoxDecoration(
-                                          color: Colors.red.shade500,
-                                          shape: BoxShape.circle,
+                                      if ((hasTx || hasPlan) && hasExpensePlan)
+                                        const SizedBox(width: 3),
+                                      if (hasExpensePlan)
+                                        Container(
+                                          width: 6,
+                                          height: 6,
+                                          decoration: BoxDecoration(
+                                            color: Colors.red.shade500,
+                                            shape: BoxShape.circle,
+                                          ),
                                         ),
-                                      ),
-                                  ],
-                                ),
-                              );
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
+                            onDaySelected: (selectedDay, focusedDay) {
+                              setState(() {
+                                _selectedDate = selectedDay;
+                                _focusedDay = focusedDay;
+                              });
                             },
-                          ),
-                          onDaySelected: (selectedDay, focusedDay) {
-                            setState(() {
-                              _selectedDate = selectedDay;
+                            onPageChanged: (focusedDay) {
                               _focusedDay = focusedDay;
-                            });
-                          },
-                          onPageChanged: (focusedDay) {
-                            _focusedDay = focusedDay;
-                          },
+                            },
                           ),
                         ),
                       ),
@@ -798,12 +837,13 @@ class _CalendarTransactionsScreenState extends State<CalendarTransactionsScreen>
                                   (p) => Padding(
                                     padding: const EdgeInsets.only(bottom: 8),
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Text(
                                           '• ${_incomeCategoryNameById(p.incomeCategoryId)}'
                                           ' • ${_fmtAmount(p.amount)} TL'
-                                          ' • ${_periodLabel(p.periodType)} / Her ${p.frequency}',
+                                          ' • ${_incomePlanSummary(p)}',
                                         ),
                                         const SizedBox(height: 6),
                                         Wrap(
@@ -812,7 +852,8 @@ class _CalendarTransactionsScreenState extends State<CalendarTransactionsScreen>
                                           children: [
                                             OutlinedButton(
                                               style: OutlinedButton.styleFrom(
-                                                foregroundColor: AppColors.income,
+                                                foregroundColor:
+                                                    AppColors.income,
                                                 side: const BorderSide(
                                                   color: AppColors.income,
                                                 ),
@@ -858,12 +899,13 @@ class _CalendarTransactionsScreenState extends State<CalendarTransactionsScreen>
                                   (p) => Padding(
                                     padding: const EdgeInsets.only(bottom: 8),
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Text(
                                           '• ${_expenseCategoryNameById(p.expenseCategoryId)}'
                                           ' • ${_fmtAmount(p.amount)} TL'
-                                          ' • ${_periodLabel(p.periodType)} / Her ${p.frequency}',
+                                          ' • ${_expensePlanSummary(p)}',
                                         ),
                                         const SizedBox(height: 6),
                                         Wrap(
@@ -872,20 +914,24 @@ class _CalendarTransactionsScreenState extends State<CalendarTransactionsScreen>
                                           children: [
                                             OutlinedButton(
                                               style: OutlinedButton.styleFrom(
-                                                foregroundColor: AppColors.expense,
+                                                foregroundColor:
+                                                    AppColors.expense,
                                                 side: const BorderSide(
                                                   color: AppColors.expense,
                                                 ),
                                               ),
-                                              onPressed: () => _completeExpensePlan(p),
+                                              onPressed: () =>
+                                                  _completeExpensePlan(p),
                                               child: const Text('Gerçekleşti'),
                                             ),
                                             OutlinedButton(
-                                              onPressed: () => _postponeExpensePlan(p),
+                                              onPressed: () =>
+                                                  _postponeExpensePlan(p),
                                               child: const Text('Ertele'),
                                             ),
                                             OutlinedButton(
-                                              onPressed: () => _cancelExpensePlan(p),
+                                              onPressed: () =>
+                                                  _cancelExpensePlan(p),
                                               child: const Text('İptal Et'),
                                             ),
                                           ],
@@ -902,7 +948,8 @@ class _CalendarTransactionsScreenState extends State<CalendarTransactionsScreen>
                     if (list.isEmpty)
                       _stableSection(
                         padding: const EdgeInsets.all(16),
-                        child: const Center(child: Text('Seçili gün için hareket yok.')),
+                        child: const Center(
+                            child: Text('Seçili gün için hareket yok.')),
                       )
                     else
                       ...list.map(
@@ -911,8 +958,8 @@ class _CalendarTransactionsScreenState extends State<CalendarTransactionsScreen>
                           child: Builder(
                             builder: (_) {
                               final isIncome = tx.type == 'income';
-                              final accountName =
-                                  _accountNames[tx.accountId] ?? 'Hesap #${tx.accountId}';
+                              final accountName = _accountNames[tx.accountId] ??
+                                  'Hesap #${tx.accountId}';
                               final invMeta = _investmentMetaByTxId[tx.id];
                               final amountText = invMeta == null
                                   ? '${isIncome ? '+' : '-'}${_fmtAmount(tx.amount)} TL'
@@ -924,10 +971,14 @@ class _CalendarTransactionsScreenState extends State<CalendarTransactionsScreen>
                                 children: [
                                   ListTile(
                                     leading: Icon(
-                                      isIncome ? Icons.arrow_downward : Icons.arrow_upward,
-                                      color: isIncome ? Colors.green : Colors.red,
+                                      isIncome
+                                          ? Icons.arrow_downward
+                                          : Icons.arrow_upward,
+                                      color:
+                                          isIncome ? Colors.green : Colors.red,
                                     ),
-                                    title: Text('${_txTypeLabel(tx)} • ${_categoryName(tx)}'),
+                                    title: Text(
+                                        '${_txTypeLabel(tx)} • ${_categoryName(tx)}'),
                                     subtitle: Text(
                                       '${_fmtDateTime(tx.date)} • $accountName\n'
                                       '${invMeta != null ? 'Karşı: ${invMeta.linkedAccountName}\n' : ''}'
@@ -940,7 +991,9 @@ class _CalendarTransactionsScreenState extends State<CalendarTransactionsScreen>
                                         Text(
                                           amountText,
                                           style: TextStyle(
-                                            color: isIncome ? Colors.green : Colors.red,
+                                            color: isIncome
+                                                ? Colors.green
+                                                : Colors.red,
                                             fontWeight: FontWeight.bold,
                                           ),
                                         ),
@@ -1004,7 +1057,8 @@ class _CalendarTransactionsScreenState extends State<CalendarTransactionsScreen>
             const SizedBox(height: 4),
             Text(
               _fmtAmount(value),
-              style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 16),
+              style: TextStyle(
+                  color: color, fontWeight: FontWeight.bold, fontSize: 16),
             ),
           ],
         ),

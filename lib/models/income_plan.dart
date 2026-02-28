@@ -6,7 +6,9 @@ part 'income_plan.g.dart';
 class IncomePlan {
   Id id = Isar.autoIncrement;
 
+  // Planin bagli oldugu gelir kategorisi.
   late int incomeCategoryId;
+  // Gelirin yatacagi hesap.
   late int accountId;
 
   late double amount;
@@ -18,9 +20,13 @@ class IncomePlan {
   // Every N periodType units.
   int frequency = 1;
 
+  // Gunluk planlarda bildirimin kac dakika once gelecegini tutar.
+  int reminderMinutesBefore = 0;
+
   late DateTime startDate;
   DateTime? endDate;
 
+  // Sonraki otomatik isleme alinacak tarih.
   late DateTime nextDueDate;
 
   bool isActive = true;

@@ -67,8 +67,13 @@ const ExpensePlanSchema = CollectionSchema(
       name: r'periodType',
       type: IsarType.string,
     ),
-    r'startDate': PropertySchema(
+    r'reminderMinutesBefore': PropertySchema(
       id: 10,
+      name: r'reminderMinutesBefore',
+      type: IsarType.long,
+    ),
+    r'startDate': PropertySchema(
+      id: 11,
       name: r'startDate',
       type: IsarType.dateTime,
     )
@@ -119,7 +124,8 @@ void _expensePlanSerialize(
   writer.writeBool(offsets[7], object.isActive);
   writer.writeDateTime(offsets[8], object.nextDueDate);
   writer.writeString(offsets[9], object.periodType);
-  writer.writeDateTime(offsets[10], object.startDate);
+  writer.writeLong(offsets[10], object.reminderMinutesBefore);
+  writer.writeDateTime(offsets[11], object.startDate);
 }
 
 ExpensePlan _expensePlanDeserialize(
@@ -140,7 +146,8 @@ ExpensePlan _expensePlanDeserialize(
   object.isActive = reader.readBool(offsets[7]);
   object.nextDueDate = reader.readDateTime(offsets[8]);
   object.periodType = reader.readString(offsets[9]);
-  object.startDate = reader.readDateTime(offsets[10]);
+  object.reminderMinutesBefore = reader.readLong(offsets[10]);
+  object.startDate = reader.readDateTime(offsets[11]);
   return object;
 }
 
@@ -172,6 +179,8 @@ P _expensePlanDeserializeProp<P>(
     case 9:
       return (reader.readString(offset)) as P;
     case 10:
+      return (reader.readLong(offset)) as P;
+    case 11:
       return (reader.readDateTime(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -1040,6 +1049,62 @@ extension ExpensePlanQueryFilter
   }
 
   QueryBuilder<ExpensePlan, ExpensePlan, QAfterFilterCondition>
+      reminderMinutesBeforeEqualTo(int value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'reminderMinutesBefore',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<ExpensePlan, ExpensePlan, QAfterFilterCondition>
+      reminderMinutesBeforeGreaterThan(
+    int value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'reminderMinutesBefore',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<ExpensePlan, ExpensePlan, QAfterFilterCondition>
+      reminderMinutesBeforeLessThan(
+    int value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'reminderMinutesBefore',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<ExpensePlan, ExpensePlan, QAfterFilterCondition>
+      reminderMinutesBeforeBetween(
+    int lower,
+    int upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'reminderMinutesBefore',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<ExpensePlan, ExpensePlan, QAfterFilterCondition>
       startDateEqualTo(DateTime value) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.equalTo(
@@ -1226,6 +1291,20 @@ extension ExpensePlanQuerySortBy
     });
   }
 
+  QueryBuilder<ExpensePlan, ExpensePlan, QAfterSortBy>
+      sortByReminderMinutesBefore() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'reminderMinutesBefore', Sort.asc);
+    });
+  }
+
+  QueryBuilder<ExpensePlan, ExpensePlan, QAfterSortBy>
+      sortByReminderMinutesBeforeDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'reminderMinutesBefore', Sort.desc);
+    });
+  }
+
   QueryBuilder<ExpensePlan, ExpensePlan, QAfterSortBy> sortByStartDate() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'startDate', Sort.asc);
@@ -1375,6 +1454,20 @@ extension ExpensePlanQuerySortThenBy
     });
   }
 
+  QueryBuilder<ExpensePlan, ExpensePlan, QAfterSortBy>
+      thenByReminderMinutesBefore() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'reminderMinutesBefore', Sort.asc);
+    });
+  }
+
+  QueryBuilder<ExpensePlan, ExpensePlan, QAfterSortBy>
+      thenByReminderMinutesBeforeDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'reminderMinutesBefore', Sort.desc);
+    });
+  }
+
   QueryBuilder<ExpensePlan, ExpensePlan, QAfterSortBy> thenByStartDate() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'startDate', Sort.asc);
@@ -1453,6 +1546,13 @@ extension ExpensePlanQueryWhereDistinct
     });
   }
 
+  QueryBuilder<ExpensePlan, ExpensePlan, QDistinct>
+      distinctByReminderMinutesBefore() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'reminderMinutesBefore');
+    });
+  }
+
   QueryBuilder<ExpensePlan, ExpensePlan, QDistinct> distinctByStartDate() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'startDate');
@@ -1525,6 +1625,13 @@ extension ExpensePlanQueryProperty
   QueryBuilder<ExpensePlan, String, QQueryOperations> periodTypeProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'periodType');
+    });
+  }
+
+  QueryBuilder<ExpensePlan, int, QQueryOperations>
+      reminderMinutesBeforeProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'reminderMinutesBefore');
     });
   }
 

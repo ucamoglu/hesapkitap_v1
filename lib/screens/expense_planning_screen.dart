@@ -38,6 +38,7 @@ class _ExpensePlanningScreenState extends State<ExpensePlanningScreen> {
   int? _selectedCategoryId;
   String _periodType = 'monthly';
   int _frequency = 1;
+  int _reminderMinutesBefore = 10;
   DateTime _startDate = DateTime.now();
   int _selectedWeekday = DateTime.now().weekday;
   TimeOfDay _selectedTime = TimeOfDay.now();
@@ -56,6 +57,7 @@ class _ExpensePlanningScreenState extends State<ExpensePlanningScreen> {
     super.dispose();
   }
 
+  // Plan, hesap ve kategori verilerini yukleyip gerekiyorsa bugunluk kontrol yapar.
   Future<void> _load({bool checkDue = false}) async {
     setState(() => _loading = true);
 
@@ -85,6 +87,7 @@ class _ExpensePlanningScreenState extends State<ExpensePlanningScreen> {
     }
   }
 
+  // Vadesi gelen gider planlari icin kullanicidan tamamla/ertele/iptal karari alir.
   Future<void> _checkDuePlans() async {
     if (_askingDue) return;
 
@@ -157,6 +160,7 @@ class _ExpensePlanningScreenState extends State<ExpensePlanningScreen> {
     );
   }
 
+  // Baslangic veya bitis tarihi secimini ayni helper ile yonetir.
   Future<void> _pickDate({required bool start}) async {
     final current = start ? _startDate : _endDate;
     final picked = await showDatePicker(
@@ -178,6 +182,7 @@ class _ExpensePlanningScreenState extends State<ExpensePlanningScreen> {
     });
   }
 
+  // Hatirlatma saatini form state'ine yazar.
   Future<void> _pickTime() async {
     final picked = await showTimePicker(
       context: context,
@@ -246,8 +251,12 @@ class _ExpensePlanningScreenState extends State<ExpensePlanningScreen> {
     return '${b.toString()},$decPart';
   }
 
-  String _periodLabel(String v) {
-    return PlanningStandard.periodLabel(v);
+  String _planSummary(ExpensePlan plan) {
+    return PlanningStandard.planSummary(
+      periodType: plan.periodType,
+      frequency: plan.frequency,
+      reminderMinutesBefore: plan.reminderMinutesBefore,
+    );
   }
 
   String _accountName(int id) {
@@ -264,6 +273,7 @@ class _ExpensePlanningScreenState extends State<ExpensePlanningScreen> {
     return 'Kategori #$id';
   }
 
+  // Gider planini create/update mantigiyla kaydeder.
   Future<void> _savePlan() async {
     if (_saving) return;
     if (!_formKey.currentState!.validate()) return;
@@ -284,9 +294,14 @@ class _ExpensePlanningScreenState extends State<ExpensePlanningScreen> {
         ..accountId = _selectedAccountId!
         ..expenseCategoryId = _selectedCategoryId!
         ..amount = amount
-        ..description = _descController.text.trim().isEmpty ? null : _descController.text.trim()
+        ..description = _descController.text.trim().isEmpty
+            ? null
+            : _descController.text.trim()
         ..periodType = _periodType
-        ..frequency = _frequency
+        ..frequency =
+            _periodType == 'monthly' || _periodType == 'yearly' ? _frequency : 1
+        ..reminderMinutesBefore =
+            _periodType == 'daily' ? _reminderMinutesBefore : 0
         ..startDate = planStartDate
         ..endDate = _endDate == null
             ? null
@@ -301,6 +316,7 @@ class _ExpensePlanningScreenState extends State<ExpensePlanningScreen> {
       _amountController.clear();
       _descController.clear();
       _frequency = 1;
+      _reminderMinutesBefore = 10;
       _periodType = 'monthly';
       _startDate = DateTime.now();
       _selectedWeekday = DateTime.now().weekday;
@@ -379,164 +395,255 @@ class _ExpensePlanningScreenState extends State<ExpensePlanningScreen> {
                                 key: _formKey,
                                 child: Column(
                                   children: [
-                              DropdownButtonFormField<int>(
-                                initialValue: _selectedCategoryId,
-                                decoration: const InputDecoration(
-                                  labelText: 'Gider Tipi',
-                                ),
-                                items: _categories
-                                    .map(
-                                      (c) => DropdownMenuItem<int>(
-                                        value: c.id,
-                                        child: Text(c.name),
-                                      ),
-                                    )
-                                    .toList(),
-                                onChanged: (v) => setState(() => _selectedCategoryId = v),
-                                validator: (v) => v == null ? 'Gider tipi seçiniz.' : null,
-                              ),
-                              const SizedBox(height: 10),
-                              DropdownButtonFormField<int>(
-                                initialValue: _selectedAccountId,
-                                decoration: const InputDecoration(
-                                  labelText: 'Hangi Hesaptan Çıkacak',
-                                ),
-                                items: _accounts
-                                    .map(
-                                      (a) => DropdownMenuItem<int>(
-                                        value: a.id,
-                                        child: Text(a.name),
-                                      ),
-                                    )
-                                    .toList(),
-                                onChanged: (v) => setState(() => _selectedAccountId = v),
-                                validator: (v) => v == null ? 'Hesap seçiniz.' : null,
-                              ),
-                              const SizedBox(height: 10),
-                              TextFormField(
-                                controller: _amountController,
-                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                inputFormatters: const [TurkishMoneyInputFormatter()],
-                                decoration: const InputDecoration(labelText: 'Tutar (TL)'),
-                                validator: (v) {
-                                  final p = TurkishMoneyInputFormatter.parse(v ?? '');
-                                  if (p == null || p <= 0) return 'Geçerli tutar giriniz.';
-                                  return null;
-                                },
-                              ),
-                              const SizedBox(height: 10),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: DropdownButtonFormField<String>(
-                                      initialValue: _periodType,
+                                    DropdownButtonFormField<int>(
+                                      initialValue: _selectedCategoryId,
                                       decoration: const InputDecoration(
-                                        labelText: 'Plan Dönemi',
+                                        labelText: 'Gider Tipi',
                                       ),
-                                      items: PlanningStandard.periodItems(),
-                                      onChanged: (v) {
-                                        if (v == null) return;
-                                        setState(() {
-                                          _periodType = v;
-                                          final maxFreq = PlanningStandard.maxFrequencyForPeriod(_periodType);
-                                          if (_frequency > maxFreq) _frequency = maxFreq;
-                                          if (_periodType == 'weekly') {
-                                            _selectedWeekday = _startDate.weekday;
-                                          } else if (_periodType == 'daily') {
-                                            _selectedTime = TimeOfDay.fromDateTime(_startDate);
-                                          }
-                                        });
-                                      },
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: DropdownButtonFormField<int>(
-                                      initialValue: _frequency,
-                                      decoration: const InputDecoration(
-                                        labelText: 'Sıklık',
-                                      ),
-                                      items: PlanningStandard.frequencyItemsForPeriod(_periodType),
-                                      onChanged: (v) {
-                                        if (v == null) return;
-                                        setState(() => _frequency = v);
-                                      },
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 10),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: _periodType == 'weekly'
-                                        ? DropdownButtonFormField<int>(
-                                            initialValue: _selectedWeekday,
-                                            decoration: const InputDecoration(labelText: 'Hafta Günü'),
-                                            items: List.generate(
-                                              7,
-                                              (i) => DropdownMenuItem<int>(
-                                                value: i + 1,
-                                                child: Text(_weekdayLabel(i + 1)),
-                                              ),
+                                      items: _categories
+                                          .map(
+                                            (c) => DropdownMenuItem<int>(
+                                              value: c.id,
+                                              child: Text(c.name),
                                             ),
+                                          )
+                                          .toList(),
+                                      onChanged: (v) => setState(
+                                          () => _selectedCategoryId = v),
+                                      validator: (v) => v == null
+                                          ? 'Gider tipi seçiniz.'
+                                          : null,
+                                    ),
+                                    const SizedBox(height: 10),
+                                    DropdownButtonFormField<int>(
+                                      initialValue: _selectedAccountId,
+                                      decoration: const InputDecoration(
+                                        labelText: 'Hangi Hesaptan Çıkacak',
+                                      ),
+                                      items: _accounts
+                                          .map(
+                                            (a) => DropdownMenuItem<int>(
+                                              value: a.id,
+                                              child: Text(a.name),
+                                            ),
+                                          )
+                                          .toList(),
+                                      onChanged: (v) => setState(
+                                          () => _selectedAccountId = v),
+                                      validator: (v) =>
+                                          v == null ? 'Hesap seçiniz.' : null,
+                                    ),
+                                    const SizedBox(height: 10),
+                                    TextFormField(
+                                      controller: _amountController,
+                                      keyboardType:
+                                          const TextInputType.numberWithOptions(
+                                              decimal: true),
+                                      inputFormatters: const [
+                                        TurkishMoneyInputFormatter()
+                                      ],
+                                      decoration: const InputDecoration(
+                                          labelText: 'Tutar (TL)'),
+                                      validator: (v) {
+                                        final p =
+                                            TurkishMoneyInputFormatter.parse(
+                                                v ?? '');
+                                        if (p == null || p <= 0) {
+                                          return 'Geçerli tutar giriniz.';
+                                        }
+                                        return null;
+                                      },
+                                    ),
+                                    const SizedBox(height: 10),
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child:
+                                              DropdownButtonFormField<String>(
+                                            initialValue: _periodType,
+                                            decoration: const InputDecoration(
+                                              labelText: 'Plan Dönemi',
+                                            ),
+                                            items:
+                                                PlanningStandard.periodItems(),
                                             onChanged: (v) {
                                               if (v == null) return;
-                                              setState(() => _selectedWeekday = v);
+                                              setState(() {
+                                                _periodType = v;
+                                                if (_periodType == 'weekly') {
+                                                  _frequency = 1;
+                                                  _reminderMinutesBefore = 0;
+                                                  _selectedWeekday =
+                                                      _startDate.weekday;
+                                                } else if (_periodType ==
+                                                    'daily') {
+                                                  _frequency = 1;
+                                                  _reminderMinutesBefore =
+                                                      _reminderMinutesBefore ==
+                                                              0
+                                                          ? 10
+                                                          : _reminderMinutesBefore;
+                                                  _selectedTime =
+                                                      TimeOfDay.fromDateTime(
+                                                          _buildPlanStartDate());
+                                                } else {
+                                                  final maxFreq =
+                                                      PlanningStandard
+                                                          .maxFrequencyForPeriod(
+                                                              _periodType);
+                                                  if (_frequency > maxFreq) {
+                                                    _frequency = maxFreq;
+                                                  }
+                                                  _reminderMinutesBefore = 0;
+                                                }
+                                              });
                                             },
-                                          )
-                                        : InkWell(
-                                            onTap: _periodType == 'daily'
-                                                ? _pickTime
-                                                : () => _pickDate(start: true),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: PlanningStandard
+                                                  .usesReminderSelector(
+                                                      _periodType)
+                                              ? DropdownButtonFormField<int>(
+                                                  initialValue:
+                                                      _reminderMinutesBefore,
+                                                  decoration:
+                                                      const InputDecoration(
+                                                    labelText: 'Hatırlatma',
+                                                  ),
+                                                  items: PlanningStandard
+                                                      .dailyReminderItems(),
+                                                  onChanged: (v) {
+                                                    if (v == null) return;
+                                                    setState(() =>
+                                                        _reminderMinutesBefore =
+                                                            v);
+                                                  },
+                                                )
+                                              : PlanningStandard
+                                                      .disablesFrequencySelector(
+                                                          _periodType)
+                                                  ? InputDecorator(
+                                                      decoration:
+                                                          const InputDecoration(
+                                                        labelText: 'Sıklık',
+                                                      ),
+                                                      child: const Text(
+                                                          'Haftalık planda pasif'),
+                                                    )
+                                                  : DropdownButtonFormField<
+                                                      int>(
+                                                      initialValue: _frequency,
+                                                      decoration:
+                                                          const InputDecoration(
+                                                        labelText: 'Sıklık',
+                                                      ),
+                                                      items: PlanningStandard
+                                                          .frequencyItemsForPeriod(
+                                                              _periodType),
+                                                      onChanged: (v) {
+                                                        if (v == null) return;
+                                                        setState(() =>
+                                                            _frequency = v);
+                                                      },
+                                                    ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 10),
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: _periodType == 'weekly'
+                                              ? DropdownButtonFormField<int>(
+                                                  initialValue:
+                                                      _selectedWeekday,
+                                                  decoration:
+                                                      const InputDecoration(
+                                                          labelText:
+                                                              'Hafta Günü'),
+                                                  items: List.generate(
+                                                    7,
+                                                    (i) =>
+                                                        DropdownMenuItem<int>(
+                                                      value: i + 1,
+                                                      child: Text(
+                                                          _weekdayLabel(i + 1)),
+                                                    ),
+                                                  ),
+                                                  onChanged: (v) {
+                                                    if (v == null) return;
+                                                    setState(() =>
+                                                        _selectedWeekday = v);
+                                                  },
+                                                )
+                                              : InkWell(
+                                                  onTap: _periodType == 'daily'
+                                                      ? _pickTime
+                                                      : () => _pickDate(
+                                                          start: true),
+                                                  child: InputDecorator(
+                                                    decoration: InputDecoration(
+                                                      labelText:
+                                                          _periodType == 'daily'
+                                                              ? 'Saat'
+                                                              : 'Başlama',
+                                                    ),
+                                                    child: Text(
+                                                      _periodType == 'daily'
+                                                          ? _fmtTime(
+                                                              _selectedTime)
+                                                          : _fmtDate(
+                                                              _startDate),
+                                                    ),
+                                                  ),
+                                                ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: InkWell(
+                                            onTap: () =>
+                                                _pickDate(start: false),
                                             child: InputDecorator(
-                                              decoration: InputDecoration(
-                                                labelText: _periodType == 'daily'
-                                                    ? 'Saat'
-                                                    : 'Başlama',
-                                              ),
-                                              child: Text(
-                                                _periodType == 'daily'
-                                                    ? _fmtTime(_selectedTime)
-                                                    : _fmtDate(_startDate),
-                                              ),
+                                              decoration: const InputDecoration(
+                                                  labelText:
+                                                      'Bitiş (opsiyonel)'),
+                                              child: Text(_endDate == null
+                                                  ? '-'
+                                                  : _fmtDate(_endDate!)),
                                             ),
                                           ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: InkWell(
-                                      onTap: () => _pickDate(start: false),
-                                      child: InputDecorator(
-                                        decoration: const InputDecoration(labelText: 'Bitiş (opsiyonel)'),
-                                        child: Text(_endDate == null ? '-' : _fmtDate(_endDate!)),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 10),
+                                    TextFormField(
+                                      controller: _descController,
+                                      textCapitalization:
+                                          TextCapitalization.words,
+                                      inputFormatters: const [
+                                        TurkishUpperCaseFormatter()
+                                      ],
+                                      maxLines: 2,
+                                      decoration: const InputDecoration(
+                                        labelText: 'Açıklama (opsiyonel)',
                                       ),
                                     ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 10),
-                              TextFormField(
-                                controller: _descController,
-                                textCapitalization: TextCapitalization.words,
-                                inputFormatters: const [TurkishUpperCaseFormatter()],
-                                maxLines: 2,
-                                decoration: const InputDecoration(
-                                  labelText: 'Açıklama (opsiyonel)',
-                                ),
-                              ),
-                              const SizedBox(height: 14),
-                              SizedBox(
-                                width: double.infinity,
-                                child: ElevatedButton(
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppColors.expense,
-                                    foregroundColor: Colors.white,
-                                  ),
-                                  onPressed: _saving ? null : _savePlan,
-                                  child: Text(_saving ? 'Kaydediliyor...' : 'Planı Kaydet'),
-                                ),
-                              ),
+                                    const SizedBox(height: 14),
+                                    SizedBox(
+                                      width: double.infinity,
+                                      child: ElevatedButton(
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: AppColors.expense,
+                                          foregroundColor: Colors.white,
+                                        ),
+                                        onPressed: _saving ? null : _savePlan,
+                                        child: Text(_saving
+                                            ? 'Kaydediliyor...'
+                                            : 'Planı Kaydet'),
+                                      ),
+                                    ),
                                   ],
                                 ),
                               ),
@@ -553,10 +660,11 @@ class _ExpensePlanningScreenState extends State<ExpensePlanningScreen> {
                     ..._plans.where((p) => p.isActive).map((p) {
                       return Card(
                         child: ListTile(
-                          title: Text('${_categoryName(p.expenseCategoryId)} • ${_fmtAmount(p.amount)} TL'),
+                          title: Text(
+                              '${_categoryName(p.expenseCategoryId)} • ${_fmtAmount(p.amount)} TL'),
                           subtitle: Text(
                             'Sonraki Tarih: ${_fmtDate(p.nextDueDate)}\n'
-                            'Hesap: ${_accountName(p.accountId)} • ${_periodLabel(p.periodType)} / Her ${p.frequency}',
+                            'Hesap: ${_accountName(p.accountId)} • ${_planSummary(p)}',
                           ),
                           trailing: PopupMenuButton<String>(
                             onSelected: (v) async {
@@ -565,7 +673,8 @@ class _ExpensePlanningScreenState extends State<ExpensePlanningScreen> {
                               } else if (v == 'postpone') {
                                 final picked = await showDatePicker(
                                   context: context,
-                                  initialDate: p.nextDueDate.add(const Duration(days: 1)),
+                                  initialDate: p.nextDueDate
+                                      .add(const Duration(days: 1)),
                                   firstDate: DateTime(2000),
                                   lastDate: DateTime(2100),
                                 );
@@ -582,10 +691,14 @@ class _ExpensePlanningScreenState extends State<ExpensePlanningScreen> {
                               await _load();
                             },
                             itemBuilder: (_) => const [
-                              PopupMenuItem(value: 'done', child: Text('Gerçekleşti')),
-                              PopupMenuItem(value: 'postpone', child: Text('Ertele')),
-                              PopupMenuItem(value: 'cancel', child: Text('İptal Et')),
-                              PopupMenuItem(value: 'delete', child: Text('Sil')),
+                              PopupMenuItem(
+                                  value: 'done', child: Text('Gerçekleşti')),
+                              PopupMenuItem(
+                                  value: 'postpone', child: Text('Ertele')),
+                              PopupMenuItem(
+                                  value: 'cancel', child: Text('İptal Et')),
+                              PopupMenuItem(
+                                  value: 'delete', child: Text('Sil')),
                             ],
                           ),
                         ),

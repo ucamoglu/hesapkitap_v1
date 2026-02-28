@@ -17,6 +17,7 @@ class LocalNotificationService {
   static int _idForIncomePlan(int planId) => 500000 + planId;
   static int _idForExpensePlan(int planId) => 600000 + planId;
 
+  /// Bildirimleri tek sefer initialize eder ve platform izinlerini ister.
   static Future<void> init() async {
     if (_initialized) return;
 
@@ -57,6 +58,7 @@ class LocalNotificationService {
     _initialized = true;
   }
 
+  /// Gelir plani aktifse bildirim kurar, degilse mevcut bildirimi kaldirir.
   static Future<void> scheduleOrCancelIncomePlan(IncomePlan plan) async {
     await init();
 
@@ -66,13 +68,7 @@ class LocalNotificationService {
     if (!plan.isActive) return;
     if (plan.endDate != null && plan.nextDueDate.isAfter(plan.endDate!)) return;
 
-    var target = DateTime(
-      plan.nextDueDate.year,
-      plan.nextDueDate.month,
-      plan.nextDueDate.day,
-      9,
-      0,
-    );
+    var target = _notificationTargetForIncomePlan(plan);
 
     final now = DateTime.now();
     if (target.isBefore(now)) {
@@ -104,11 +100,13 @@ class LocalNotificationService {
     );
   }
 
+  /// Gelir planina ait bildirimi kimligi uzerinden iptal eder.
   static Future<void> cancelIncomePlan(int planId) async {
     await init();
     await _plugin.cancel(_idForIncomePlan(planId));
   }
 
+  /// Gider plani aktifse bildirim kurar, degilse mevcut bildirimi kaldirir.
   static Future<void> scheduleOrCancelExpensePlan(ExpensePlan plan) async {
     await init();
 
@@ -118,13 +116,7 @@ class LocalNotificationService {
     if (!plan.isActive) return;
     if (plan.endDate != null && plan.nextDueDate.isAfter(plan.endDate!)) return;
 
-    var target = DateTime(
-      plan.nextDueDate.year,
-      plan.nextDueDate.month,
-      plan.nextDueDate.day,
-      9,
-      0,
-    );
+    var target = _notificationTargetForExpensePlan(plan);
 
     final now = DateTime.now();
     if (target.isBefore(now)) {
@@ -156,11 +148,13 @@ class LocalNotificationService {
     );
   }
 
+  /// Gider planina ait bildirimi kimligi uzerinden iptal eder.
   static Future<void> cancelExpensePlan(int planId) async {
     await init();
     await _plugin.cancel(_idForExpensePlan(planId));
   }
 
+  /// Veritabanindaki tum gelir planlari icin bildirim durumunu yeniden senkronize eder.
   static Future<void> syncIncomePlanNotifications() async {
     await init();
 
@@ -172,6 +166,7 @@ class LocalNotificationService {
     }
   }
 
+  /// Veritabanindaki tum gider planlari icin bildirim durumunu yeniden senkronize eder.
   static Future<void> syncExpensePlanNotifications() async {
     await init();
 
@@ -181,5 +176,44 @@ class LocalNotificationService {
     for (final plan in plans) {
       await scheduleOrCancelExpensePlan(plan);
     }
+  }
+
+  static DateTime _notificationTargetForIncomePlan(IncomePlan plan) {
+    return _notificationTarget(
+      nextDueDate: plan.nextDueDate,
+      periodType: plan.periodType,
+      reminderMinutesBefore: plan.reminderMinutesBefore,
+    );
+  }
+
+  static DateTime _notificationTargetForExpensePlan(ExpensePlan plan) {
+    return _notificationTarget(
+      nextDueDate: plan.nextDueDate,
+      periodType: plan.periodType,
+      reminderMinutesBefore: plan.reminderMinutesBefore,
+    );
+  }
+
+  static DateTime _notificationTarget({
+    required DateTime nextDueDate,
+    required String periodType,
+    required int reminderMinutesBefore,
+  }) {
+    var target = DateTime(
+      nextDueDate.year,
+      nextDueDate.month,
+      nextDueDate.day,
+      9,
+      0,
+    );
+
+    if (periodType == 'daily') {
+      target = nextDueDate;
+      if (reminderMinutesBefore > 0) {
+        target = target.subtract(Duration(minutes: reminderMinutesBefore));
+      }
+    }
+
+    return target;
   }
 }

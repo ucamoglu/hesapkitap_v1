@@ -18,6 +18,7 @@ class IncomePlanCompletionResult {
 }
 
 class IncomePlanService {
+  /// Gelir planlarini bir sonraki vade tarihine gore siralar.
   static Future<List<IncomePlan>> getAll() async {
     final isar = IsarService.isar;
     final items = await isar.incomePlans.where().anyId().findAll();
@@ -25,6 +26,7 @@ class IncomePlanService {
     return items;
   }
 
+  /// Gelir planini kaydeder ve ona ait bildirimi gunceller.
   static Future<void> save(IncomePlan plan) async {
     final isar = IsarService.isar;
     await isar.writeTxn(() async {
@@ -33,6 +35,7 @@ class IncomePlanService {
     await LocalNotificationService.scheduleOrCancelIncomePlan(plan);
   }
 
+  /// Gelir planini siler ve bildirimi iptal eder.
   static Future<void> delete(int id) async {
     await LocalNotificationService.cancelIncomePlan(id);
     final isar = IsarService.isar;
@@ -41,18 +44,22 @@ class IncomePlanService {
     });
   }
 
+  /// Bugun gerceklesmesi beklenen gelir planlarini dondurur.
   static Future<List<IncomePlan>> getDuePlans(DateTime now) async {
     final plans = await getAll();
     final dayStart = DateTime(now.year, now.month, now.day);
     final dayEnd = DateTime(now.year, now.month, now.day, 23, 59, 59, 999);
     return plans
         .where((p) => p.isActive)
-        .where((p) => !p.nextDueDate.isBefore(dayStart) && !p.nextDueDate.isAfter(dayEnd))
+        .where((p) =>
+            !p.nextDueDate.isBefore(dayStart) && !p.nextDueDate.isAfter(dayEnd))
         .where((p) => p.endDate == null || !p.nextDueDate.isAfter(p.endDate!))
         .toList();
   }
 
-  static Future<IncomePlanCompletionResult> markCompleted(IncomePlan plan) async {
+  /// Gelir planini gercek harekete cevirir ve sonraki vade tarihini ilerletir.
+  static Future<IncomePlanCompletionResult> markCompleted(
+      IncomePlan plan) async {
     final previousDueDate = plan.nextDueDate;
     final previousIsActive = plan.isActive;
 
@@ -81,16 +88,19 @@ class IncomePlanService {
     );
   }
 
+  /// Tamamlanan plan hareketini geri alip plani onceki aktif haline dondurur.
   static Future<void> undoCompleted(
     IncomePlan plan,
     IncomePlanCompletionResult result,
   ) async {
-    await FinanceTransactionService.deleteIncomeAndRevertBalance(result.transactionId);
+    await FinanceTransactionService.deleteIncomeAndRevertBalance(
+        result.transactionId);
     plan.nextDueDate = result.previousDueDate;
     plan.isActive = result.previousIsActive;
     await save(plan);
   }
 
+  /// Silinen gelir hareketinden plani tekrar aktiflestirmek icin kullanilir.
   static Future<void> restorePlanFromDeletedIncome({
     required int incomePlanId,
     required DateTime originalDate,
@@ -100,32 +110,41 @@ class IncomePlanService {
     if (plan == null) return;
 
     plan
-      ..nextDueDate = DateTime(
-        originalDate.year,
-        originalDate.month,
-        originalDate.day,
-      )
+      ..nextDueDate = originalDate
       ..isActive = true;
 
     await save(plan);
   }
 
+  /// Sonraki vade tarihini kullanicinin sectigi yeni gune tasir.
   static Future<void> postpone(IncomePlan plan, DateTime newDate) async {
-    plan.nextDueDate = DateTime(newDate.year, newDate.month, newDate.day);
+    plan.nextDueDate = DateTime(
+      newDate.year,
+      newDate.month,
+      newDate.day,
+      plan.nextDueDate.hour,
+      plan.nextDueDate.minute,
+      plan.nextDueDate.second,
+      plan.nextDueDate.millisecond,
+      plan.nextDueDate.microsecond,
+    );
     await save(plan);
   }
 
+  /// Gelir planini silmeden pasife alir.
   static Future<void> cancel(IncomePlan plan) async {
     plan.isActive = false;
     await save(plan);
   }
 
+  /// Plan kaynakli gelir kayitlarini raporlarda ayirt etmek icin standart etiket uretir.
   static String _buildDescription(String? description) {
     final trimmed = description?.trim() ?? '';
     if (trimmed.isEmpty) return 'GELIR PLANLAMASI';
     return 'PLAN: $trimmed';
   }
 
+  /// Tekrar tipine gore bir sonraki plan tarihini hesaplar.
   static DateTime _nextByPlan(DateTime from, String periodType, int frequency) {
     final f = frequency < 1 ? 1 : frequency;
     if (periodType == 'daily') {
@@ -140,6 +159,7 @@ class IncomePlanService {
     return _addMonthsSafe(from, f);
   }
 
+  /// Aylik tekrarlar icin gecersiz gunleri duzeltir.
   static DateTime _addMonthsSafe(DateTime date, int monthsToAdd) {
     final totalMonths = date.month + monthsToAdd;
     final targetYear = date.year + ((totalMonths - 1) ~/ 12);
@@ -158,6 +178,7 @@ class IncomePlanService {
     );
   }
 
+  /// Yillik tekrarlar icin tarih tasmasini onler.
   static DateTime _addYearsSafe(DateTime date, int yearsToAdd) {
     final targetYear = date.year + yearsToAdd;
     final maxDay = _daysInMonth(targetYear, date.month);
