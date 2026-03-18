@@ -59,7 +59,7 @@ class _CloudSyncSetupScreenState extends State<CloudSyncSetupScreen> {
     });
   }
 
-  // Kullanici secenek degistirdikce tahmini sync planini yeniden hesaplar.
+  // Kullanici secenek degistirdikce tahmini esitleme planini yeniden hesaplar.
   Future<void> _refreshPlan() async {
     final plan = await _service.createPlan(
       cloudState: _cloudState,
@@ -72,7 +72,7 @@ class _CloudSyncSetupScreenState extends State<CloudSyncSetupScreen> {
     });
   }
 
-  // Cihazi cloud gecisine hazirlayip metadata ve tercihi disk uzerine kaydeder.
+  // Cihazi bulut esitlemesine hazirlayip metadata ve tercihi diske kaydeder.
   Future<void> _prepare() async {
     setState(() {
       _saving = true;
@@ -94,7 +94,7 @@ class _CloudSyncSetupScreenState extends State<CloudSyncSetupScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Cloud hazirligi kaydedildi. ${result.metadataRecordsCreated} kayit icin sync metadata olusturuldu.',
+            'Bulut esitleme hazırlığı kaydedildi. ${result.metadataRecordsCreated} kayıt için esitleme metaverisi oluşturuldu.',
           ),
         ),
       );
@@ -105,7 +105,7 @@ class _CloudSyncSetupScreenState extends State<CloudSyncSetupScreen> {
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Cloud hazirligi kaydedilemedi: $e'),
+          content: Text('Bulut esitleme hazırlığı kaydedilemedi: $e'),
         ),
       );
     }
@@ -117,7 +117,7 @@ class _CloudSyncSetupScreenState extends State<CloudSyncSetupScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Cloud Sync Hazirligi'),
+        title: const Text('Bulut Eşitleme Hazırlığı'),
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -131,14 +131,14 @@ class _CloudSyncSetupScreenState extends State<CloudSyncSetupScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                          'Uyelik Durumu',
+                          'Üyelik Durumu',
                           style: TextStyle(fontWeight: FontWeight.w700),
                         ),
                         const SizedBox(height: 8),
                         Text(
                           entitlement.canUseCloud
-                              ? 'Plus aktif. Cloud sync acildiginda bu cihazdaki hazirlik dogrudan kullanilabilir.'
-                              : 'Su an local-only moddasiniz. Hazirlik secimlerinizi bugunden kaydedebilirsiniz.',
+                              ? 'Plus aktif. Bulut eşitleme açıldığında bu cihazdaki hazırlık doğrudan kullanılabilir.'
+                              : 'Şu an yalnızca yerel moddasınız. Hazırlık seçimlerinizi bugünden kaydedebilirsiniz.',
                         ),
                       ],
                     ),
@@ -170,8 +170,8 @@ class _CloudSyncSetupScreenState extends State<CloudSyncSetupScreen> {
                       : const Icon(Icons.cloud_upload_outlined),
                   label: Text(
                     _saving
-                        ? 'Hazirlaniyor...'
-                        : 'Bu Cihazi Cloud Sync Icin Hazirla',
+                        ? 'Hazırlanıyor...'
+                        : 'Bu Cihazı Bulut Eşitlemeye Hazırla',
                   ),
                 ),
               ],
@@ -192,16 +192,16 @@ class _CloudSyncSetupScreenState extends State<CloudSyncSetupScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Yerel Veri Ozeti',
+              'Yerel Veri Özeti',
               style: TextStyle(fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 8),
-            Text('Toplam kayit: ${report.totalRecords}'),
+            Text('Toplam kayıt: ${report.totalRecords}'),
             Text('Ek boyutu: ${_formatBytes(report.attachmentBytes)}'),
-            Text('Hazir metadata: ${report.metadataCoverage}'),
+            Text('Hazır metaveri: ${report.metadataCoverage}'),
             const SizedBox(height: 8),
             if (report.collections.isEmpty)
-              const Text('Cihazda senkronize edilecek kayit bulunmuyor.')
+              const Text('Cihazda senkronize edilecek kayıt bulunmuyor.')
             else
               ...report.collections.map(
                 (item) => Padding(
@@ -223,7 +223,7 @@ class _CloudSyncSetupScreenState extends State<CloudSyncSetupScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Bulut Durumu Varsayimi',
+              'Bulut Durumu Varsayımı',
               style: TextStyle(fontWeight: FontWeight.w700),
             ),
             RadioGroup<CloudDataState>(
@@ -240,15 +240,15 @@ class _CloudSyncSetupScreenState extends State<CloudSyncSetupScreen> {
                   RadioListTile<CloudDataState>(
                     value: CloudDataState.empty,
                     contentPadding: EdgeInsets.zero,
-                    title: Text('Bulut bos'),
-                    subtitle: Text('Ilk kez cloud kullanilacak.'),
+                    title: Text('Bulut boş'),
+                    subtitle: Text('İlk kez bulut kullanılacak.'),
                   ),
                   RadioListTile<CloudDataState>(
                     value: CloudDataState.hasData,
                     contentPadding: EdgeInsets.zero,
                     title: Text('Bulutta veri var'),
                     subtitle: Text(
-                      'Ayni hesabin baska bir cihazi kullanilmis olabilir.',
+                      'Aynı hesabın başka bir cihazı kullanılmış olabilir.',
                     ),
                   ),
                   RadioListTile<CloudDataState>(
@@ -274,7 +274,7 @@ class _CloudSyncSetupScreenState extends State<CloudSyncSetupScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Ilk Sync Stratejisi',
+              'İlk Eşitleme Stratejisi',
               style: TextStyle(fontWeight: FontWeight.w700),
             ),
             RadioGroup<SyncBootstrapChoice>(
@@ -293,7 +293,7 @@ class _CloudSyncSetupScreenState extends State<CloudSyncSetupScreen> {
                   RadioListTile<SyncBootstrapChoice>(
                     value: SyncBootstrapChoice.uploadDeviceData,
                     contentPadding: EdgeInsets.zero,
-                    title: Text('Bu cihazi buluta yukle'),
+                    title: Text('Bu cihazı buluta yükle'),
                     subtitle: Text(
                       'Mevcut telefon verisi ana kaynak kabul edilir.',
                     ),
@@ -307,9 +307,9 @@ class _CloudSyncSetupScreenState extends State<CloudSyncSetupScreen> {
                   RadioListTile<SyncBootstrapChoice>(
                     value: SyncBootstrapChoice.mergeSafely,
                     contentPadding: EdgeInsets.zero,
-                    title: Text('Guvenli birlestir'),
+                    title: Text('Güvenli birleştir'),
                     subtitle: Text(
-                      'Cakisan kayitlari inceleyerek birlestir.',
+                      'Çakışan kayıtları inceleyerek birleştir.',
                     ),
                   ),
                 ],
@@ -329,13 +329,13 @@ class _CloudSyncSetupScreenState extends State<CloudSyncSetupScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Conflict Kurali',
+              'Çakışma Kuralı',
               style: TextStyle(fontWeight: FontWeight.w700),
             ),
             DropdownButtonFormField<SyncConflictPolicy>(
               initialValue: _conflictPolicy,
               decoration: const InputDecoration(
-                labelText: 'Cakisma oldugunda',
+                labelText: 'Çakışma olduğunda',
               ),
               items: const [
                 DropdownMenuItem(
@@ -348,7 +348,7 @@ class _CloudSyncSetupScreenState extends State<CloudSyncSetupScreen> {
                 ),
                 DropdownMenuItem(
                   value: SyncConflictPolicy.preferLatestChange,
-                  child: Text('En son degisiklik kazansin'),
+                  child: Text('En son değişiklik kazansın'),
                 ),
                 DropdownMenuItem(
                   value: SyncConflictPolicy.manualReview,
@@ -382,20 +382,20 @@ class _CloudSyncSetupScreenState extends State<CloudSyncSetupScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Olusacak Ilk Sync Plani',
+              'Oluşacak İlk Senkronizasyon Planı',
               style: TextStyle(fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 8),
-            Text('Tahmini upload: ${plan.estimatedPushCount}'),
-            Text('Tahmini download: ${plan.estimatedPullCount}'),
+            Text('Tahmini yükleme: ${plan.estimatedPushCount}'),
+            Text('Tahmini indirme: ${plan.estimatedPullCount}'),
             Text(
               plan.requiresConfirmation
-                  ? 'Bu plan ek kullanici onayi gerektirir.'
-                  : 'Bu plan dogrudan uygulanabilir.',
+                  ? 'Bu plan ek kullanıcı onayı gerektirir.'
+                  : 'Bu plan doğrudan uygulanabilir.',
             ),
             const SizedBox(height: 8),
             if (plan.warnings.isEmpty)
-              const Text('Ek uyari yok.')
+              const Text('Ek uyarı yok.')
             else
               ...plan.warnings.map(
                 (warning) => Padding(
@@ -423,13 +423,13 @@ class _CloudSyncSetupScreenState extends State<CloudSyncSetupScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Kaydedilen Hazirlik',
+              'Kaydedilen Hazırlık',
               style: TextStyle(fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 8),
-            Text('Secim: ${_choiceLabel(preference.choice)}'),
-            Text('Conflict kurali: ${_policyLabel(preference.conflictPolicy)}'),
-            Text('Hazirlandi: ${formatter.format(preference.preparedAt)}'),
+            Text('Seçim: ${_choiceLabel(preference.choice)}'),
+            Text('Çakışma kuralı: ${_policyLabel(preference.conflictPolicy)}'),
+            Text('Hazırlandı: ${formatter.format(preference.preparedAt)}'),
           ],
         ),
       ),
@@ -447,11 +447,11 @@ class _CloudSyncSetupScreenState extends State<CloudSyncSetupScreen> {
   String _choiceLabel(SyncBootstrapChoice choice) {
     switch (choice) {
       case SyncBootstrapChoice.uploadDeviceData:
-        return 'Bu cihazi buluta yukle';
+        return 'Bu cihazı buluta yükle';
       case SyncBootstrapChoice.downloadCloudData:
         return 'Buluttan cihaza indir';
       case SyncBootstrapChoice.mergeSafely:
-        return 'Guvenli birlestir';
+        return 'Güvenli birleştir';
     }
   }
 
@@ -462,7 +462,7 @@ class _CloudSyncSetupScreenState extends State<CloudSyncSetupScreen> {
       case SyncConflictPolicy.preferCloud:
         return 'Bulut verisini koru';
       case SyncConflictPolicy.preferLatestChange:
-        return 'En son degisiklik kazansin';
+        return 'En son değişiklik kazansın';
       case SyncConflictPolicy.manualReview:
         return 'Elle inceleme iste';
     }

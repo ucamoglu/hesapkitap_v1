@@ -5,6 +5,10 @@ import 'package:path_provider/path_provider.dart';
 
 import '../models/account.dart';
 import '../models/category.dart';
+import '../models/credit_card_installment.dart';
+import '../models/credit_card_payment.dart';
+import '../models/credit_card_statement_adjustment.dart';
+import '../models/credit_card_statement.dart';
 import '../models/finance_transaction.dart';
 import '../models/investment_transaction.dart';
 import '../models/income_category.dart';
@@ -42,6 +46,10 @@ class IsarService {
       [
         AccountSchema,
         CategorySchema,
+        CreditCardInstallmentSchema,
+        CreditCardPaymentSchema,
+        CreditCardStatementAdjustmentSchema,
+        CreditCardStatementSchema,
         FinanceTransactionSchema,
         InvestmentTransactionSchema,
         IncomeCategorySchema,

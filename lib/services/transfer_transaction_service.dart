@@ -5,6 +5,15 @@ import '../models/account.dart';
 import '../models/transfer_transaction.dart';
 
 class TransferTransactionService {
+  static void _validateTransferAccount(Account account) {
+    if (account.type == 'investment') {
+      throw Exception('Transfer yalnızca nakit hesaplar arasında yapılabilir.');
+    }
+    if (!account.isActive) {
+      throw Exception('Pasif hesapta transfer yapılamaz.');
+    }
+  }
+
   /// Iki hesap arasinda transfer kaydi olusturur ve bakiyeleri ayni anda gunceller.
   static Future<int> addTransfer({
     required int fromAccountId,
@@ -28,6 +37,11 @@ class TransferTransactionService {
       final to = await isar.accounts.get(toAccountId);
       if (from == null || to == null) {
         throw Exception('Hesap bulunamadı.');
+      }
+      _validateTransferAccount(from);
+      _validateTransferAccount(to);
+      if (from.balance + 1e-9 < amount) {
+        throw Exception('Gönderen hesap bakiyesi transfer için yetersiz.');
       }
 
       from.balance -= amount;

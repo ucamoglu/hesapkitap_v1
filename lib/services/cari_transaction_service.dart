@@ -2,10 +2,49 @@ import 'package:isar/isar.dart';
 
 import '../database/isar_service.dart';
 import '../models/account.dart';
+import '../models/cari_card.dart';
 import '../models/cari_transaction.dart';
 import '../models/transaction_attachment.dart';
 
 class CariTransactionService {
+  static void _validateCariType(String type) {
+    if (type != 'debt' && type != 'collection') {
+      throw Exception('Geçersiz cari işlem türü.');
+    }
+  }
+
+  static void _validateCariAccount(Account account) {
+    if (account.type == 'investment') {
+      throw Exception('Cari işlemler yatırım hesabına kaydedilemez.');
+    }
+    if (!account.isActive) {
+      throw Exception('Pasif hesapta işlem yapılamaz.');
+    }
+  }
+
+  static void _validateCariCard({
+    required CariCard card,
+    required double amount,
+    required double? quantity,
+    required double? unitPrice,
+  }) {
+    if (!card.isActive) {
+      throw Exception('Pasif cari kart ile işlem yapılamaz.');
+    }
+    if (amount <= 0) {
+      throw Exception('Cari işlem tutarı sıfırdan büyük olmalıdır.');
+    }
+    final isForeign = card.currencyType == 'foreign';
+    if (isForeign) {
+      if (quantity == null || quantity <= 0) {
+        throw Exception('Yabancı cari işlem için geçerli miktar giriniz.');
+      }
+      if (unitPrice == null || unitPrice <= 0) {
+        throw Exception('Yabancı cari işlem için geçerli birim fiyat gerekli.');
+      }
+    }
+  }
+
   /// Cari hareketleri tarihe gore yeni->eski sirada dondurur.
   static Future<List<CariTransaction>> getAll() async {
     final isar = IsarService.isar;
@@ -45,13 +84,24 @@ class CariTransactionService {
     required DateTime date,
     String? description,
   }) async {
+    _validateCariType('debt');
     final isar = IsarService.isar;
     late int createdId;
 
     await isar.writeTxn(() async {
+      final card = await isar.cariCards.get(cariCardId);
       final account = await isar.accounts.get(accountId);
-      if (account == null) {
-        throw Exception('Hesap bulunamadı.');
+      if (card == null) throw Exception('Cari kart bulunamadı.');
+      if (account == null) throw Exception('Hesap bulunamadı.');
+      _validateCariCard(
+        card: card,
+        amount: amount,
+        quantity: quantity,
+        unitPrice: unitPrice,
+      );
+      _validateCariAccount(account);
+      if (account.balance + 1e-9 < amount) {
+        throw Exception('Hesap bakiyesi bu cari çıkış için yetersiz.');
       }
 
       final tx = CariTransaction()
@@ -107,14 +157,22 @@ class CariTransactionService {
     required DateTime date,
     String? description,
   }) async {
+    _validateCariType('collection');
     final isar = IsarService.isar;
     late int createdId;
 
     await isar.writeTxn(() async {
+      final card = await isar.cariCards.get(cariCardId);
       final account = await isar.accounts.get(accountId);
-      if (account == null) {
-        throw Exception('Hesap bulunamadı.');
-      }
+      if (card == null) throw Exception('Cari kart bulunamadı.');
+      if (account == null) throw Exception('Hesap bulunamadı.');
+      _validateCariCard(
+        card: card,
+        amount: amount,
+        quantity: quantity,
+        unitPrice: unitPrice,
+      );
+      _validateCariAccount(account);
 
       final tx = CariTransaction()
         ..cariCardId = cariCardId
@@ -150,22 +208,33 @@ class CariTransactionService {
     required DateTime date,
     String? description,
   }) async {
+    _validateCariType(type);
     final isar = IsarService.isar;
 
     await isar.writeTxn(() async {
       final oldTx = await isar.cariTransactions.get(transactionId);
       if (oldTx == null) throw Exception('Cari işlem bulunamadı.');
+      final card = await isar.cariCards.get(cariCardId);
+      if (card == null) throw Exception('Cari kart bulunamadı.');
+      _validateCariCard(
+        card: card,
+        amount: amount,
+        quantity: quantity,
+        unitPrice: unitPrice,
+      );
 
       final oldType = oldTx.type;
       final oldAmount = oldTx.amount;
 
       final oldAccount = await isar.accounts.get(oldTx.accountId);
       if (oldAccount == null) throw Exception('Hesap bulunamadı.');
+      _validateCariAccount(oldAccount);
 
       Account? newAccount;
       if (oldTx.accountId != accountId) {
         newAccount = await isar.accounts.get(accountId);
         if (newAccount == null) throw Exception('Hesap bulunamadı.');
+        _validateCariAccount(newAccount);
       }
 
       if (newAccount == null) {
@@ -175,8 +244,17 @@ class CariTransactionService {
           oldAccount.balance += oldAmount;
         }
         if (type == 'collection') {
+          if (amount <= 0) {
+            throw Exception('Cari işlem tutarı sıfırdan büyük olmalıdır.');
+          }
           oldAccount.balance += amount;
         } else {
+          if (amount <= 0) {
+            throw Exception('Cari işlem tutarı sıfırdan büyük olmalıdır.');
+          }
+          if (oldAccount.balance + 1e-9 < amount) {
+            throw Exception('Hesap bakiyesi bu cari çıkış için yetersiz.');
+          }
           oldAccount.balance -= amount;
         }
         await isar.accounts.put(oldAccount);
@@ -187,8 +265,17 @@ class CariTransactionService {
           oldAccount.balance += oldAmount;
         }
         if (type == 'collection') {
+          if (amount <= 0) {
+            throw Exception('Cari işlem tutarı sıfırdan büyük olmalıdır.');
+          }
           newAccount.balance += amount;
         } else {
+          if (amount <= 0) {
+            throw Exception('Cari işlem tutarı sıfırdan büyük olmalıdır.');
+          }
+          if (newAccount.balance + 1e-9 < amount) {
+            throw Exception('Hesap bakiyesi bu cari çıkış için yetersiz.');
+          }
           newAccount.balance -= amount;
         }
         await isar.accounts.put(oldAccount);

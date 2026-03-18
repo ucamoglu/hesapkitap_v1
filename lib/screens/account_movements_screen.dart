@@ -9,6 +9,8 @@ import 'package:printing/printing.dart';
 import '../models/account.dart';
 import '../models/cari_card.dart';
 import '../models/cari_transaction.dart';
+import '../models/credit_card_payment.dart';
+import '../models/credit_card_statement.dart';
 import '../models/finance_transaction.dart';
 import '../models/investment_transaction.dart';
 import '../models/transfer_transaction.dart';
@@ -19,13 +21,22 @@ import 'investment_entry_screen.dart';
 import '../services/account_service.dart';
 import '../services/cari_card_service.dart';
 import '../services/cari_transaction_service.dart';
+import '../services/credit_card_payment_service.dart';
+import '../services/credit_card_statement_service.dart';
 import '../services/finance_transaction_service.dart';
 import '../services/investment_transaction_service.dart';
 import '../services/transfer_transaction_service.dart';
 import '../utils/navigation_helpers.dart';
 
 enum _DatePreset { all, day, week, month, year, custom }
-enum _MovementSourceType { finance, cari, transfer, investment }
+
+enum _MovementSourceType {
+  finance,
+  cari,
+  transfer,
+  investment,
+  creditCardPayment
+}
 
 class AccountMovementsScreen extends StatefulWidget {
   const AccountMovementsScreen({super.key});
@@ -85,6 +96,8 @@ class _AccountMovementsScreenState extends State<AccountMovementsScreen> {
         TransferTransactionService.getAll(),
         InvestmentTransactionService.getAll(),
         CariCardService.getAll(),
+        CreditCardPaymentService.getAll(),
+        CreditCardStatementService.getAll(),
       ]);
 
       final accounts = (results[0] as List<Account>)
@@ -94,9 +107,14 @@ class _AccountMovementsScreenState extends State<AccountMovementsScreen> {
       final transfer = results[3] as List<TransferTransaction>;
       final investment = results[4] as List<InvestmentTransaction>;
       final cards = results[5] as List<CariCard>;
+      final creditCardPayments = results[6] as List<CreditCardPayment>;
+      final creditCardStatements = results[7] as List<CreditCardStatement>;
       final financeById = {for (final tx in finance) tx.id: tx};
       final cariById = {for (final tx in cari) tx.id: tx};
       final investmentById = {for (final tx in investment) tx.id: tx};
+      final statementsById = {
+        for (final statement in creditCardStatements) statement.id: statement,
+      };
 
       final cardNames = <int, String>{
         for (final c in cards)
@@ -160,7 +178,8 @@ class _AccountMovementsScreenState extends State<AccountMovementsScreen> {
               description: (tx.description ?? '').trim().isEmpty
                   ? '-'
                   : tx.description!.trim(),
-              sourceLabel: 'Alıcı: ${accountNames[tx.toAccountId] ?? tx.toAccountId}',
+              sourceLabel:
+                  'Alıcı: ${accountNames[tx.toAccountId] ?? tx.toAccountId}',
               sourceType: _MovementSourceType.transfer,
               sourceId: tx.id,
             ),
@@ -192,11 +211,12 @@ class _AccountMovementsScreenState extends State<AccountMovementsScreen> {
         final typeLabel = isBuy ? 'Yatırım Alış' : 'Yatırım Satış';
         final principal = tx.costBasisTotal > 0 ? tx.costBasisTotal : tx.total;
         final cashSigned = isBuy ? -tx.total : principal;
-        final investmentAccountName =
-            accountNames[tx.investmentAccountId] ?? 'Yatırım #${tx.investmentAccountId}';
-        final cashAccountName = accountNames[tx.cashAccountId] ?? 'Hesap #${tx.cashAccountId}';
+        final investmentAccountName = accountNames[tx.investmentAccountId] ??
+            'Yatırım #${tx.investmentAccountId}';
+        final cashAccountName =
+            accountNames[tx.cashAccountId] ?? 'Hesap #${tx.cashAccountId}';
         var detail =
-            '${tx.symbol} ${tx.quantity.toStringAsFixed(4)} @ ${_fmtAmount(tx.unitPrice)} TL';
+            '${tx.symbol} ${_fmtQuantity(tx.quantity)} @ ${_fmtAmount(tx.unitPrice)} TL';
         if (!isBuy) {
           final pnlAbs = _fmtAmount(tx.realizedPnl.abs());
           detail =
@@ -237,6 +257,47 @@ class _AccountMovementsScreenState extends State<AccountMovementsScreen> {
         }
       }
 
+      for (final payment in creditCardPayments) {
+        final bankName = accountNames[payment.bankAccountId] ??
+            'Banka #${payment.bankAccountId}';
+        final cardName = accountNames[payment.creditCardAccountId] ??
+            'Kredi Kartı #${payment.creditCardAccountId}';
+        final statement = statementsById[payment.creditCardStatementId];
+        final statementLabel = statement == null
+            ? '-'
+            : '${_fmtDate(statement.periodStart)} - ${_fmtDate(statement.periodEnd)}';
+        final detail = (payment.note?.trim().isNotEmpty ?? false)
+            ? payment.note!.trim()
+            : 'Ekstre Dönemi: $statementLabel';
+
+        if (movementMap.containsKey(payment.bankAccountId)) {
+          movementMap[payment.bankAccountId]!.add(
+            _AccountMovement(
+              date: payment.paymentDate,
+              typeLabel: 'Kart Ödeme',
+              amountSigned: -payment.amount,
+              description: detail,
+              sourceLabel: 'Kredi Kartı: $cardName',
+              sourceType: _MovementSourceType.creditCardPayment,
+              sourceId: payment.id,
+            ),
+          );
+        }
+        if (movementMap.containsKey(payment.creditCardAccountId)) {
+          movementMap[payment.creditCardAccountId]!.add(
+            _AccountMovement(
+              date: payment.paymentDate,
+              typeLabel: 'Kart Ödeme',
+              amountSigned: payment.amount,
+              description: detail,
+              sourceLabel: 'Ödeme Hesabı: $bankName',
+              sourceType: _MovementSourceType.creditCardPayment,
+              sourceId: payment.id,
+            ),
+          );
+        }
+      }
+
       for (final e in movementMap.entries) {
         e.value.sort((x, y) => y.date.compareTo(x.date));
       }
@@ -249,7 +310,8 @@ class _AccountMovementsScreenState extends State<AccountMovementsScreen> {
         _financeById = financeById;
         _cariById = cariById;
         _investmentById = investmentById;
-        _selectedAccountId = _resolveSelectedAccountId(_selectedAccountId, accounts);
+        _selectedAccountId =
+            _resolveSelectedAccountId(_selectedAccountId, accounts);
         _loading = false;
       });
     } catch (e) {
@@ -320,7 +382,8 @@ class _AccountMovementsScreenState extends State<AccountMovementsScreen> {
       final weekday = ref.weekday;
       start = DateTime(ref.year, ref.month, ref.day)
           .subtract(Duration(days: weekday - 1));
-      end = start.add(const Duration(days: 7))
+      end = start
+          .add(const Duration(days: 7))
           .subtract(const Duration(milliseconds: 1));
       return (start, end);
     }
@@ -334,7 +397,8 @@ class _AccountMovementsScreenState extends State<AccountMovementsScreen> {
 
     if (preset == _DatePreset.year) {
       start = DateTime(ref.year, 1, 1);
-      end = DateTime(ref.year + 1, 1, 1).subtract(const Duration(milliseconds: 1));
+      end = DateTime(ref.year + 1, 1, 1)
+          .subtract(const Duration(milliseconds: 1));
       return (start, end);
     }
 
@@ -360,7 +424,8 @@ class _AccountMovementsScreenState extends State<AccountMovementsScreen> {
     final accountId = _selectedAccountId;
     final years = <int>{DateTime.now().year};
     if (accountId != null) {
-      final items = _movementsByAccount[accountId] ?? const <_AccountMovement>[];
+      final items =
+          _movementsByAccount[accountId] ?? const <_AccountMovement>[];
       for (final m in items) {
         years.add(m.date.year);
       }
@@ -371,8 +436,8 @@ class _AccountMovementsScreenState extends State<AccountMovementsScreen> {
 
   String _weekRangeLabel(DateTime ref) {
     final weekday = ref.weekday;
-    final start =
-        DateTime(ref.year, ref.month, ref.day).subtract(Duration(days: weekday - 1));
+    final start = DateTime(ref.year, ref.month, ref.day)
+        .subtract(Duration(days: weekday - 1));
     final end = start.add(const Duration(days: 6));
     return '${_fmtDate(start)} - ${_fmtDate(end)}';
   }
@@ -436,6 +501,23 @@ class _AccountMovementsScreenState extends State<AccountMovementsScreen> {
     return '${b.toString()},$decPart';
   }
 
+  String _fmtQuantity(double value) {
+    final fixed = value.toStringAsFixed(4);
+    final normalized = fixed.replaceFirst(RegExp(r'([.,]?)0+$'), '');
+    final parts = normalized.split('.');
+    final intPart = parts[0];
+    final decPart = parts.length > 1 ? parts[1] : '';
+
+    final b = StringBuffer();
+    for (int i = 0; i < intPart.length; i++) {
+      final fromRight = intPart.length - i;
+      b.write(intPart[i]);
+      if (fromRight > 1 && fromRight % 3 == 1) b.write('.');
+    }
+    if (decPart.isEmpty) return b.toString();
+    return '${b.toString()},${decPart.replaceAll('.', '')}';
+  }
+
   String _fmtDateTime(DateTime dt) {
     final d = dt.day.toString().padLeft(2, '0');
     final m = dt.month.toString().padLeft(2, '0');
@@ -489,7 +571,13 @@ class _AccountMovementsScreenState extends State<AccountMovementsScreen> {
           ),
           pw.SizedBox(height: 6),
           pw.Text('Hesap: ${account.name}'),
-          pw.Text('Güncel Bakiye: ${_fmtAmount(displayBalance)} TL'),
+          if (account.type == 'investment') ...[
+            pw.Text(
+              'Yatırım Bakiyesi: ${_fmtQuantity(account.balance)} ${(account.investmentSymbol ?? '').trim().toUpperCase()}',
+            ),
+            pw.Text('Net Hareket Tutarı: ${_fmtAmount(displayBalance)} TL'),
+          ] else
+            pw.Text('Güncel Bakiye: ${_fmtAmount(displayBalance)} TL'),
           pw.Text('Oluşturulma: ${_fmtDateTime(DateTime.now())}'),
           pw.SizedBox(height: 8),
           pw.Text(
@@ -523,7 +611,8 @@ class _AccountMovementsScreenState extends State<AccountMovementsScreen> {
                   .toList(),
               headerStyle: pw.TextStyle(font: bold, fontSize: 9),
               cellStyle: const pw.TextStyle(fontSize: 8.5),
-              headerDecoration: const pw.BoxDecoration(color: PdfColors.grey300),
+              headerDecoration:
+                  const pw.BoxDecoration(color: PdfColors.grey300),
               columnWidths: {
                 0: const pw.FlexColumnWidth(1.3),
                 1: const pw.FlexColumnWidth(1.0),
@@ -615,7 +704,13 @@ class _AccountMovementsScreenState extends State<AccountMovementsScreen> {
     } else {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Transfer düzenleme bu ekranda yok.')),
+        SnackBar(
+          content: Text(
+            movement.sourceType == _MovementSourceType.creditCardPayment
+                ? 'Kredi kartı ödeme düzenleme bu ekranda yok.'
+                : 'Transfer düzenleme bu ekranda yok.',
+          ),
+        ),
       );
       return;
     }
@@ -651,6 +746,8 @@ class _AccountMovementsScreenState extends State<AccountMovementsScreen> {
         await CariTransactionService.deleteAndReturn(movement.sourceId);
       } else if (movement.sourceType == _MovementSourceType.transfer) {
         await TransferTransactionService.deleteAndReturn(movement.sourceId);
+      } else if (movement.sourceType == _MovementSourceType.creditCardPayment) {
+        throw Exception('Kredi kartı ödeme silme bu aşamada desteklenmiyor.');
       } else {
         await InvestmentTransactionService.deleteAndReturn(movement.sourceId);
       }
@@ -674,6 +771,17 @@ class _AccountMovementsScreenState extends State<AccountMovementsScreen> {
     final movements = _filteredMovements();
     final displayBalance = _selectedAccountDisplayBalance();
     final availableYears = _availableYears();
+    final isInvestmentAccount = account?.type == 'investment';
+    final investmentSymbol =
+        (account?.investmentSymbol ?? '').trim().toUpperCase();
+    final balanceTitle =
+        isInvestmentAccount ? 'Yatırım Bakiyesi' : 'Güncel Bakiye';
+    final balanceValue = isInvestmentAccount
+        ? '${_fmtQuantity(account?.balance ?? 0)}${investmentSymbol.isEmpty ? '' : ' $investmentSymbol'}'
+        : '${_fmtAmount(displayBalance)} TL';
+    final balanceSubtitle = isInvestmentAccount
+        ? 'Net Hareket Tutarı: ${_fmtAmount(displayBalance)} TL'
+        : null;
 
     return Scaffold(
       drawer: buildAppMenuDrawer(),
@@ -720,14 +828,21 @@ class _AccountMovementsScreenState extends State<AccountMovementsScreen> {
                                       : TextDecoration.lineThrough,
                                 ),
                               ),
-                              subtitle: const Text('Güncel Bakiye'),
+                              subtitle: Text(
+                                balanceSubtitle == null
+                                    ? balanceTitle
+                                    : '$balanceTitle\n$balanceSubtitle',
+                              ),
+                              isThreeLine: balanceSubtitle != null,
                               trailing: Text(
-                                '${_fmtAmount(displayBalance)} TL',
+                                balanceValue,
                                 style: TextStyle(
                                   fontWeight: FontWeight.bold,
-                                  color: displayBalance >= 0
-                                      ? Colors.blue
-                                      : Colors.orange,
+                                  color: isInvestmentAccount
+                                      ? Colors.teal
+                                      : (displayBalance >= 0
+                                          ? Colors.blue
+                                          : Colors.orange),
                                 ),
                               ),
                             ),
@@ -801,7 +916,8 @@ class _AccountMovementsScreenState extends State<AccountMovementsScreen> {
                                         children: [
                                           Expanded(
                                             child: DropdownButtonFormField<int>(
-                                              initialValue: _periodReferenceDate.year,
+                                              initialValue:
+                                                  _periodReferenceDate.year,
                                               decoration: const InputDecoration(
                                                 labelText: 'Yıl',
                                                 border: OutlineInputBorder(),
@@ -809,7 +925,8 @@ class _AccountMovementsScreenState extends State<AccountMovementsScreen> {
                                               ),
                                               items: availableYears
                                                   .map(
-                                                    (y) => DropdownMenuItem<int>(
+                                                    (y) =>
+                                                        DropdownMenuItem<int>(
                                                       value: y,
                                                       child: Text(y.toString()),
                                                     ),
@@ -818,7 +935,8 @@ class _AccountMovementsScreenState extends State<AccountMovementsScreen> {
                                               onChanged: (v) {
                                                 if (v == null) return;
                                                 setState(() {
-                                                  _periodReferenceDate = DateTime(
+                                                  _periodReferenceDate =
+                                                      DateTime(
                                                     v,
                                                     _periodReferenceDate.month,
                                                     1,
@@ -830,7 +948,8 @@ class _AccountMovementsScreenState extends State<AccountMovementsScreen> {
                                           const SizedBox(width: 8),
                                           Expanded(
                                             child: DropdownButtonFormField<int>(
-                                              initialValue: _periodReferenceDate.month,
+                                              initialValue:
+                                                  _periodReferenceDate.month,
                                               decoration: const InputDecoration(
                                                 labelText: 'Ay',
                                                 border: OutlineInputBorder(),
@@ -846,7 +965,8 @@ class _AccountMovementsScreenState extends State<AccountMovementsScreen> {
                                               onChanged: (v) {
                                                 if (v == null) return;
                                                 setState(() {
-                                                  _periodReferenceDate = DateTime(
+                                                  _periodReferenceDate =
+                                                      DateTime(
                                                     _periodReferenceDate.year,
                                                     v,
                                                     1,
@@ -876,7 +996,8 @@ class _AccountMovementsScreenState extends State<AccountMovementsScreen> {
                                         onChanged: (v) {
                                           if (v == null) return;
                                           setState(() {
-                                            _periodReferenceDate = DateTime(v, 1, 1);
+                                            _periodReferenceDate =
+                                                DateTime(v, 1, 1);
                                           });
                                         },
                                       )
@@ -885,7 +1006,8 @@ class _AccountMovementsScreenState extends State<AccountMovementsScreen> {
                                         children: [
                                           Expanded(
                                             child: OutlinedButton.icon(
-                                              onPressed: () => _pickCustomDate(start: true),
+                                              onPressed: () =>
+                                                  _pickCustomDate(start: true),
                                               icon: const Icon(Icons.event),
                                               label: Text(
                                                 _customStart == null
@@ -897,7 +1019,8 @@ class _AccountMovementsScreenState extends State<AccountMovementsScreen> {
                                           const SizedBox(width: 8),
                                           Expanded(
                                             child: OutlinedButton.icon(
-                                              onPressed: () => _pickCustomDate(start: false),
+                                              onPressed: () =>
+                                                  _pickCustomDate(start: false),
                                               icon: const Icon(Icons.event),
                                               label: Text(
                                                 _customEnd == null
@@ -917,10 +1040,12 @@ class _AccountMovementsScreenState extends State<AccountMovementsScreen> {
                         Expanded(
                           child: movements.isEmpty
                               ? const Center(
-                                  child: Text('Seçilen filtreye uygun hareket yok.'),
+                                  child: Text(
+                                      'Seçilen filtreye uygun hareket yok.'),
                                 )
                               : ListView.separated(
-                                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                                  padding:
+                                      const EdgeInsets.fromLTRB(12, 0, 12, 12),
                                   itemCount: movements.length,
                                   separatorBuilder: (_, __) =>
                                       const SizedBox(height: 8),
@@ -933,9 +1058,12 @@ class _AccountMovementsScreenState extends State<AccountMovementsScreen> {
                                           positive
                                               ? Icons.arrow_downward
                                               : Icons.arrow_upward,
-                                          color: positive ? Colors.green : Colors.red,
+                                          color: positive
+                                              ? Colors.green
+                                              : Colors.red,
                                         ),
-                                        title: Text('${m.typeLabel} • ${m.sourceLabel}'),
+                                        title: Text(
+                                            '${m.typeLabel} • ${m.sourceLabel}'),
                                         subtitle: Text(
                                           '${_fmtDateTime(m.date)}\nAçıklama: ${m.description}',
                                         ),
@@ -947,7 +1075,9 @@ class _AccountMovementsScreenState extends State<AccountMovementsScreen> {
                                               '${positive ? '+' : '-'}${_fmtAmount(m.amountSigned.abs())} TL',
                                               style: TextStyle(
                                                 fontWeight: FontWeight.bold,
-                                                color: positive ? Colors.green : Colors.red,
+                                                color: positive
+                                                    ? Colors.green
+                                                    : Colors.red,
                                               ),
                                             ),
                                             PopupMenuButton<String>(

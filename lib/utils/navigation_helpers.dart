@@ -12,6 +12,7 @@ import '../screens/cari_cards_screen.dart';
 import '../screens/cari_transactions_screen.dart';
 import '../screens/crypto_tracking_screen.dart';
 import '../screens/currency_tracking_screen.dart';
+import '../screens/credit_card_statements_screen.dart';
 import '../screens/expense_category_screen.dart';
 import '../screens/expense_planning_screen.dart';
 import '../screens/income_category_screen.dart';
@@ -31,6 +32,7 @@ _MenuSection? _lastExpandedSection;
 enum _MenuItem {
   profile,
   accounts,
+  creditCardStatements,
   incomeCategories,
   expenseCategories,
   cariCards,
@@ -62,6 +64,11 @@ void rememberDrawerSelectionForScreen(Widget screen) {
   if (screen is AccountsScreen) {
     _lastSelectedMenuItem = _MenuItem.accounts;
     _lastExpandedSection = _MenuSection.definition;
+    return;
+  }
+  if (screen is CreditCardStatementsScreen) {
+    _lastSelectedMenuItem = _MenuItem.creditCardStatements;
+    _lastExpandedSection = _MenuSection.transactions;
     return;
   }
   if (screen is IncomeCategoryScreen) {
@@ -315,382 +322,412 @@ class _AppMenuDrawerState extends State<_AppMenuDrawer> {
               padding: EdgeInsets.zero,
               children: [
                 DrawerHeader(
-            decoration: const BoxDecoration(
-              color: AppColors.brand,
-            ),
-            margin: EdgeInsets.zero,
-            padding: EdgeInsets.zero,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      CircleAvatar(
-                        radius: 28,
-                        backgroundColor: Colors.white24,
-                        backgroundImage:
-                            _profilePhoto != null ? MemoryImage(_profilePhoto!) : null,
-                        child: _profilePhoto == null
-                            ? const Icon(Icons.person, color: Colors.white, size: 30)
-                            : null,
-                      ),
-                      const SizedBox(width: 10),
-                      InkWell(
-                        onTap: _openProfile,
-                        borderRadius: BorderRadius.circular(18),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(18),
-                            border: Border.all(color: Colors.white54),
-                            color: Colors.white.withValues(alpha: 0.08),
-                          ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.account_circle, color: Colors.white, size: 18),
-                              SizedBox(width: 6),
-                              Text(
-                                'Profil',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w600,
+                  decoration: const BoxDecoration(
+                    color: AppColors.brand,
+                  ),
+                  margin: EdgeInsets.zero,
+                  padding: EdgeInsets.zero,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            CircleAvatar(
+                              radius: 28,
+                              backgroundColor: Colors.white24,
+                              backgroundImage: _profilePhoto != null
+                                  ? MemoryImage(_profilePhoto!)
+                                  : null,
+                              child: _profilePhoto == null
+                                  ? const Icon(Icons.person,
+                                      color: Colors.white, size: 30)
+                                  : null,
+                            ),
+                            const SizedBox(width: 10),
+                            InkWell(
+                              onTap: _openProfile,
+                              borderRadius: BorderRadius.circular(18),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(18),
+                                  border: Border.all(color: Colors.white54),
+                                  color: Colors.white.withValues(alpha: 0.08),
+                                ),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.account_circle,
+                                        color: Colors.white, size: 18),
+                                    SizedBox(width: 6),
+                                    Text(
+                                      'Profil',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                            ],
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          _profileName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    _profileName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
+                        const SizedBox(height: 4),
+                        const Text(
+                          'by Pagumex Teknoloji',
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    'by Pagumex Teknoloji',
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
+                ),
+                ExpansionTile(
+                  leading:
+                      const Icon(Icons.folder_open, color: Colors.blueGrey),
+                  title: const Text('Tanım'),
+                  initiallyExpanded:
+                      _lastExpandedSection == _MenuSection.definition,
+                  onExpansionChanged: (expanded) {
+                    if (expanded) {
+                      _lastExpandedSection = _MenuSection.definition;
+                    } else if (_lastExpandedSection ==
+                        _MenuSection.definition) {
+                      _lastExpandedSection = null;
+                    }
+                  },
+                  children: [
+                    _menuItem(
+                      item: _MenuItem.accounts,
+                      icon: Icons.account_balance,
+                      color: Colors.blueGrey,
+                      title: 'Hesap Tanım',
+                      onTap: () {
+                        _rememberSelection(
+                          item: _MenuItem.accounts,
+                          section: _MenuSection.definition,
+                        );
+                        _openScreen(const AccountsScreen());
+                      },
                     ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          ExpansionTile(
-            leading: const Icon(Icons.folder_open, color: Colors.blueGrey),
-            title: const Text('Tanım'),
-            initiallyExpanded: _lastExpandedSection == _MenuSection.definition,
-            onExpansionChanged: (expanded) {
-              if (expanded) {
-                _lastExpandedSection = _MenuSection.definition;
-              } else if (_lastExpandedSection == _MenuSection.definition) {
-                _lastExpandedSection = null;
-              }
-            },
-            children: [
-              _menuItem(
-                item: _MenuItem.accounts,
-                icon: Icons.account_balance,
-                color: Colors.blueGrey,
-                title: 'Hesap Tanım',
-                onTap: () {
-                  _rememberSelection(
-                    item: _MenuItem.accounts,
-                    section: _MenuSection.definition,
-                  );
-                  _openScreen(const AccountsScreen());
-                },
-              ),
-              _menuItem(
-                item: _MenuItem.incomeCategories,
-                icon: Icons.category,
-                color: AppColors.income,
-                title: 'Gelir Kategorileri',
-                onTap: () {
-                  _rememberSelection(
-                    item: _MenuItem.incomeCategories,
-                    section: _MenuSection.definition,
-                  );
-                  _openScreen(const IncomeCategoryScreen());
-                },
-              ),
-              _menuItem(
-                item: _MenuItem.expenseCategories,
-                icon: Icons.sell,
-                color: AppColors.expense,
-                title: 'Gider Kategorileri',
-                onTap: () {
-                  _rememberSelection(
-                    item: _MenuItem.expenseCategories,
-                    section: _MenuSection.definition,
-                  );
-                  _openScreen(const ExpenseCategoryScreen());
-                },
-              ),
-            ],
-          ),
-          ExpansionTile(
-            leading: const Icon(Icons.receipt_long, color: AppColors.info),
-            title: const Text('İşlemler'),
-            initiallyExpanded: _lastExpandedSection == _MenuSection.transactions,
-            onExpansionChanged: (expanded) {
-              if (expanded) {
-                _lastExpandedSection = _MenuSection.transactions;
-              } else if (_lastExpandedSection == _MenuSection.transactions) {
-                _lastExpandedSection = null;
-              }
-            },
-            children: [
-              _menuItem(
-                item: _MenuItem.transactionsHistory,
-                icon: Icons.swap_vert_circle,
-                color: AppColors.info,
-                title: 'İşlem Geçmişi',
-                onTap: () {
-                  _rememberSelection(
-                    item: _MenuItem.transactionsHistory,
-                    section: _MenuSection.transactions,
-                  );
-                  _openScreen(const IncomeExpenseTransactionsScreen());
-                },
-              ),
-              _menuItem(
-                item: _MenuItem.accountHistory,
-                icon: Icons.account_tree_outlined,
-                color: Colors.indigo,
-                title: 'Hesap Geçmişi',
-                onTap: () {
-                  _rememberSelection(
-                    item: _MenuItem.accountHistory,
-                    section: _MenuSection.transactions,
-                  );
-                  _openScreen(const AccountMovementsScreen());
-                },
-              ),
-              _menuItem(
-                item: _MenuItem.investmentTracking,
-                icon: Icons.analytics_outlined,
-                color: Colors.teal,
-                title: 'Yatırım Portföyü',
-                onTap: () {
-                  _rememberSelection(
-                    item: _MenuItem.investmentTracking,
-                    section: _MenuSection.transactions,
-                  );
-                  _openScreen(const InvestmentTrackingScreen());
-                },
-              ),
-              _menuItem(
-                item: _MenuItem.assetStatus,
-                icon: Icons.inventory_2_outlined,
-                color: Colors.teal,
-                title: 'Finans Özet',
-                onTap: () {
-                  _rememberSelection(
-                    item: _MenuItem.assetStatus,
-                    section: _MenuSection.transactions,
-                  );
-                  _openScreen(const AssetStatusScreen());
-                },
-              ),
-            ],
-          ),
-          ExpansionTile(
-            leading: const Icon(Icons.people_alt_outlined, color: Colors.orange),
-            title: const Text('Cari Kart İşlemleri'),
-            initiallyExpanded: _lastExpandedSection == _MenuSection.cariOperations ||
-                _lastSelectedMenuItem == _MenuItem.cariTransactionsHistory ||
-                _lastSelectedMenuItem == _MenuItem.cariSummary ||
-                _lastSelectedMenuItem == _MenuItem.cariSummaryForeign,
-            onExpansionChanged: (expanded) {
-              if (expanded) {
-                _lastExpandedSection = _MenuSection.cariOperations;
-              } else if (_lastExpandedSection == _MenuSection.cariOperations) {
-                _lastExpandedSection = null;
-              }
-            },
-            children: [
-              _menuItem(
-                item: _MenuItem.cariCards,
-                icon: Icons.badge,
-                color: AppColors.brand,
-                title: 'Cari Kart Tanım',
-                onTap: () {
-                  _rememberSelection(
-                    item: _MenuItem.cariCards,
-                    section: _MenuSection.cariOperations,
-                  );
-                  _openScreen(const CariCardsScreen());
-                },
-              ),
-              _menuItem(
-                item: _MenuItem.cariSummary,
-                icon: Icons.circle,
-                color: Colors.orange,
-                title: 'Cari Kart Özet (TL)',
-                onTap: () {
-                  _rememberSelection(item: _MenuItem.cariSummary);
-                  _openScreen(const CariCardSummaryScreen());
-                },
-              ),
-              _menuItem(
-                item: _MenuItem.cariSummaryForeign,
-                icon: Icons.circle,
-                color: Colors.deepOrange,
-                title: 'Cari Kart Özet (Dış Finans)',
-                onTap: () {
-                  _rememberSelection(item: _MenuItem.cariSummaryForeign);
-                  _openScreen(const CariCardSummaryForeignScreen());
-                },
-              ),
-              _menuItem(
-                item: _MenuItem.cariTransactionsHistory,
-                icon: Icons.swap_vert_circle,
-                color: Colors.orange,
-                title: 'Cari Kart İşlem Geçmişi',
-                onTap: () {
-                  _rememberSelection(
-                    item: _MenuItem.cariTransactionsHistory,
-                    section: _MenuSection.cariOperations,
-                  );
-                  _openScreen(const CariTransactionsScreen());
-                },
-              ),
-            ],
-          ),
-          ExpansionTile(
-            leading: const Icon(Icons.event_available, color: AppColors.planIncome),
-            title: const Text('Planlamalar'),
-            initiallyExpanded: _lastExpandedSection == _MenuSection.planning,
-            onExpansionChanged: (expanded) {
-              if (expanded) {
-                _lastExpandedSection = _MenuSection.planning;
-              } else if (_lastExpandedSection == _MenuSection.planning) {
-                _lastExpandedSection = null;
-              }
-            },
-            children: [
-              _menuItem(
-                item: _MenuItem.incomePlanning,
-                icon: Icons.event_note,
-                color: AppColors.income,
-                title: 'Gelir Planlama',
-                onTap: () {
-                  _rememberSelection(
-                    item: _MenuItem.incomePlanning,
-                    section: _MenuSection.planning,
-                  );
-                  _openScreen(const IncomePlanningScreen());
-                },
-              ),
-              _menuItem(
-                item: _MenuItem.expensePlanning,
-                icon: Icons.event_busy,
-                color: AppColors.expense,
-                title: 'Gider Planlama',
-                onTap: () {
-                  _rememberSelection(
-                    item: _MenuItem.expensePlanning,
-                    section: _MenuSection.planning,
-                  );
-                  _openScreen(const ExpensePlanningScreen());
-                },
-              ),
-            ],
-          ),
-          ListTile(
-            leading: const Icon(Icons.calendar_month, color: AppColors.info),
-            title: const Text('Takvim'),
-            selected: _lastSelectedMenuItem == _MenuItem.calendar,
-            selectedTileColor: Colors.black.withValues(alpha: 0.05),
-            onTap: () {
-              _rememberSelection(item: _MenuItem.calendar);
-              _openScreen(const CalendarTransactionsScreen());
-            },
-          ),
-          ExpansionTile(
-            leading: const Icon(Icons.currency_exchange, color: Colors.teal),
-            title: const Text('Yatırımcı'),
-            initiallyExpanded: _lastExpandedSection == _MenuSection.rates,
-            onExpansionChanged: (expanded) {
-              if (expanded) {
-                _lastExpandedSection = _MenuSection.rates;
-              } else if (_lastExpandedSection == _MenuSection.rates) {
-                _lastExpandedSection = null;
-              }
-            },
-            children: [
-              _menuItem(
-                item: _MenuItem.currencyTracking,
-                icon: Icons.attach_money,
-                color: Colors.teal,
-                title: 'Döviz Takip',
-                onTap: () {
-                  _rememberSelection(
-                    item: _MenuItem.currencyTracking,
-                    section: _MenuSection.rates,
-                  );
-                  _openScreen(const CurrencyTrackingScreen());
-                },
-              ),
-              _menuItem(
-                item: _MenuItem.metalTracking,
-                icon: Icons.workspace_premium,
-                color: Colors.amber,
-                title: 'Kıymetli Maden Takip',
-                onTap: () {
-                  _rememberSelection(
-                    item: _MenuItem.metalTracking,
-                    section: _MenuSection.rates,
-                  );
-                  _openScreen(const PreciousMetalTrackingScreen());
-                },
-              ),
-              _menuItem(
-                item: _MenuItem.stockTracking,
-                icon: Icons.show_chart,
-                color: Colors.green,
-                title: 'Borsa Takip',
-                onTap: () {
-                  _rememberSelection(
-                    item: _MenuItem.stockTracking,
-                    section: _MenuSection.rates,
-                  );
-                  _openScreen(const StockTrackingScreen());
-                },
-              ),
-              _menuItem(
-                item: _MenuItem.cryptoTracking,
-                icon: Icons.currency_bitcoin,
-                color: Colors.deepOrange,
-                title: 'Kripto Para Takip',
-                onTap: () {
-                  _rememberSelection(
-                    item: _MenuItem.cryptoTracking,
-                    section: _MenuSection.rates,
-                  );
-                  _openScreen(const CryptoTrackingScreen());
-                },
-              ),
-            ],
-          ),
+                    _menuItem(
+                      item: _MenuItem.incomeCategories,
+                      icon: Icons.category,
+                      color: AppColors.income,
+                      title: 'Gelir Kategorileri',
+                      onTap: () {
+                        _rememberSelection(
+                          item: _MenuItem.incomeCategories,
+                          section: _MenuSection.definition,
+                        );
+                        _openScreen(const IncomeCategoryScreen());
+                      },
+                    ),
+                    _menuItem(
+                      item: _MenuItem.expenseCategories,
+                      icon: Icons.sell,
+                      color: AppColors.expense,
+                      title: 'Gider Kategorileri',
+                      onTap: () {
+                        _rememberSelection(
+                          item: _MenuItem.expenseCategories,
+                          section: _MenuSection.definition,
+                        );
+                        _openScreen(const ExpenseCategoryScreen());
+                      },
+                    ),
+                  ],
+                ),
+                ExpansionTile(
+                  leading:
+                      const Icon(Icons.receipt_long, color: AppColors.info),
+                  title: const Text('İşlemler'),
+                  initiallyExpanded:
+                      _lastExpandedSection == _MenuSection.transactions,
+                  onExpansionChanged: (expanded) {
+                    if (expanded) {
+                      _lastExpandedSection = _MenuSection.transactions;
+                    } else if (_lastExpandedSection ==
+                        _MenuSection.transactions) {
+                      _lastExpandedSection = null;
+                    }
+                  },
+                  children: [
+                    _menuItem(
+                      item: _MenuItem.transactionsHistory,
+                      icon: Icons.swap_vert_circle,
+                      color: AppColors.info,
+                      title: 'İşlem Geçmişi',
+                      onTap: () {
+                        _rememberSelection(
+                          item: _MenuItem.transactionsHistory,
+                          section: _MenuSection.transactions,
+                        );
+                        _openScreen(const IncomeExpenseTransactionsScreen());
+                      },
+                    ),
+                    _menuItem(
+                      item: _MenuItem.accountHistory,
+                      icon: Icons.account_tree_outlined,
+                      color: Colors.indigo,
+                      title: 'Hesap Geçmişi',
+                      onTap: () {
+                        _rememberSelection(
+                          item: _MenuItem.accountHistory,
+                          section: _MenuSection.transactions,
+                        );
+                        _openScreen(const AccountMovementsScreen());
+                      },
+                    ),
+                    _menuItem(
+                      item: _MenuItem.creditCardStatements,
+                      icon: Icons.receipt_long_outlined,
+                      color: Colors.indigo,
+                      title: 'Kredi Kartı Ekstreleri',
+                      onTap: () {
+                        _rememberSelection(
+                          item: _MenuItem.creditCardStatements,
+                          section: _MenuSection.transactions,
+                        );
+                        _openScreen(const CreditCardStatementsScreen());
+                      },
+                    ),
+                    _menuItem(
+                      item: _MenuItem.investmentTracking,
+                      icon: Icons.analytics_outlined,
+                      color: Colors.teal,
+                      title: 'Yatırım Portföyü',
+                      onTap: () {
+                        _rememberSelection(
+                          item: _MenuItem.investmentTracking,
+                          section: _MenuSection.transactions,
+                        );
+                        _openScreen(const InvestmentTrackingScreen());
+                      },
+                    ),
+                    _menuItem(
+                      item: _MenuItem.assetStatus,
+                      icon: Icons.inventory_2_outlined,
+                      color: Colors.teal,
+                      title: 'Finans Özet',
+                      onTap: () {
+                        _rememberSelection(
+                          item: _MenuItem.assetStatus,
+                          section: _MenuSection.transactions,
+                        );
+                        _openScreen(const AssetStatusScreen());
+                      },
+                    ),
+                  ],
+                ),
+                ExpansionTile(
+                  leading: const Icon(Icons.people_alt_outlined,
+                      color: Colors.orange),
+                  title: const Text('Cari Kart İşlemleri'),
+                  initiallyExpanded:
+                      _lastExpandedSection == _MenuSection.cariOperations ||
+                          _lastSelectedMenuItem ==
+                              _MenuItem.cariTransactionsHistory ||
+                          _lastSelectedMenuItem == _MenuItem.cariSummary ||
+                          _lastSelectedMenuItem == _MenuItem.cariSummaryForeign,
+                  onExpansionChanged: (expanded) {
+                    if (expanded) {
+                      _lastExpandedSection = _MenuSection.cariOperations;
+                    } else if (_lastExpandedSection ==
+                        _MenuSection.cariOperations) {
+                      _lastExpandedSection = null;
+                    }
+                  },
+                  children: [
+                    _menuItem(
+                      item: _MenuItem.cariCards,
+                      icon: Icons.badge,
+                      color: AppColors.brand,
+                      title: 'Cari Kart Tanım',
+                      onTap: () {
+                        _rememberSelection(
+                          item: _MenuItem.cariCards,
+                          section: _MenuSection.cariOperations,
+                        );
+                        _openScreen(const CariCardsScreen());
+                      },
+                    ),
+                    _menuItem(
+                      item: _MenuItem.cariSummary,
+                      icon: Icons.circle,
+                      color: Colors.orange,
+                      title: 'Cari Kart Özet (TL)',
+                      onTap: () {
+                        _rememberSelection(item: _MenuItem.cariSummary);
+                        _openScreen(const CariCardSummaryScreen());
+                      },
+                    ),
+                    _menuItem(
+                      item: _MenuItem.cariSummaryForeign,
+                      icon: Icons.circle,
+                      color: Colors.deepOrange,
+                      title: 'Cari Kart Özet (Dış Finans)',
+                      onTap: () {
+                        _rememberSelection(item: _MenuItem.cariSummaryForeign);
+                        _openScreen(const CariCardSummaryForeignScreen());
+                      },
+                    ),
+                    _menuItem(
+                      item: _MenuItem.cariTransactionsHistory,
+                      icon: Icons.swap_vert_circle,
+                      color: Colors.orange,
+                      title: 'Cari Kart İşlem Geçmişi',
+                      onTap: () {
+                        _rememberSelection(
+                          item: _MenuItem.cariTransactionsHistory,
+                          section: _MenuSection.cariOperations,
+                        );
+                        _openScreen(const CariTransactionsScreen());
+                      },
+                    ),
+                  ],
+                ),
+                ExpansionTile(
+                  leading: const Icon(Icons.event_available,
+                      color: AppColors.planIncome),
+                  title: const Text('Planlamalar'),
+                  initiallyExpanded:
+                      _lastExpandedSection == _MenuSection.planning,
+                  onExpansionChanged: (expanded) {
+                    if (expanded) {
+                      _lastExpandedSection = _MenuSection.planning;
+                    } else if (_lastExpandedSection == _MenuSection.planning) {
+                      _lastExpandedSection = null;
+                    }
+                  },
+                  children: [
+                    _menuItem(
+                      item: _MenuItem.incomePlanning,
+                      icon: Icons.event_note,
+                      color: AppColors.income,
+                      title: 'Gelir Planlama',
+                      onTap: () {
+                        _rememberSelection(
+                          item: _MenuItem.incomePlanning,
+                          section: _MenuSection.planning,
+                        );
+                        _openScreen(const IncomePlanningScreen());
+                      },
+                    ),
+                    _menuItem(
+                      item: _MenuItem.expensePlanning,
+                      icon: Icons.event_busy,
+                      color: AppColors.expense,
+                      title: 'Gider Planlama',
+                      onTap: () {
+                        _rememberSelection(
+                          item: _MenuItem.expensePlanning,
+                          section: _MenuSection.planning,
+                        );
+                        _openScreen(const ExpensePlanningScreen());
+                      },
+                    ),
+                  ],
+                ),
+                ListTile(
+                  leading:
+                      const Icon(Icons.calendar_month, color: AppColors.info),
+                  title: const Text('Takvim'),
+                  selected: _lastSelectedMenuItem == _MenuItem.calendar,
+                  selectedTileColor: Colors.black.withValues(alpha: 0.05),
+                  onTap: () {
+                    _rememberSelection(item: _MenuItem.calendar);
+                    _openScreen(const CalendarTransactionsScreen());
+                  },
+                ),
+                ExpansionTile(
+                  leading:
+                      const Icon(Icons.currency_exchange, color: Colors.teal),
+                  title: const Text('Yatırımcı'),
+                  initiallyExpanded: _lastExpandedSection == _MenuSection.rates,
+                  onExpansionChanged: (expanded) {
+                    if (expanded) {
+                      _lastExpandedSection = _MenuSection.rates;
+                    } else if (_lastExpandedSection == _MenuSection.rates) {
+                      _lastExpandedSection = null;
+                    }
+                  },
+                  children: [
+                    _menuItem(
+                      item: _MenuItem.currencyTracking,
+                      icon: Icons.attach_money,
+                      color: Colors.teal,
+                      title: 'Döviz Takip',
+                      onTap: () {
+                        _rememberSelection(
+                          item: _MenuItem.currencyTracking,
+                          section: _MenuSection.rates,
+                        );
+                        _openScreen(const CurrencyTrackingScreen());
+                      },
+                    ),
+                    _menuItem(
+                      item: _MenuItem.metalTracking,
+                      icon: Icons.workspace_premium,
+                      color: Colors.amber,
+                      title: 'Kıymetli Maden Takip',
+                      onTap: () {
+                        _rememberSelection(
+                          item: _MenuItem.metalTracking,
+                          section: _MenuSection.rates,
+                        );
+                        _openScreen(const PreciousMetalTrackingScreen());
+                      },
+                    ),
+                    _menuItem(
+                      item: _MenuItem.stockTracking,
+                      icon: Icons.show_chart,
+                      color: Colors.green,
+                      title: 'Borsa Takip',
+                      onTap: () {
+                        _rememberSelection(
+                          item: _MenuItem.stockTracking,
+                          section: _MenuSection.rates,
+                        );
+                        _openScreen(const StockTrackingScreen());
+                      },
+                    ),
+                    _menuItem(
+                      item: _MenuItem.cryptoTracking,
+                      icon: Icons.currency_bitcoin,
+                      color: Colors.deepOrange,
+                      title: 'Kripto Para Takip',
+                      onTap: () {
+                        _rememberSelection(
+                          item: _MenuItem.cryptoTracking,
+                          section: _MenuSection.rates,
+                        );
+                        _openScreen(const CryptoTrackingScreen());
+                      },
+                    ),
+                  ],
+                ),
               ],
             ),
           ),

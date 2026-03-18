@@ -46,16 +46,76 @@ class _AssetStatusScreenState extends State<AssetStatusScreen> {
       final accounts = results[0] as List<Account>;
       final investmentTx = results[1] as List<InvestmentTransaction>;
       final livePriceBySymbol = <String, double>{};
+      final stockSymbols = accounts
+          .where(
+            (account) =>
+                account.type == 'investment' &&
+                account.investmentSubtype == 'stock' &&
+                (account.investmentSymbol?.trim().isNotEmpty ?? false),
+          )
+          .map((account) => account.investmentSymbol!.trim().toUpperCase())
+          .toSet()
+          .toList();
+      final cryptoSymbols = accounts
+          .where(
+            (account) =>
+                account.type == 'investment' &&
+                account.investmentSubtype == 'crypto' &&
+                (account.investmentSymbol?.trim().isNotEmpty ?? false),
+          )
+          .map((account) => account.investmentSymbol!.trim().toUpperCase())
+          .toSet()
+          .toList();
       try {
-        final rateResults = await Future.wait([
-          MarketRateService.fetchAllCurrencies(),
-          MarketRateService.fetchAllMetals(),
+        final rateResults = await Future.wait<Object?>([
+          (() async {
+            try {
+              return await MarketRateService.fetchAllCurrencies();
+            } catch (_) {
+              return null;
+            }
+          })(),
+          (() async {
+            try {
+              return await MarketRateService.fetchAllMetals();
+            } catch (_) {
+              return null;
+            }
+          })(),
+          (() async {
+            if (stockSymbols.isEmpty) return const <MarketRateItem>[];
+            try {
+              return await MarketRateService.fetchStocksByCodes(stockSymbols);
+            } catch (_) {
+              return const <MarketRateItem>[];
+            }
+          })(),
+          (() async {
+            if (cryptoSymbols.isEmpty) return const <MarketRateItem>[];
+            try {
+              return await MarketRateService.fetchCryptosByCodes(cryptoSymbols);
+            } catch (_) {
+              return const <MarketRateItem>[];
+            }
+          })(),
         ]);
-        final currencyRates = (rateResults[0] as CurrencyRateListResult).items;
-        final metalRates = (rateResults[1] as MetalRateListResult).items;
-        final allRates = <MarketRateItem>[...currencyRates, ...metalRates];
+        final currencyRates =
+            (rateResults[0] as CurrencyRateListResult?)?.items ?? const <MarketRateItem>[];
+        final metalRates =
+            (rateResults[1] as MetalRateListResult?)?.items ?? const <MarketRateItem>[];
+        final stockRates = rateResults[2] as List<MarketRateItem>;
+        final cryptoRates = rateResults[3] as List<MarketRateItem>;
+        final allRates = <MarketRateItem>[
+          ...currencyRates,
+          ...metalRates,
+          ...stockRates,
+          ...cryptoRates,
+        ];
         for (final item in allRates) {
-          livePriceBySymbol[item.code.toUpperCase()] = item.sell;
+          final price = item.sell > 0 ? item.sell : item.buy;
+          if (price > 0) {
+            livePriceBySymbol[item.code.toUpperCase()] = price;
+          }
         }
       } catch (_) {
         // Keep summary visible when live market data is unavailable.

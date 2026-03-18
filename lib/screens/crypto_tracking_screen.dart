@@ -53,17 +53,17 @@ class _CryptoTrackingScreenState extends State<CryptoTrackingScreen> {
   Widget build(BuildContext context) {
     return InstrumentTrackingScreen(
       title: 'Kripto Para Takip',
-      selectTitle: 'Kripto Sec',
+      selectTitle: 'Kripto Seç',
       emptyMessage:
-          'Takip listeniz bos.\nSag alttaki + butonuyla kripto para ekleyebilirsiniz.',
-      noCandidateMessage: 'Eklenebilecek yeni kripto bulunamadi.',
-      loadErrorPrefix: 'Kripto verileri alinamadi',
-      blockedDeactivateMessage: 'Bu kriptoya bagli aktif hesap var. Pasife alamazsiniz.',
-      blockedDeleteMessage: 'Bu kriptoya bagli aktif hesap var. Silinemez veya pasife alinamaz.',
-      linkedPassiveMessage: 'Bu kriptoya bagli hesap var. Silinemedi, pasife alindi.',
-      linkedActiveLabel: 'Bagli aktif yatirim hesabi var',
-      linkedPassiveLabel: 'Bagli pasif yatirim hesabi var',
-      linkedNoneLabel: 'Bagli yatirim hesabi yok',
+          'Takip listeniz boş.\nSağ alttaki + butonuyla kripto para ekleyebilirsiniz.',
+      noCandidateMessage: 'Eklenebilecek yeni kripto bulunamadı.',
+      loadErrorPrefix: 'Kripto verileri alınamadı',
+      blockedDeactivateMessage: 'Bu kriptoya bağlı aktif hesap var. Pasife alamazsınız.',
+      blockedDeleteMessage: 'Bu kriptoya bağlı aktif hesap var. Silinemez veya pasife alınamaz.',
+      linkedPassiveMessage: 'Bu kriptoya bağlı hesap var. Silinemedi, pasife alındı.',
+      linkedActiveLabel: 'Bağlı aktif yatırım hesabı var',
+      linkedPassiveLabel: 'Bağlı pasif yatırım hesabı var',
+      linkedNoneLabel: 'Bağlı yatırım hesabı yok',
       loadData: () async {
         // Once kayitli takip listesi okunur, sonra canli fiyatlar ustune bindirilir.
         final tracked = await TrackedCryptoService.getAll();

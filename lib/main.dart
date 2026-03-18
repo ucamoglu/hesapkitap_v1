@@ -12,6 +12,7 @@ import 'screens/cari_account_screen.dart';
 import 'screens/cari_cards_screen.dart';
 import 'screens/cari_card_summary_screen.dart';
 import 'screens/cari_card_summary_foreign_screen.dart';
+import 'screens/credit_card_statements_screen.dart';
 import 'screens/expense_category_screen.dart';
 import 'screens/expense_planning_screen.dart';
 import 'screens/calendar_transactions_screen.dart';
@@ -215,7 +216,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final trackedStocks = await TrackedStockService.getAll();
     final trackedCryptos = await TrackedCryptoService.getAll();
     final dueIncomePlans = await IncomePlanService.getDuePlans(DateTime.now());
-    final dueExpensePlans = await ExpensePlanService.getDuePlans(DateTime.now());
+    final dueExpensePlans =
+        await ExpensePlanService.getDuePlans(DateTime.now());
     final allIncomePlans = await IncomePlanService.getAll();
     final allExpensePlans = await ExpensePlanService.getAll();
     final allFinanceTx = await FinanceTransactionService.getAll();
@@ -261,8 +263,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
     if (stockSymbolsForRates.isNotEmpty) {
       try {
-        final stockRates =
-            await MarketRateService.fetchStocksByCodes(stockSymbolsForRates.toList());
+        final stockRates = await MarketRateService.fetchStocksByCodes(
+            stockSymbolsForRates.toList());
         for (final r in stockRates) {
           final fallbackPrice = r.sell > 0 ? r.sell : r.buy;
           if (fallbackPrice > 0) {
@@ -284,8 +286,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
     if (cryptoSymbolsForRates.isNotEmpty) {
       try {
-        final cryptoRates =
-            await MarketRateService.fetchCryptosByCodes(cryptoSymbolsForRates.toList());
+        final cryptoRates = await MarketRateService.fetchCryptosByCodes(
+            cryptoSymbolsForRates.toList());
         for (final r in cryptoRates) {
           final fallbackPrice = r.sell > 0 ? r.sell : r.buy;
           if (fallbackPrice > 0) {
@@ -406,7 +408,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     for (final c in cariCards) {
       final full = (c.fullName ?? '').trim();
       final title = (c.title ?? '').trim();
-      final name = full.isNotEmpty ? full : (title.isNotEmpty ? title : 'Cari #${c.id}');
+      final name =
+          full.isNotEmpty ? full : (title.isNotEmpty ? title : 'Cari #${c.id}');
       final currency = _cariCurrencyLabel(c);
       cardNameById[c.id] = name;
       cardCurrencyById[c.id] = currency;
@@ -420,7 +423,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
       );
     }
-    final cariNetPreviewTotal = cariRows.fold<double>(0, (sum, row) => sum + row.net);
+    final cariNetPreviewTotal =
+        cariRows.fold<double>(0, (sum, row) => sum + row.net);
     cariRows.sort((a, b) {
       if (a.currencyLabel == b.currencyLabel) {
         return a.ownerName.compareTo(b.ownerName);
@@ -686,7 +690,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     final uniquePlanKeys = <String>{};
     duePlanRows.removeWhere((r) {
-      final key = '${r.typeLabel}|${r.description}|${r.statusLabel}|${r.amount}|${r.dueDate.toIso8601String()}';
+      final key =
+          '${r.typeLabel}|${r.description}|${r.statusLabel}|${r.amount}|${r.dueDate.toIso8601String()}';
       if (uniquePlanKeys.contains(key)) return true;
       uniquePlanKeys.add(key);
       return false;
@@ -700,9 +705,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     setState(() {
       totalAccounts = accounts.length;
-      cashBankAccounts = accounts
-          .where((a) => a.type == "cash" || a.type == "bank")
-          .length;
+      cashBankAccounts =
+          accounts.where((a) => a.type == "cash" || a.type == "bank").length;
       investmentAccounts = accounts.where((a) => a.type == "investment").length;
       cashTotal = cash;
       bankTotal = bank;
@@ -921,262 +925,299 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 padding: EdgeInsets.zero,
                 children: [
                   DrawerHeader(
-              decoration: const BoxDecoration(
-                color: AppColors.brand,
-              ),
-              margin: EdgeInsets.zero,
-              padding: EdgeInsets.zero,
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        CircleAvatar(
-                          radius: 28,
-                          backgroundColor: Colors.white24,
-                          backgroundImage: profilePhoto != null
-                              ? MemoryImage(profilePhoto!)
-                              : null,
-                          child: profilePhoto == null
-                              ? const Icon(Icons.person, color: Colors.white, size: 30)
-                              : null,
-                        ),
-                        const SizedBox(width: 10),
-                        InkWell(
-                          onTap: _openProfileScreen,
-                          borderRadius: BorderRadius.circular(18),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(18),
-                              border: Border.all(color: Colors.white54),
-                              color: Colors.white.withValues(alpha: 0.08),
-                            ),
-                            child: const Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.account_circle, color: Colors.white, size: 18),
-                                SizedBox(width: 6),
-                                Text(
-                                  'Profil',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w600,
+                    decoration: const BoxDecoration(
+                      color: AppColors.brand,
+                    ),
+                    margin: EdgeInsets.zero,
+                    padding: EdgeInsets.zero,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              CircleAvatar(
+                                radius: 28,
+                                backgroundColor: Colors.white24,
+                                backgroundImage: profilePhoto != null
+                                    ? MemoryImage(profilePhoto!)
+                                    : null,
+                                child: profilePhoto == null
+                                    ? const Icon(Icons.person,
+                                        color: Colors.white, size: 30)
+                                    : null,
+                              ),
+                              const SizedBox(width: 10),
+                              InkWell(
+                                onTap: _openProfileScreen,
+                                borderRadius: BorderRadius.circular(18),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 6,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(18),
+                                    border: Border.all(color: Colors.white54),
+                                    color: Colors.white.withValues(alpha: 0.08),
+                                  ),
+                                  child: const Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.account_circle,
+                                          color: Colors.white, size: 18),
+                                      SizedBox(width: 6),
+                                      Text(
+                                        'Profil',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
-                              ],
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            profileName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      profileName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
+                          const SizedBox(height: 4),
+                          const Text(
+                            'by Pagumex Teknoloji',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    const Text(
-                      'by Pagumex Teknoloji',
-                      style: TextStyle(
-                        color: Colors.white70,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
+                  ),
+                  ExpansionTile(
+                    leading:
+                        const Icon(Icons.folder_open, color: Colors.blueGrey),
+                    title: const Text('Tanım'),
+                    children: [
+                      ListTile(
+                        leading: const Icon(Icons.account_balance,
+                            color: Colors.blueGrey),
+                        title: const Text('Hesap Tanım'),
+                        onTap: () async {
+                          await _openFromDrawer(
+                            const AccountsScreen(),
+                            reloadOnReturn: true,
+                          );
+                        },
                       ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            ExpansionTile(
-              leading: const Icon(Icons.folder_open, color: Colors.blueGrey),
-              title: const Text('Tanım'),
-              children: [
-                ListTile(
-                  leading: const Icon(Icons.account_balance, color: Colors.blueGrey),
-                  title: const Text('Hesap Tanım'),
-                  onTap: () async {
-                    await _openFromDrawer(
-                      const AccountsScreen(),
-                      reloadOnReturn: true,
-                    );
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.category, color: AppColors.income),
-                  title: const Text('Gelir Kategorileri'),
-                  onTap: () async {
-                    await _openFromDrawer(const IncomeCategoryScreen());
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.sell, color: AppColors.expense),
-                  title: const Text('Gider Kategorileri'),
-                  onTap: () async {
-                    await _openFromDrawer(const ExpenseCategoryScreen());
-                  },
-                ),
-              ],
-            ),
-            ExpansionTile(
-              leading: const Icon(Icons.receipt_long, color: AppColors.info),
-              title: const Text('İşlemler'),
-              children: [
-                ListTile(
-                  leading: const Icon(Icons.swap_vert_circle, color: AppColors.info),
-                  title: const Text('İşlem Geçmişi'),
-                  onTap: () async {
-                    await _openFromDrawer(
-                      const IncomeExpenseTransactionsScreen(),
-                      reloadOnReturn: true,
-                    );
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.account_tree_outlined, color: Colors.indigo),
-                  title: const Text('Hesap Geçmişi'),
-                  onTap: () async {
-                    await _openFromDrawer(
-                      const AccountMovementsScreen(),
-                    );
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.analytics_outlined, color: Colors.teal),
-                  title: const Text('Yatırım Portföyü'),
-                  onTap: () async {
-                    await _openFromDrawer(
-                      const InvestmentTrackingScreen(),
-                    );
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.inventory_2_outlined, color: Colors.teal),
-                  title: const Text('Finans Özet'),
-                  onTap: () async {
-                    await _openFromDrawer(
-                      const AssetStatusScreen(),
-                    );
-                  },
-                ),
-              ],
-            ),
-            ExpansionTile(
-              leading: const Icon(Icons.people_alt_outlined, color: Colors.orange),
-              title: const Text('Cari Kart İşlemleri'),
-              children: [
-                ListTile(
-                  leading: const Icon(Icons.badge, color: AppColors.brand),
-                  title: const Text('Cari Kart Tanım'),
-                  onTap: () async {
-                    await _openFromDrawer(const CariCardsScreen());
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.circle, color: Colors.orange, size: 12),
-                  title: const Text('Cari Kart Özet (TL)'),
-                  onTap: () async {
-                    await _openFromDrawer(
-                      const CariCardSummaryScreen(),
-                      reloadOnReturn: true,
-                    );
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.circle, color: Colors.deepOrange, size: 12),
-                  title: const Text('Cari Kart Özet (Dış Finans)'),
-                  onTap: () async {
-                    await _openFromDrawer(
-                      const CariCardSummaryForeignScreen(),
-                      reloadOnReturn: true,
-                    );
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.swap_vert_circle, color: Colors.orange),
-                  title: const Text('Cari Kart İşlem Geçmişi'),
-                  onTap: () async {
-                    await _openFromDrawer(
-                      const CariTransactionsScreen(),
-                      reloadOnReturn: true,
-                    );
-                  },
-                ),
-              ],
-            ),
-            ExpansionTile(
-              leading: const Icon(Icons.event_available, color: AppColors.planIncome),
-              title: const Text('Planlamalar'),
-              children: [
-                ListTile(
-                  leading: const Icon(Icons.event_note, color: AppColors.income),
-                  title: const Text('Gelir Planlama'),
-                  onTap: () async {
-                    await _openFromDrawer(const IncomePlanningScreen());
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.event_busy, color: AppColors.expense),
-                  title: const Text('Gider Planlama'),
-                  onTap: () async {
-                    await _openFromDrawer(const ExpensePlanningScreen());
-                  },
-                ),
-              ],
-            ),
-            ListTile(
-              leading: const Icon(Icons.calendar_month, color: AppColors.info),
-              title: const Text('Takvim'),
-              onTap: () async {
-                await _openFromDrawer(const CalendarTransactionsScreen());
-              },
-            ),
-            ExpansionTile(
-              leading: const Icon(Icons.currency_exchange, color: Colors.teal),
-              title: const Text('Yatırımcı'),
-              children: [
-                ListTile(
-                  leading: const Icon(Icons.attach_money, color: Colors.teal),
-                  title: const Text('Döviz Takip'),
-                  onTap: () async {
-                    await _openFromDrawer(const CurrencyTrackingScreen());
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.workspace_premium, color: Colors.amber),
-                  title: const Text('Kıymetli Maden Takip'),
-                  onTap: () async {
-                    await _openFromDrawer(const PreciousMetalTrackingScreen());
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.show_chart, color: Colors.green),
-                  title: const Text('Borsa Takip'),
-                  onTap: () async {
-                    await _openFromDrawer(const StockTrackingScreen());
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.currency_bitcoin, color: Colors.deepOrange),
-                  title: const Text('Kripto Para Takip'),
-                  onTap: () async {
-                    await _openFromDrawer(const CryptoTrackingScreen());
-                  },
-                ),
-              ],
-            ),
+                      ListTile(
+                        leading:
+                            const Icon(Icons.category, color: AppColors.income),
+                        title: const Text('Gelir Kategorileri'),
+                        onTap: () async {
+                          await _openFromDrawer(const IncomeCategoryScreen());
+                        },
+                      ),
+                      ListTile(
+                        leading:
+                            const Icon(Icons.sell, color: AppColors.expense),
+                        title: const Text('Gider Kategorileri'),
+                        onTap: () async {
+                          await _openFromDrawer(const ExpenseCategoryScreen());
+                        },
+                      ),
+                    ],
+                  ),
+                  ExpansionTile(
+                    leading:
+                        const Icon(Icons.receipt_long, color: AppColors.info),
+                    title: const Text('İşlemler'),
+                    children: [
+                      ListTile(
+                        leading: const Icon(Icons.swap_vert_circle,
+                            color: AppColors.info),
+                        title: const Text('İşlem Geçmişi'),
+                        onTap: () async {
+                          await _openFromDrawer(
+                            const IncomeExpenseTransactionsScreen(),
+                            reloadOnReturn: true,
+                          );
+                        },
+                      ),
+                      ListTile(
+                        leading: const Icon(Icons.account_tree_outlined,
+                            color: Colors.indigo),
+                        title: const Text('Hesap Geçmişi'),
+                        onTap: () async {
+                          await _openFromDrawer(
+                            const AccountMovementsScreen(),
+                          );
+                        },
+                      ),
+                      ListTile(
+                        leading: const Icon(Icons.receipt_long_outlined,
+                            color: Colors.indigo),
+                        title: const Text('Kredi Kartı Ekstreleri'),
+                        onTap: () async {
+                          await _openFromDrawer(
+                            const CreditCardStatementsScreen(),
+                            reloadOnReturn: true,
+                          );
+                        },
+                      ),
+                      ListTile(
+                        leading: const Icon(Icons.analytics_outlined,
+                            color: Colors.teal),
+                        title: const Text('Yatırım Portföyü'),
+                        onTap: () async {
+                          await _openFromDrawer(
+                            const InvestmentTrackingScreen(),
+                          );
+                        },
+                      ),
+                      ListTile(
+                        leading: const Icon(Icons.inventory_2_outlined,
+                            color: Colors.teal),
+                        title: const Text('Finans Özet'),
+                        onTap: () async {
+                          await _openFromDrawer(
+                            const AssetStatusScreen(),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                  ExpansionTile(
+                    leading: const Icon(Icons.people_alt_outlined,
+                        color: Colors.orange),
+                    title: const Text('Cari Kart İşlemleri'),
+                    children: [
+                      ListTile(
+                        leading:
+                            const Icon(Icons.badge, color: AppColors.brand),
+                        title: const Text('Cari Kart Tanım'),
+                        onTap: () async {
+                          await _openFromDrawer(const CariCardsScreen());
+                        },
+                      ),
+                      ListTile(
+                        leading: const Icon(Icons.circle,
+                            color: Colors.orange, size: 12),
+                        title: const Text('Cari Kart Özet (TL)'),
+                        onTap: () async {
+                          await _openFromDrawer(
+                            const CariCardSummaryScreen(),
+                            reloadOnReturn: true,
+                          );
+                        },
+                      ),
+                      ListTile(
+                        leading: const Icon(Icons.circle,
+                            color: Colors.deepOrange, size: 12),
+                        title: const Text('Cari Kart Özet (Dış Finans)'),
+                        onTap: () async {
+                          await _openFromDrawer(
+                            const CariCardSummaryForeignScreen(),
+                            reloadOnReturn: true,
+                          );
+                        },
+                      ),
+                      ListTile(
+                        leading: const Icon(Icons.swap_vert_circle,
+                            color: Colors.orange),
+                        title: const Text('Cari Kart İşlem Geçmişi'),
+                        onTap: () async {
+                          await _openFromDrawer(
+                            const CariTransactionsScreen(),
+                            reloadOnReturn: true,
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                  ExpansionTile(
+                    leading: const Icon(Icons.event_available,
+                        color: AppColors.planIncome),
+                    title: const Text('Planlamalar'),
+                    children: [
+                      ListTile(
+                        leading: const Icon(Icons.event_note,
+                            color: AppColors.income),
+                        title: const Text('Gelir Planlama'),
+                        onTap: () async {
+                          await _openFromDrawer(const IncomePlanningScreen());
+                        },
+                      ),
+                      ListTile(
+                        leading: const Icon(Icons.event_busy,
+                            color: AppColors.expense),
+                        title: const Text('Gider Planlama'),
+                        onTap: () async {
+                          await _openFromDrawer(const ExpensePlanningScreen());
+                        },
+                      ),
+                    ],
+                  ),
+                  ListTile(
+                    leading:
+                        const Icon(Icons.calendar_month, color: AppColors.info),
+                    title: const Text('Takvim'),
+                    onTap: () async {
+                      await _openFromDrawer(const CalendarTransactionsScreen());
+                    },
+                  ),
+                  ExpansionTile(
+                    leading:
+                        const Icon(Icons.currency_exchange, color: Colors.teal),
+                    title: const Text('Yatırımcı'),
+                    children: [
+                      ListTile(
+                        leading:
+                            const Icon(Icons.attach_money, color: Colors.teal),
+                        title: const Text('Döviz Takip'),
+                        onTap: () async {
+                          await _openFromDrawer(const CurrencyTrackingScreen());
+                        },
+                      ),
+                      ListTile(
+                        leading: const Icon(Icons.workspace_premium,
+                            color: Colors.amber),
+                        title: const Text('Kıymetli Maden Takip'),
+                        onTap: () async {
+                          await _openFromDrawer(
+                              const PreciousMetalTrackingScreen());
+                        },
+                      ),
+                      ListTile(
+                        leading:
+                            const Icon(Icons.show_chart, color: Colors.green),
+                        title: const Text('Borsa Takip'),
+                        onTap: () async {
+                          await _openFromDrawer(const StockTrackingScreen());
+                        },
+                      ),
+                      ListTile(
+                        leading: const Icon(Icons.currency_bitcoin,
+                            color: Colors.deepOrange),
+                        title: const Text('Kripto Para Takip'),
+                        onTap: () async {
+                          await _openFromDrawer(const CryptoTrackingScreen());
+                        },
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -1502,7 +1543,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
           child: Row(
             children: [
-              const Icon(Icons.people_alt_outlined, color: Colors.orange, size: 18),
+              const Icon(Icons.people_alt_outlined,
+                  color: Colors.orange, size: 18),
               const SizedBox(width: 8),
               const Text(
                 'CARI HESAP BAKİYESİ',
@@ -1717,7 +1759,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
           child: Row(
             children: [
-              const Icon(Icons.visibility_outlined, color: AppColors.brand, size: 18),
+              const Icon(Icons.visibility_outlined,
+                  color: AppColors.brand, size: 18),
               const SizedBox(width: 8),
               const Text(
                 'Takip Ettiklerim',
@@ -1743,9 +1786,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
     bool showHeader = true,
   }) {
     final fxItems = trackedQuotes.where((q) => q.market == 'Döviz').toList();
-    final metalItems = trackedQuotes.where((q) => q.market == 'Kıymetli Maden').toList();
+    final metalItems =
+        trackedQuotes.where((q) => q.market == 'Kıymetli Maden').toList();
     final stockItems = trackedQuotes.where((q) => q.market == 'Borsa').toList();
-    final cryptoItems = trackedQuotes.where((q) => q.market == 'Kripto').toList();
+    final cryptoItems =
+        trackedQuotes.where((q) => q.market == 'Kripto').toList();
     final perCardLimit = compact ? 2 : 4;
     final marketCards = <_TrackedMarketCardData>[
       if (fxItems.isNotEmpty)
@@ -1791,7 +1836,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           if (showHeader) ...[
             const Row(
               children: [
-                Icon(Icons.visibility_outlined, color: AppColors.brand, size: 18),
+                Icon(Icons.visibility_outlined,
+                    color: AppColors.brand, size: 18),
                 SizedBox(width: 8),
                 Text(
                   'Takip Ettiklerim',
@@ -1822,7 +1868,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           rows: marketCards[i].rows,
                           limit: perCardLimit,
                         ),
-                        if (i != marketCards.length - 1) const SizedBox(height: 8),
+                        if (i != marketCards.length - 1)
+                          const SizedBox(height: 8),
                       ],
                     ],
                   );
@@ -1834,7 +1881,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       Builder(
                         builder: (_) {
                           final left = marketCards[i];
-                          final right = (i + 1) < marketCards.length ? marketCards[i + 1] : null;
+                          final right = (i + 1) < marketCards.length
+                              ? marketCards[i + 1]
+                              : null;
                           final leftHeight = _trackedCardMinHeight(
                             left.rows.length,
                             perCardLimit,
@@ -1845,7 +1894,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   right.rows.length,
                                   perCardLimit,
                                 );
-                          final rowHeight = leftHeight > rightHeight ? leftHeight : rightHeight;
+                          final rowHeight = leftHeight > rightHeight
+                              ? leftHeight
+                              : rightHeight;
 
                           if (right == null) {
                             return _buildTrackedMarketCard(
@@ -1949,7 +2000,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     Expanded(
                       child: Text(
                         title,
-                        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w700, fontSize: 13),
                       ),
                     ),
                     Icon(
@@ -1967,7 +2019,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       '${q.name.trim().isEmpty ? q.code : q.name.trim()} - ${q.sell == null ? 'Veri yok' : '${_fmtAmount(q.sell!)} TL'}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                      style: const TextStyle(
+                          fontSize: 12, fontWeight: FontWeight.w600),
                     ),
                   ),
                 ),
@@ -2212,63 +2265,63 @@ class _DashboardScreenState extends State<DashboardScreen> {
             )
           else
             ...todayPlans.take(maxItems).map(
-              (p) => Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      margin: const EdgeInsets.only(top: 2),
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: p.color,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        '${p.typeLabel} • ${p.description}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      '${p.dueDate.hour.toString().padLeft(2, '0')}:${p.dueDate.minute.toString().padLeft(2, '0')}  ${p.typeLabel == 'Gelir' ? '+' : '-'}${_fmtAmount(p.amount)}',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        color: p.color,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: p.statusColor.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(999),
-                        border: Border.all(
-                          color: p.statusColor.withValues(alpha: 0.22),
+                  (p) => Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          margin: const EdgeInsets.only(top: 2),
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: p.color,
+                          ),
                         ),
-                      ),
-                      child: Text(
-                        p.statusLabel,
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          color: p.statusColor,
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            '${p.typeLabel} • ${p.description}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          ),
                         ),
-                      ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '${p.dueDate.hour.toString().padLeft(2, '0')}:${p.dueDate.minute.toString().padLeft(2, '0')}  ${p.typeLabel == 'Gelir' ? '+' : '-'}${_fmtAmount(p.amount)}',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            color: p.color,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: p.statusColor.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(
+                              color: p.statusColor.withValues(alpha: 0.22),
+                            ),
+                          ),
+                          child: Text(
+                            p.statusLabel,
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: p.statusColor,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
-              ),
-            ),
           if (todayPlans.length > maxItems)
             Text(
               '+${todayPlans.length - maxItems} plan daha...',

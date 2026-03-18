@@ -45,8 +45,23 @@ class _CariAccountScreenState extends State<CariAccountScreen> {
   bool _saving = false;
   final List<Uint8List> _attachments = [];
   final List<Uint8List> _existingAttachments = [];
+  int _initialExistingAttachmentCount = 0;
+  int? _initialCardId;
+  int? _initialAccountId;
+  DateTime? _initialDate;
+  bool _initialIsDebt = true;
+  String _initialAmountText = '';
+  String _initialQuantityText = '';
+  String _initialNoteText = '';
 
   bool get _isEditMode => widget.initialTransaction != null;
+
+  void _showSnack(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
 
   @override
   void initState() {
@@ -83,9 +98,11 @@ class _CariAccountScreenState extends State<CariAccountScreen> {
   // Form icin gerekli cari kart, hesap ve varsa mevcut hareket verisini yukler.
   Future<void> _load() async {
     final allCards = await CariCardService.getAll();
-    final activeAccounts = await AccountService.getActiveAccounts();
+    final activeAccounts = await AccountService.getActiveCashflowAccounts();
     final allAccounts = _isEditMode
-        ? await AccountService.getAllAccounts()
+        ? (await AccountService.getAllAccounts())
+            .where(AccountService.isCashflowAccount)
+            .toList()
         : const <Account>[];
 
     final tx = widget.initialTransaction;
@@ -125,6 +142,7 @@ class _CariAccountScreenState extends State<CariAccountScreen> {
       _existingAttachments
         ..clear()
         ..addAll(existing.map((e) => Uint8List.fromList(e.imageBytes)));
+      _initialExistingAttachmentCount = _existingAttachments.length;
     }
 
     if (!mounted) return;
@@ -150,6 +168,13 @@ class _CariAccountScreenState extends State<CariAccountScreen> {
         _selectedCardId = _cards.isNotEmpty ? _cards.first.id : null;
         _selectedAccountId = _accounts.isNotEmpty ? _accounts.first.id : null;
       }
+      _initialCardId = _selectedCardId;
+      _initialAccountId = _selectedAccountId;
+      _initialDate = _selectedDate;
+      _initialIsDebt = _isDebt;
+      _initialAmountText = _amountController.text;
+      _initialQuantityText = _quantityController.text;
+      _initialNoteText = _noteController.text;
       _loading = false;
     });
   }
@@ -159,6 +184,15 @@ class _CariAccountScreenState extends State<CariAccountScreen> {
     if (id == null) return null;
     for (final c in _cards) {
       if (c.id == id) return c;
+    }
+    return null;
+  }
+
+  Account? _selectedAccount() {
+    final id = _selectedAccountId;
+    if (id == null) return null;
+    for (final account in _accounts) {
+      if (account.id == id) return account;
     }
     return null;
   }
@@ -257,6 +291,105 @@ class _CariAccountScreenState extends State<CariAccountScreen> {
     return double.tryParse(normalized);
   }
 
+  double? _liveAmount() {
+    return TurkishMoneyInputFormatter.parse(_amountController.text);
+  }
+
+  double? _liveQuantity() {
+    return _parseQuantity(_quantityController.text);
+  }
+
+  String? _liveBalanceWarning() {
+    final account = _selectedAccount();
+    final amount = _liveAmount();
+    if (account == null || amount == null || amount <= 0) {
+      return null;
+    }
+    if (_isDebt && account.balance + 1e-9 < amount) {
+      return 'Seçilen hesap bakiyesi bu cari çıkış için yetersiz.';
+    }
+    return null;
+  }
+
+  String? _liveForeignWarning() {
+    if (!_isSelectedCardForeign()) return null;
+    final amount = _liveAmount();
+    final quantity = _liveQuantity();
+    if (amount == null || amount <= 0) return null;
+    if (quantity == null || quantity <= 0) {
+      return 'Yabancı para için geçerli miktar giriniz.';
+    }
+    return null;
+  }
+
+  Widget _buildLiveSummary() {
+    final account = _selectedAccount();
+    final card = _selectedCard();
+    final amount = _liveAmount();
+    if (account == null || amount == null || amount <= 0) {
+      return const SizedBox.shrink();
+    }
+
+    final quantity = _isSelectedCardForeign() ? _liveQuantity() : null;
+    final unitPrice =
+        quantity != null && quantity > 0 ? amount / quantity : null;
+    final projectedBalance =
+        _isDebt ? account.balance - amount : account.balance + amount;
+    final warning = _liveBalanceWarning();
+    final foreignWarning = _liveForeignWarning();
+    final activeWarning = warning ?? foreignWarning;
+    final hasWarning = activeWarning != null;
+    final directionLabel = _isDebt ? 'Giden' : 'Gelen';
+    final cardName = card == null ? 'Cari kart' : _cardLabel(card);
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: hasWarning ? const Color(0xFFFFF4E5) : const Color(0xFFF6F8FB),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: hasWarning ? const Color(0xFFE09F3E) : Colors.black12,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'İşlem Özeti',
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 8),
+          Text('$directionLabel işlem: $cardName • ${_fmtAmount(amount)} TL'),
+          if (quantity != null && quantity > 0) ...[
+            Text('Miktar: ${quantity.toStringAsFixed(4).replaceAll('.', ',')}'),
+            if (unitPrice != null)
+              Text('Birim fiyat: ${_fmtAmount(unitPrice)} TL'),
+          ],
+          Text(
+            'Hesap bakiyesi: ${_fmtAmount(account.balance)} TL '
+            '→ ${_fmtAmount(projectedBalance)} TL',
+          ),
+          if (hasWarning) ...[
+            const SizedBox(height: 8),
+            Text(
+              activeWarning,
+              style: const TextStyle(
+                color: Color(0xFF8A4B00),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  bool get _canSubmit {
+    return !_saving &&
+        _liveBalanceWarning() == null &&
+        _liveForeignWarning() == null;
+  }
+
   // Kamera veya galeriden yeni ek gorsel alip gecici listeye koyar.
   Future<void> _pickAttachment(ImageSource source) async {
     try {
@@ -321,20 +454,75 @@ class _CariAccountScreenState extends State<CariAccountScreen> {
     );
   }
 
+  bool _sameDay(DateTime a, DateTime b) {
+    return a.year == b.year && a.month == b.month && a.day == b.day;
+  }
+
+  bool _hasUnsavedChanges() {
+    if (_loading) return false;
+    return _selectedCardId != _initialCardId ||
+        _selectedAccountId != _initialAccountId ||
+        !_sameDay(_selectedDate, _initialDate ?? _selectedDate) ||
+        _isDebt != _initialIsDebt ||
+        _amountController.text.trim() != _initialAmountText.trim() ||
+        _quantityController.text.trim() != _initialQuantityText.trim() ||
+        _noteController.text.trim() != _initialNoteText.trim() ||
+        _existingAttachments.length != _initialExistingAttachmentCount ||
+        _attachments.isNotEmpty;
+  }
+
+  Future<bool> _confirmDiscardChanges() async {
+    if (!_hasUnsavedChanges()) return true;
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Değişiklikler Kaydedilmedi'),
+        content: const Text(
+          'Bu ekrandan çıkarsanız yaptığınız değişiklikler kaybolacak. Çıkmak istiyor musunuz?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Kal'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Çık'),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
+  }
+
+  Future<void> _handleExit({required bool toDashboard}) async {
+    final shouldLeave = await _confirmDiscardChanges();
+    if (!mounted || !shouldLeave) return;
+    if (toDashboard) {
+      popToDashboard(context);
+      return;
+    }
+    Navigator.of(context).pop();
+  }
+
   // Borc/tahsilat formunu kaydeder; edit modunda mevcut hareketi gunceller.
   Future<void> _save() async {
     if (_saving) return;
     if (!_formKey.currentState!.validate()) return;
-    if (_selectedCardId == null || _selectedAccountId == null) return;
+    if (_selectedCardId == null || _selectedAccountId == null) {
+      _showSnack('Cari kart ve hesap seçiniz.');
+      return;
+    }
 
     final parsed = TurkishMoneyInputFormatter.parse(_amountController.text);
-    if (parsed == null || parsed <= 0) return;
+    if (parsed == null || parsed <= 0) {
+      _showSnack('Geçerli bir tutar giriniz.');
+      return;
+    }
     final isForeign = _isSelectedCardForeign();
     final quantity = _parseQuantity(_quantityController.text);
     if (isForeign && (quantity == null || quantity <= 0)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Yabancı para için geçerli miktar giriniz.')),
-      );
+      _showSnack('Yabancı para için geçerli miktar giriniz.');
       return;
     }
     final unitPrice = isForeign ? (parsed / quantity!) : null;
@@ -357,10 +545,13 @@ class _CariAccountScreenState extends State<CariAccountScreen> {
           date: _selectedDate,
           description: _noteController.text,
         );
-        await TransactionAttachmentService.addMany(
+        await TransactionAttachmentService.replaceAll(
           ownerType: 'cari',
           ownerId: tx.id,
-          images: _attachments.map((e) => e.toList()).toList(),
+          images: [
+            ..._existingAttachments.map((e) => e.toList()),
+            ..._attachments.map((e) => e.toList()),
+          ],
         );
       } else {
         int txId;
@@ -396,10 +587,7 @@ class _CariAccountScreenState extends State<CariAccountScreen> {
       _isEditMode ? AppFeedback.updated() : AppFeedback.saved();
       Navigator.pop(context, true);
     } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Kayıt hatası: $e')),
-      );
+      _showSnack('Kayıt hatası: $e');
     } finally {
       if (mounted) {
         setState(() {
@@ -435,7 +623,8 @@ class _CariAccountScreenState extends State<CariAccountScreen> {
       _saving = true;
     });
     try {
-      await CariTransactionService.deleteAndReturn(widget.initialTransaction!.id);
+      await CariTransactionService.deleteAndReturn(
+          widget.initialTransaction!.id);
       if (!mounted) return;
       AppFeedback.deleted();
       Navigator.pop(context, true);
@@ -455,233 +644,281 @@ class _CariAccountScreenState extends State<CariAccountScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      drawer: buildAppMenuDrawer(),
-      appBar: AppBar(
-        leading: _isEditMode
-            ? const BackButton()
-            : IconButton(
-                icon: const Icon(Icons.arrow_back),
-                onPressed: () => popToDashboard(context),
-              ),
-        title: Text(_isEditMode ? 'Cari İşlem Düzenle' : 'Cari Hesap'),
-        actions: [buildHomeAction(context)],
-      ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : (_cards.isEmpty || _accounts.isEmpty)
-              ? const Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(16),
-                    child: Text(
-                      'Cari işlem için en az bir aktif cari kart ve aktif hesap olmalı.',
-                      textAlign: TextAlign.center,
-                    ),
+    return PopScope(
+        canPop: !_hasUnsavedChanges(),
+        onPopInvokedWithResult: (didPop, result) async {
+          if (didPop) return;
+          await _handleExit(toDashboard: false);
+        },
+        child: Scaffold(
+          drawer: buildAppMenuDrawer(),
+          appBar: AppBar(
+            leading: _isEditMode
+                ? IconButton(
+                    icon: const Icon(Icons.arrow_back),
+                    onPressed: () => _handleExit(toDashboard: false),
+                  )
+                : IconButton(
+                    icon: const Icon(Icons.arrow_back),
+                    onPressed: () => _handleExit(toDashboard: true),
                   ),
-                )
-              : Form(
-                  key: _formKey,
-                  child: ListView(
-                    padding: const EdgeInsets.all(16),
-                    children: [
-                      SegmentedButton<bool>(
-                        segments: const [
-                          ButtonSegment<bool>(value: true, label: Text('Giden')),
-                          ButtonSegment<bool>(value: false, label: Text('Gelen')),
-                        ],
-                        selected: {_isDebt},
-                        onSelectionChanged: (set) {
-                          setState(() {
-                            _isDebt = set.first;
-                          });
-                        },
-                      ),
-                      const SizedBox(height: 12),
-                      DropdownButtonFormField<int>(
-                        initialValue: _selectedCardId,
-                        decoration: const InputDecoration(
-                          labelText: 'Cari Kart',
-                          border: OutlineInputBorder(),
-                        ),
-                        items: _cards
-                            .map(
-                              (c) => DropdownMenuItem<int>(
-                                value: c.id,
-                                child: Text(_cardLabel(c)),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (v) => setState(() {
-                          _selectedCardId = v;
-                        }),
-                        validator: (v) => v == null ? 'Cari kart seçiniz.' : null,
-                      ),
-                      const SizedBox(height: 12),
-                      DropdownButtonFormField<int>(
-                        initialValue: _selectedAccountId,
-                        decoration: const InputDecoration(
-                          labelText: 'Hesap',
-                          border: OutlineInputBorder(),
-                        ),
-                        items: _accounts
-                            .map(
-                              (a) => DropdownMenuItem<int>(
-                                value: a.id,
-                                child: Text(a.name),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (v) => setState(() => _selectedAccountId = v),
-                        validator: (v) => v == null ? 'Hesap seçiniz.' : null,
-                      ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: _amountController,
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        inputFormatters: const [TurkishMoneyInputFormatter()],
-                        decoration: const InputDecoration(
-                          labelText: 'Tutar (TL)',
-                          border: OutlineInputBorder(),
-                        ),
-                        validator: (v) {
-                          final n = TurkishMoneyInputFormatter.parse(v ?? '');
-                          if (n == null || n <= 0) return 'Geçerli bir tutar giriniz.';
-                          return null;
-                        },
-                      ),
-                      if (_isSelectedCardForeign()) ...[
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: _quantityController,
-                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                          decoration: InputDecoration(
-                            labelText: _foreignUnitLabel(),
-                            filled: true,
-                            fillColor: Colors.orange.withValues(alpha: 0.14),
-                            border: const OutlineInputBorder(),
-                          ),
-                          validator: (v) {
-                            if (!_isSelectedCardForeign()) return null;
-                            final q = _parseQuantity(v ?? '');
-                            if (q == null || q <= 0) {
-                              return 'Geçerli bir miktar giriniz.';
-                            }
-                            return null;
-                          },
-                        ),
-                      ],
-                      const SizedBox(height: 12),
-                      InkWell(
-                        onTap: _pickDate,
-                        child: InputDecorator(
-                          decoration: const InputDecoration(
-                            labelText: 'Tarih',
-                            border: OutlineInputBorder(),
-                          ),
-                          child: Text(_fmtDate(_selectedDate)),
+            title: Text(_isEditMode ? 'Cari İşlem Düzenle' : 'Cari Hesap'),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.home_outlined),
+                tooltip: 'Ana Ekran',
+                onPressed: () => _handleExit(toDashboard: true),
+              ),
+            ],
+          ),
+          body: _loading
+              ? const Center(child: CircularProgressIndicator())
+              : (_cards.isEmpty || _accounts.isEmpty)
+                  ? const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(16),
+                        child: Text(
+                          'Cari işlem için en az bir aktif cari kart ve aktif hesap olmalı.',
+                          textAlign: TextAlign.center,
                         ),
                       ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: _noteController,
-                        textCapitalization: TextCapitalization.words,
-                        inputFormatters: const [TurkishUpperCaseFormatter()],
-                        maxLines: 2,
-                        decoration: const InputDecoration(
-                          labelText: 'Açıklama (opsiyonel)',
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
+                    )
+                  : Form(
+                      key: _formKey,
+                      child: ListView(
+                        padding: const EdgeInsets.all(16),
                         children: [
-                          const Text(
-                            'Resim Eki (opsiyonel)',
-                            style: TextStyle(fontWeight: FontWeight.w600),
+                          SegmentedButton<bool>(
+                            segments: const [
+                              ButtonSegment<bool>(
+                                  value: true, label: Text('Giden')),
+                              ButtonSegment<bool>(
+                                  value: false, label: Text('Gelen')),
+                            ],
+                            selected: {_isDebt},
+                            onSelectionChanged: (set) {
+                              setState(() {
+                                _isDebt = set.first;
+                              });
+                            },
                           ),
-                          const Spacer(),
-                          TextButton.icon(
-                            onPressed: _showAddAttachmentSheet,
-                            icon: const Icon(Icons.add_photo_alternate_outlined),
-                            label: const Text('Resim Ekle'),
-                          ),
-                        ],
-                      ),
-                      if (_existingAttachments.isNotEmpty || _attachments.isNotEmpty)
-                        SizedBox(
-                          height: 78,
-                          child: ListView.separated(
-                            scrollDirection: Axis.horizontal,
-                            itemCount: _existingAttachments.length + _attachments.length,
-                            separatorBuilder: (_, __) => const SizedBox(width: 8),
-                            itemBuilder: (context, index) {
-                              final isExisting = index < _existingAttachments.length;
-                              final bytes = isExisting
-                                  ? _existingAttachments[index]
-                                  : _attachments[index - _existingAttachments.length];
-                              return Stack(
-                                children: [
-                                  ClipRRect(
-                                    borderRadius: BorderRadius.circular(8),
-                                    child: Image.memory(
-                                      bytes,
-                                      width: 78,
-                                      height: 78,
-                                      fit: BoxFit.cover,
-                                    ),
+                          const SizedBox(height: 12),
+                          DropdownButtonFormField<int>(
+                            initialValue: _selectedCardId,
+                            decoration: const InputDecoration(
+                              labelText: 'Cari Kart',
+                              border: OutlineInputBorder(),
+                            ),
+                            items: _cards
+                                .map(
+                                  (c) => DropdownMenuItem<int>(
+                                    value: c.id,
+                                    child: Text(_cardLabel(c)),
                                   ),
-                                  if (!isExisting)
-                                    Positioned(
-                                      top: 0,
-                                      right: 0,
-                                      child: InkWell(
-                                        onTap: () {
-                                          setState(() {
-                                            _attachments
-                                                .removeAt(index - _existingAttachments.length);
-                                          });
-                                        },
-                                        child: Container(
-                                          decoration: const BoxDecoration(
-                                            color: Colors.black54,
-                                            shape: BoxShape.circle,
-                                          ),
-                                          padding: const EdgeInsets.all(2),
-                                          child: const Icon(
-                                            Icons.close,
-                                            color: Colors.white,
-                                            size: 14,
+                                )
+                                .toList(),
+                            onChanged: (v) => setState(() {
+                              _selectedCardId = v;
+                            }),
+                            validator: (v) =>
+                                v == null ? 'Cari kart seçiniz.' : null,
+                          ),
+                          const SizedBox(height: 12),
+                          DropdownButtonFormField<int>(
+                            initialValue: _selectedAccountId,
+                            decoration: const InputDecoration(
+                              labelText: 'Hesap',
+                              border: OutlineInputBorder(),
+                            ),
+                            items: _accounts
+                                .map(
+                                  (a) => DropdownMenuItem<int>(
+                                    value: a.id,
+                                    child: Text(a.name),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: (v) =>
+                                setState(() => _selectedAccountId = v),
+                            validator: (v) =>
+                                v == null ? 'Hesap seçiniz.' : null,
+                          ),
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: _amountController,
+                            keyboardType: const TextInputType.numberWithOptions(
+                                decimal: true),
+                            inputFormatters: const [
+                              TurkishMoneyInputFormatter()
+                            ],
+                            decoration: const InputDecoration(
+                              labelText: 'Tutar (TL)',
+                              border: OutlineInputBorder(),
+                            ),
+                            validator: (v) {
+                              final n =
+                                  TurkishMoneyInputFormatter.parse(v ?? '');
+                              if (n == null || n <= 0) {
+                                return 'Geçerli bir tutar giriniz.';
+                              }
+                              return null;
+                            },
+                            onChanged: (_) => setState(() {}),
+                          ),
+                          const SizedBox(height: 10),
+                          _buildLiveSummary(),
+                          if (_isSelectedCardForeign()) ...[
+                            const SizedBox(height: 12),
+                            TextFormField(
+                              controller: _quantityController,
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                      decimal: true),
+                              decoration: InputDecoration(
+                                labelText: _foreignUnitLabel(),
+                                filled: true,
+                                fillColor:
+                                    Colors.orange.withValues(alpha: 0.14),
+                                border: const OutlineInputBorder(),
+                              ),
+                              validator: (v) {
+                                if (!_isSelectedCardForeign()) return null;
+                                final q = _parseQuantity(v ?? '');
+                                if (q == null || q <= 0) {
+                                  return 'Geçerli bir miktar giriniz.';
+                                }
+                                return null;
+                              },
+                              onChanged: (_) => setState(() {}),
+                            ),
+                          ],
+                          const SizedBox(height: 12),
+                          InkWell(
+                            onTap: _pickDate,
+                            child: InputDecorator(
+                              decoration: const InputDecoration(
+                                labelText: 'Tarih',
+                                border: OutlineInputBorder(),
+                              ),
+                              child: Text(_fmtDate(_selectedDate)),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: _noteController,
+                            textCapitalization: TextCapitalization.words,
+                            inputFormatters: const [
+                              TurkishUpperCaseFormatter()
+                            ],
+                            maxLines: 2,
+                            decoration: const InputDecoration(
+                              labelText: 'Açıklama (opsiyonel)',
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              const Text(
+                                'Resim Eki (opsiyonel)',
+                                style: TextStyle(fontWeight: FontWeight.w600),
+                              ),
+                              const Spacer(),
+                              TextButton.icon(
+                                onPressed: _showAddAttachmentSheet,
+                                icon: const Icon(
+                                    Icons.add_photo_alternate_outlined),
+                                label: const Text('Resim Ekle'),
+                              ),
+                            ],
+                          ),
+                          if (_existingAttachments.isNotEmpty ||
+                              _attachments.isNotEmpty)
+                            SizedBox(
+                              height: 78,
+                              child: ListView.separated(
+                                scrollDirection: Axis.horizontal,
+                                itemCount: _existingAttachments.length +
+                                    _attachments.length,
+                                separatorBuilder: (_, __) =>
+                                    const SizedBox(width: 8),
+                                itemBuilder: (context, index) {
+                                  final isExisting =
+                                      index < _existingAttachments.length;
+                                  final bytes = isExisting
+                                      ? _existingAttachments[index]
+                                      : _attachments[
+                                          index - _existingAttachments.length];
+                                  return Stack(
+                                    children: [
+                                      ClipRRect(
+                                        borderRadius: BorderRadius.circular(8),
+                                        child: Image.memory(
+                                          bytes,
+                                          width: 78,
+                                          height: 78,
+                                          fit: BoxFit.cover,
+                                        ),
+                                      ),
+                                      Positioned(
+                                        top: 0,
+                                        right: 0,
+                                        child: InkWell(
+                                          onTap: () {
+                                            setState(() {
+                                              if (isExisting) {
+                                                _existingAttachments
+                                                    .removeAt(index);
+                                              } else {
+                                                _attachments.removeAt(
+                                                  index -
+                                                      _existingAttachments
+                                                          .length,
+                                                );
+                                              }
+                                            });
+                                          },
+                                          child: Container(
+                                            decoration: const BoxDecoration(
+                                              color: Colors.black54,
+                                              shape: BoxShape.circle,
+                                            ),
+                                            padding: const EdgeInsets.all(2),
+                                            child: const Icon(
+                                              Icons.close,
+                                              color: Colors.white,
+                                              size: 14,
+                                            ),
                                           ),
                                         ),
                                       ),
-                                    ),
-                                ],
-                              );
-                            },
+                                    ],
+                                  );
+                                },
+                              ),
+                            ),
+                          const SizedBox(height: 20),
+                          ElevatedButton(
+                            onPressed: _canSubmit ? _save : null,
+                            child: Text(
+                              _saving
+                                  ? 'Kaydediliyor...'
+                                  : (_isEditMode ? 'Güncelle' : 'Kaydet'),
+                            ),
                           ),
-                        ),
-                      const SizedBox(height: 20),
-                      ElevatedButton(
-                        onPressed: _saving ? null : _save,
-                        child: Text(
-                          _saving
-                              ? 'Kaydediliyor...'
-                              : (_isEditMode ? 'Güncelle' : 'Kaydet'),
-                        ),
+                          if (_isEditMode) ...[
+                            const SizedBox(height: 10),
+                            OutlinedButton(
+                              onPressed: _saving ? null : _deleteCurrent,
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.red,
+                              ),
+                              child: const Text('Sil'),
+                            ),
+                          ],
+                        ],
                       ),
-                      if (_isEditMode) ...[
-                        const SizedBox(height: 10),
-                        OutlinedButton(
-                          onPressed: _saving ? null : _deleteCurrent,
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.red,
-                          ),
-                          child: const Text('Sil'),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-    );
+                    ),
+        ));
   }
 }

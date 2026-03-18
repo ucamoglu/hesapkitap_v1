@@ -4,6 +4,8 @@ import '../database/isar_service.dart';
 import '../models/account.dart';
 import '../models/finance_transaction.dart';
 import '../models/investment_transaction.dart';
+import 'credit_card_installment_service.dart';
+import 'credit_card_statement_service.dart';
 import 'investment_outcome_category_service.dart';
 
 class FifoSellPreview {
@@ -19,6 +21,17 @@ class FifoSellPreview {
 }
 
 class InvestmentTransactionService {
+  static String _pnlDescription(String symbol) =>
+      'Yatırım satış K/Z • ${symbol.toUpperCase()}';
+
+  static bool _matchesPnlDescription(String? description, String symbol) {
+    final normalized = (description ?? '').trim();
+    if (normalized.isEmpty) return false;
+    final upperSymbol = symbol.toUpperCase();
+    return normalized == 'Yatırım satış K/Z • $upperSymbol' ||
+        normalized == 'Yatirim satis K/Z • $upperSymbol';
+  }
+
   /// Yatirim hareketlerini tarihe gore yeni->eski sirada getirir.
   static Future<List<InvestmentTransaction>> getAll() async {
     final isar = IsarService.isar;
@@ -37,6 +50,7 @@ class InvestmentTransactionService {
     required double unitPrice,
     required double total,
     required DateTime date,
+    bool syncCreditCardStatement = true,
   }) async {
     if (investmentAccountId == cashAccountId) {
       throw Exception('Yatırım hesabı ve kaynak/hedef hesap aynı olamaz.');
@@ -50,6 +64,8 @@ class InvestmentTransactionService {
 
     final isar = IsarService.isar;
     late int createdId;
+    late bool shouldSyncCreditCardStatement;
+    late Account? creditCardAccountForSync;
 
     await isar.writeTxn(() async {
       final investmentAccount = await isar.accounts.get(investmentAccountId);
@@ -68,8 +84,13 @@ class InvestmentTransactionService {
         throw Exception('Pasif hesapta işlem yapılamaz.');
       }
 
-      if (type == 'buy' && cashAccount.balance < total) {
+      if (type == 'buy' &&
+          !cashAccount.isCreditCard &&
+          cashAccount.balance < total) {
         throw Exception('Kaynak hesap bakiyesi yetersiz.');
+      }
+      if (type == 'sell' && cashAccount.isCreditCard) {
+        throw Exception('Satış işleminde hedef hesap kredi kartı olamaz.');
       }
       if (type == 'sell' && investmentAccount.balance < quantity) {
         throw Exception('Satış miktarı yatırım bakiyesinden büyük olamaz.');
@@ -102,13 +123,20 @@ class InvestmentTransactionService {
       if (type == 'buy') {
         cashAccount.balance -= total;
         investmentAccount.balance += quantity;
+        shouldSyncCreditCardStatement =
+            cashAccount.isCreditCard && syncCreditCardStatement;
+        creditCardAccountForSync =
+            shouldSyncCreditCardStatement ? cashAccount : null;
       } else {
         investmentAccount.balance -= quantity;
         cashAccount.balance += total;
+        shouldSyncCreditCardStatement = false;
+        creditCardAccountForSync = null;
 
         final pnl = sellPreview?.realizedPnl ?? 0;
         if (pnl.abs() > 1e-9) {
-          final pair = await InvestmentOutcomeCategoryService.ensurePairForSymbol(
+          final pair =
+              await InvestmentOutcomeCategoryService.ensurePairForSymbol(
             isar: isar,
             symbol: symbol,
           );
@@ -117,7 +145,7 @@ class InvestmentTransactionService {
             ..categoryId = pnl >= 0 ? pair.income.id : pair.expense.id
             ..type = pnl >= 0 ? 'income' : 'expense'
             ..amount = pnl.abs()
-            ..description = 'Yatirim satis K/Z • $symbol'
+            ..description = _pnlDescription(symbol)
             ..incomePlanId = null
             ..expensePlanId = null
             ..date = date
@@ -132,6 +160,14 @@ class InvestmentTransactionService {
       await isar.accounts.put(investmentAccount);
       createdId = await isar.investmentTransactions.put(tx);
     });
+
+    if (shouldSyncCreditCardStatement && creditCardAccountForSync != null) {
+      await CreditCardStatementService.adjustExpenseImpact(
+        creditCardAccount: creditCardAccountForSync!,
+        transactionDate: date,
+        deltaAmount: total,
+      );
+    }
 
     return createdId;
   }
@@ -159,11 +195,21 @@ class InvestmentTransactionService {
     }
 
     final isar = IsarService.isar;
+    Account? oldCreditCardForStatementRevert;
+    Account? newCreditCardForStatementApply;
+    bool revertOldStatement = false;
+    bool applyNewStatement = false;
+    late DateTime oldDate;
+    late double oldTotal;
+    late String oldType;
     await isar.writeTxn(() async {
       final existing = await isar.investmentTransactions.get(transactionId);
       if (existing == null) {
         throw Exception('Yatırım işlemi bulunamadı.');
       }
+      oldDate = existing.date;
+      oldTotal = existing.total;
+      oldType = existing.type;
 
       final accountIds = <int>{
         existing.investmentAccountId,
@@ -211,8 +257,11 @@ class InvestmentTransactionService {
       if (!newInvestment.isActive || !newCash.isActive) {
         throw Exception('Pasif hesapta işlem yapılamaz.');
       }
-      if (type == 'buy' && newCash.balance < total) {
+      if (type == 'buy' && !newCash.isCreditCard && newCash.balance < total) {
         throw Exception('Kaynak hesap bakiyesi yetersiz.');
+      }
+      if (type == 'sell' && newCash.isCreditCard) {
+        throw Exception('Satış işleminde hedef hesap kredi kartı olamaz.');
       }
       if (type == 'sell' && newInvestment.balance < quantity) {
         throw Exception('Satış miktarı yatırım bakiyesinden büyük olamaz.');
@@ -242,16 +291,24 @@ class InvestmentTransactionService {
         ..realizedPnl = sellPreview?.realizedPnl ?? 0
         ..date = date;
 
+      revertOldStatement = oldType == 'buy' && oldCash.isCreditCard;
+      oldCreditCardForStatementRevert = revertOldStatement ? oldCash : null;
+
       if (type == 'buy') {
         newCash.balance -= total;
         newInvestment.balance += quantity;
+        applyNewStatement = newCash.isCreditCard;
+        newCreditCardForStatementApply = applyNewStatement ? newCash : null;
       } else {
         newInvestment.balance -= quantity;
         newCash.balance += total;
+        applyNewStatement = false;
+        newCreditCardForStatementApply = null;
 
         final pnl = sellPreview?.realizedPnl ?? 0;
         if (pnl.abs() > 1e-9) {
-          final pair = await InvestmentOutcomeCategoryService.ensurePairForSymbol(
+          final pair =
+              await InvestmentOutcomeCategoryService.ensurePairForSymbol(
             isar: isar,
             symbol: existing.symbol,
           );
@@ -260,7 +317,7 @@ class InvestmentTransactionService {
             ..categoryId = pnl >= 0 ? pair.income.id : pair.expense.id
             ..type = pnl >= 0 ? 'income' : 'expense'
             ..amount = pnl.abs()
-            ..description = 'Yatirim satis K/Z • ${existing.symbol}'
+            ..description = _pnlDescription(existing.symbol)
             ..incomePlanId = null
             ..expensePlanId = null
             ..date = date
@@ -272,21 +329,61 @@ class InvestmentTransactionService {
       await isar.accounts.putAll(accountById.values.toList());
       await isar.investmentTransactions.put(existing);
     });
+
+    if (revertOldStatement && oldCreditCardForStatementRevert != null) {
+      await CreditCardStatementService.adjustExpenseImpact(
+        creditCardAccount: oldCreditCardForStatementRevert!,
+        transactionDate: oldDate,
+        deltaAmount: -oldTotal,
+      );
+    }
+    if (applyNewStatement && newCreditCardForStatementApply != null) {
+      await CreditCardStatementService.adjustExpenseImpact(
+        creditCardAccount: newCreditCardForStatementApply!,
+        transactionDate: date,
+        deltaAmount: total,
+      );
+    }
   }
 
   /// Yatirim hareketini ve bagli PnL kaydini geri sararak siler.
   static Future<void> deleteAndReturn(int transactionId) async {
     final isar = IsarService.isar;
+    late InvestmentTransaction existing;
+    late Account investmentAccount;
+    late Account cashAccount;
+    bool deleteCardInstallments = false;
+    bool revertSingleStatement = false;
+
+    existing = await isar.investmentTransactions.get(transactionId) ??
+        (throw Exception('Yatırım işlemi bulunamadı.'));
+    investmentAccount = await isar.accounts.get(existing.investmentAccountId) ??
+        (throw Exception('Bağlı yatırım hesabı bulunamadı.'));
+    cashAccount = await isar.accounts.get(existing.cashAccountId) ??
+        (throw Exception('Bağlı hesap bulunamadı.'));
+
+    if (existing.type == 'buy' && cashAccount.isCreditCard) {
+      deleteCardInstallments =
+          await CreditCardInstallmentService.hasInstallmentsForInvestment(
+        existing.id,
+      );
+      revertSingleStatement = !deleteCardInstallments;
+    }
+
+    if (deleteCardInstallments) {
+      await CreditCardInstallmentService.deleteByInvestmentTransactionId(
+        investmentTransactionId: existing.id,
+        creditCardAccount: cashAccount,
+      );
+    } else if (revertSingleStatement) {
+      await CreditCardStatementService.adjustExpenseImpact(
+        creditCardAccount: cashAccount,
+        transactionDate: existing.date,
+        deltaAmount: -existing.total,
+      );
+    }
+
     await isar.writeTxn(() async {
-      final existing = await isar.investmentTransactions.get(transactionId);
-      if (existing == null) return;
-
-      final investmentAccount = await isar.accounts.get(existing.investmentAccountId);
-      final cashAccount = await isar.accounts.get(existing.cashAccountId);
-      if (investmentAccount == null || cashAccount == null) {
-        throw Exception('Bağlı hesap bulunamadı.');
-      }
-
       if (existing.type == 'buy') {
         cashAccount.balance += existing.total;
         investmentAccount.balance -= existing.quantity;
@@ -360,7 +457,9 @@ class InvestmentTransactionService {
         continue;
       }
       final normalizedType = tx.type.trim().toLowerCase();
-      if (normalizedType == 'buy' || normalizedType == 'alış' || normalizedType == 'alis') {
+      if (normalizedType == 'buy' ||
+          normalizedType == 'alış' ||
+          normalizedType == 'alis') {
         if (tx.quantity > 0 && tx.unitPrice > 0) {
           lots.add(_FifoLot(qty: tx.quantity, unitCost: tx.unitPrice));
         }
@@ -410,7 +509,6 @@ class InvestmentTransactionService {
     if (tx.type != 'sell' || tx.realizedPnl.abs() <= 1e-9) return null;
 
     final expectedType = tx.realizedPnl >= 0 ? 'income' : 'expense';
-    final expectedDesc = 'Yatirim satis K/Z • ${tx.symbol.toUpperCase()}';
     final expectedAmount = tx.realizedPnl.abs();
 
     final allFinance = await isar.financeTransactions.where().findAll();
@@ -421,7 +519,7 @@ class InvestmentTransactionService {
       if (ft.type != expectedType) continue;
       if (ft.accountId != tx.cashAccountId) continue;
       if ((ft.amount - expectedAmount).abs() > 1e-6) continue;
-      if ((ft.description ?? '').trim() != expectedDesc) continue;
+      if (!_matchesPnlDescription(ft.description, tx.symbol)) continue;
       if (!ft.date.isAtSameMomentAs(tx.date)) continue;
 
       final delta = (ft.createdAt.millisecondsSinceEpoch -

@@ -17,6 +17,13 @@ class IncomeCategoryScreen extends StatefulWidget {
 class _IncomeCategoryScreenState extends State<IncomeCategoryScreen> {
   List<IncomeCategory> categories = [];
 
+  void _showSnack(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
   void _showInfoDialog() {
     showDialog<void>(
       context: context,
@@ -78,12 +85,20 @@ class _IncomeCategoryScreenState extends State<IncomeCategoryScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
-              if (controller.text.isNotEmpty) {
-                await IncomeCategoryService.add(controller.text);
-                await loadCategories();
+              final name = controller.text.trim();
+              if (name.isEmpty) {
+                _showSnack('Kategori adı zorunludur.');
+                return;
               }
-              if (!mounted) return;
-              Navigator.pop(context);
+
+              try {
+                await IncomeCategoryService.add(name);
+                await loadCategories();
+                if (!mounted) return;
+                Navigator.pop(context);
+              } catch (e) {
+                _showSnack('Kayıt hatası: $e');
+              }
             },
             child: const Text("Kaydet"),
           ),
@@ -95,26 +110,20 @@ class _IncomeCategoryScreenState extends State<IncomeCategoryScreen> {
   // Kategori kaydini silmeden aktif/pasif duruma getirir.
   Future<void> _toggleActive(IncomeCategory category) async {
     if (category.isSystemGenerated) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Sistem kategorisi degistirilemez.'),
-        ),
-      );
+      _showSnack('Sistem kategorisi degistirilemez.');
       return;
     }
-    await IncomeCategoryService.setActive(
-        category.id, !category.isActive);
-    await loadCategories();
+    try {
+      await IncomeCategoryService.setActive(category.id, !category.isActive);
+      await loadCategories();
+    } catch (e) {
+      _showSnack('İşlem hatası: $e');
+    }
   }
 
   void _editCategory(IncomeCategory category) {
     if (category.isSystemGenerated) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Sistem kategorisi duzenlenemez.'),
-        ),
-      );
+      _showSnack('Sistem kategorisi duzenlenemez.');
       return;
     }
     final controller = TextEditingController(text: category.name);
@@ -137,13 +146,21 @@ class _IncomeCategoryScreenState extends State<IncomeCategoryScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
-              if (controller.text.isNotEmpty) {
-                category.name = controller.text;
+              final name = controller.text.trim();
+              if (name.isEmpty) {
+                _showSnack('Kategori adı zorunludur.');
+                return;
+              }
+
+              category.name = name;
+              try {
                 await IncomeCategoryService.update(category);
                 await loadCategories();
+                if (!mounted) return;
+                Navigator.pop(context);
+              } catch (e) {
+                _showSnack('Güncelleme hatası: $e');
               }
-              if (!mounted) return;
-              Navigator.pop(context);
             },
             child: const Text("Kaydet"),
           ),
@@ -155,35 +172,22 @@ class _IncomeCategoryScreenState extends State<IncomeCategoryScreen> {
   // Kategoriyi kullanim durumuna gore kontrollu bicimde siler.
   Future<void> _deleteCategory(IncomeCategory category) async {
     if (category.isSystemGenerated) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Sistem kategorisi silinemez.'),
-        ),
-      );
+      _showSnack('Sistem kategorisi silinemez.');
       return;
     }
-    final isUsed = await IncomeCategoryService.isCategoryUsed(category.id);
-    if (isUsed) {
-      await IncomeCategoryService.setActive(category.id, false);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            "Bu kategori işlemde kullanılmış. Silinmedi, pasife alındı.",
-          ),
-        ),
-      );
-    } else {
-      await IncomeCategoryService.delete(category.id);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Kategori silindi."),
-        ),
-      );
+    try {
+      final isUsed = await IncomeCategoryService.isCategoryUsed(category.id);
+      if (isUsed) {
+        await IncomeCategoryService.setActive(category.id, false);
+        _showSnack("Bu kategori işlemde kullanılmış. Silinmedi, pasife alındı.");
+      } else {
+        await IncomeCategoryService.delete(category.id);
+        _showSnack("Kategori silindi.");
+      }
+      await loadCategories();
+    } catch (e) {
+      _showSnack('Silme hatası: $e');
     }
-    await loadCategories();
   }
 
   @override

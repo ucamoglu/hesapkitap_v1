@@ -5,6 +5,19 @@ import '../models/category.dart';
 import '../models/finance_transaction.dart';
 
 class CategoryService {
+  static void _validateExpenseCategory(Category category) {
+    final name = category.name.trim();
+    if (name.isEmpty) {
+      throw Exception('Kategori adı zorunludur.');
+    }
+
+    if (category.type != 'expense') {
+      throw Exception('Geçersiz gider kategori türü.');
+    }
+
+    category.name = name;
+  }
+
   /// Tum gider kategorilerini getirir.
   static Future<List<Category>> getAllExpenseCategories() async {
     final isar = IsarService.isar;
@@ -66,6 +79,7 @@ class CategoryService {
       ..type = "expense"
       ..isActive = true
       ..createdAt = DateTime.now();
+    _validateExpenseCategory(category);
 
     await isar.writeTxn(() async {
       await isar.categorys.put(category);
@@ -78,6 +92,7 @@ class CategoryService {
     if (category.isSystemGenerated) {
       throw Exception('Sistem kategorisi duzenlenemez.');
     }
+    _validateExpenseCategory(category);
 
     await isar.writeTxn(() async {
       await isar.categorys.put(category);

@@ -22,6 +22,13 @@ class CariCardsScreen extends StatefulWidget {
 class _CariCardsScreenState extends State<CariCardsScreen> {
   List<CariCard> cards = [];
 
+  void _showSnack(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
   void _showInfoDialog() {
     showDialog<void>(
       context: context,
@@ -361,12 +368,24 @@ class _CariCardsScreenState extends State<CariCardsScreen> {
               onPressed: () async {
                 final fullName = fullNameController.text.trim();
                 final title = titleController.text.trim();
-                if (selectedType == 'person' && fullName.isEmpty) return;
-                if (selectedType == 'company' && title.isEmpty) return;
+                if (selectedType == 'person' && fullName.isEmpty) {
+                  _showSnack('Kişi kartında isim soyisim zorunludur.');
+                  return;
+                }
+                if (selectedType == 'company' && title.isEmpty) {
+                  _showSnack('Firma kartında ünvan zorunludur.');
+                  return;
+                }
                 if (selectedCurrencyType == 'foreign') {
                   final opts = currentOptions();
-                  if (opts.isEmpty) return;
-                  if (selectedForeignCode == null) return;
+                  if (opts.isEmpty) {
+                    _showSnack('Bu türde aktif takip bulunmadığı için kayıt yapılamaz.');
+                    return;
+                  }
+                  if (selectedForeignCode == null) {
+                    _showSnack('Takip edilen enstrümanı seçiniz.');
+                    return;
+                  }
                 }
 
                 final card = edit ?? CariCard()..createdAt = DateTime.now();
@@ -394,15 +413,19 @@ class _CariCardsScreenState extends State<CariCardsScreen> {
                   card.foreignName = null;
                 }
 
-                if (edit == null) {
-                  await CariCardService.add(card);
-                } else {
-                  await CariCardService.update(card);
-                }
+                try {
+                  if (edit == null) {
+                    await CariCardService.add(card);
+                  } else {
+                    await CariCardService.update(card);
+                  }
 
-                if (!context.mounted) return;
-                Navigator.pop(context);
-                await loadCards();
+                  if (!context.mounted) return;
+                  Navigator.pop(context);
+                  await loadCards();
+                } catch (e) {
+                  _showSnack('Kayıt hatası: $e');
+                }
               },
               child: const Text('Kaydet'),
             ),

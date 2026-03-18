@@ -7,6 +7,8 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
 import '../models/cari_transaction.dart';
+import '../models/credit_card_payment.dart';
+import '../models/credit_card_statement.dart';
 import '../models/finance_transaction.dart';
 import '../models/investment_transaction.dart';
 import 'cari_account_screen.dart';
@@ -16,6 +18,8 @@ import 'investment_entry_screen.dart';
 import '../services/account_service.dart';
 import '../services/cari_card_service.dart';
 import '../services/cari_transaction_service.dart';
+import '../services/credit_card_payment_service.dart';
+import '../services/credit_card_statement_service.dart';
 import '../services/category_service.dart';
 import '../services/finance_transaction_service.dart';
 import '../services/income_category_service.dart';
@@ -101,6 +105,7 @@ class _IncomeExpenseTransactionsScreenState
   Map<int, _InvestmentHistoryMeta> _investmentMetaByTxId = {};
   Map<int, int> _investmentTxIdByFinanceTxId = {};
   Map<int, InvestmentTransaction> _investmentById = {};
+  Map<int, CreditCardPayment> _creditCardPaymentBySyntheticId = {};
   Map<String, int> _attachmentCountMap = {};
   List<_CategoryOption> _categoryOptions = [];
 
@@ -149,7 +154,10 @@ class _IncomeExpenseTransactionsScreenState
       final manualExpenseCategories =
           await CategoryService.getAllManualExpenseCategories();
       final cariCards = await CariCardService.getAll();
-      final attachmentCountMap = await TransactionAttachmentService.getCountMap();
+      final creditCardPayments = await CreditCardPaymentService.getAll();
+      final creditCardStatements = await CreditCardStatementService.getAll();
+      final attachmentCountMap =
+          await TransactionAttachmentService.getCountMap();
 
       if (!mounted) return;
 
@@ -157,6 +165,13 @@ class _IncomeExpenseTransactionsScreenState
       final mappedInvestment = _mapInvestmentToFinanceLike(
         investmentTx,
         {for (final a in accounts) a.id: a.name},
+      );
+      final mappedCreditCardPayments = _mapCreditCardPaymentsToFinanceLike(
+        creditCardPayments: creditCardPayments,
+        statementsById: {
+          for (final statement in creditCardStatements) statement.id: statement,
+        },
+        accountNames: {for (final a in accounts) a.id: a.name},
       );
       final investmentById = {
         for (final it in investmentTx) it.id: it,
@@ -173,16 +188,23 @@ class _IncomeExpenseTransactionsScreenState
       };
       final merged = widget.onlyCariTransactions
           ? ([...mappedCari]..sort((a, b) => b.date.compareTo(a.date)))
-          : ([...tx, ...mappedCari, ...mappedInvestment.$1]
-            ..sort((a, b) => b.date.compareTo(a.date)));
+          : ([
+              ...tx,
+              ...mappedCari,
+              ...mappedInvestment.$1,
+              ...mappedCreditCardPayments.$1
+            ]..sort((a, b) => b.date.compareTo(a.date)));
       final accountFilterMap = {
-        for (final a in accounts.where((a) => a.type != 'investment')) a.id: a.name,
+        for (final a in accounts.where((a) => a.type != 'investment'))
+          a.id: a.name,
       };
       final cariCardNames = {
         for (final c in cariCards)
           c.id: (c.type == 'company'
                   ? (c.title?.trim().isNotEmpty == true ? c.title! : null)
-                  : (c.fullName?.trim().isNotEmpty == true ? c.fullName! : null)) ??
+                  : (c.fullName?.trim().isNotEmpty == true
+                      ? c.fullName!
+                      : null)) ??
               'Cari #${c.id}',
       };
       final categoryOptions = widget.onlyCariTransactions
@@ -231,12 +253,15 @@ class _IncomeExpenseTransactionsScreenState
           _selectedAccountId = null;
         }
         _incomeCategoryNames = {for (final c in incomeCategories) c.id: c.name};
-        _expenseCategoryNames = {for (final c in expenseCategories) c.id: c.name};
+        _expenseCategoryNames = {
+          for (final c in expenseCategories) c.id: c.name
+        };
         _cariRawTypeByTxId = cariTypeMap;
         _cariTxBySyntheticId = cariTxBySyntheticId;
         _investmentMetaByTxId = mappedInvestment.$2;
         _investmentTxIdByFinanceTxId = investmentFinanceLinkMap;
         _investmentById = investmentById;
+        _creditCardPaymentBySyntheticId = mappedCreditCardPayments.$2;
         _attachmentCountMap = attachmentCountMap;
         _cariCardNames = cariCardNames;
         _categoryOptions = categoryOptions;
@@ -292,7 +317,9 @@ class _IncomeExpenseTransactionsScreenState
         final desc = (tx.description ?? '').toLowerCase();
         final acc = (_accountNames[tx.accountId] ?? '').toLowerCase();
         final cat = _categoryName(tx).toLowerCase();
-        if (!desc.contains(query) && !acc.contains(query) && !cat.contains(query)) {
+        if (!desc.contains(query) &&
+            !acc.contains(query) &&
+            !cat.contains(query)) {
           return false;
         }
       }
@@ -341,7 +368,8 @@ class _IncomeExpenseTransactionsScreenState
 
     if (preset == _DatePreset.custom) {
       if (_customStart == null || _customEnd == null) return null;
-      start = DateTime(_customStart!.year, _customStart!.month, _customStart!.day);
+      start =
+          DateTime(_customStart!.year, _customStart!.month, _customStart!.day);
       end = DateTime(
         _customEnd!.year,
         _customEnd!.month,
@@ -388,7 +416,9 @@ class _IncomeExpenseTransactionsScreenState
   List<int> _availableYears() {
     final years = <int>{DateTime.now().year};
     for (final tx in _all) {
-      if (_selectedAccountId != null && tx.accountId != _selectedAccountId) continue;
+      if (_selectedAccountId != null && tx.accountId != _selectedAccountId) {
+        continue;
+      }
       years.add(tx.date.year);
     }
     final list = years.toList()..sort((a, b) => b.compareTo(a));
@@ -489,11 +519,15 @@ class _IncomeExpenseTransactionsScreenState
   String _categoryName(FinanceTransaction tx) {
     final invMeta = _investmentMetaByTxId[tx.id];
     if (invMeta != null) return invMeta.symbol;
+    if (_creditCardPaymentBySyntheticId.containsKey(tx.id)) {
+      return 'Kredi Kartı Ödeme';
+    }
     if (_isCariTx(tx)) {
       return _cariCardNames[tx.categoryId] ?? 'Cari #${tx.categoryId}';
     }
     if (tx.type == 'income') {
-      return _incomeCategoryNames[tx.categoryId] ?? 'Kategori #${tx.categoryId}';
+      return _incomeCategoryNames[tx.categoryId] ??
+          'Kategori #${tx.categoryId}';
     }
     return _expenseCategoryNames[tx.categoryId] ?? 'Kategori #${tx.categoryId}';
   }
@@ -510,6 +544,23 @@ class _IncomeExpenseTransactionsScreenState
       b.write(intPart[i]);
       if (fromRight > 1 && fromRight % 3 == 1) b.write('.');
     }
+    return '${b.toString()},$decPart';
+  }
+
+  String _fmtQuantity(double value) {
+    final fixed = value.toStringAsFixed(4);
+    final normalized = fixed.replaceFirst(RegExp(r'([.,]?)0+$'), '');
+    final parts = normalized.split('.');
+    final intPart = parts[0];
+    final decPart = parts.length > 1 ? parts[1] : '';
+
+    final b = StringBuffer();
+    for (int i = 0; i < intPart.length; i++) {
+      final fromRight = intPart.length - i;
+      b.write(intPart[i]);
+      if (fromRight > 1 && fromRight % 3 == 1) b.write('.');
+    }
+    if (decPart.isEmpty) return b.toString();
     return '${b.toString()},$decPart';
   }
 
@@ -546,7 +597,8 @@ class _IncomeExpenseTransactionsScreenState
 
     final account = _selectedAccountId == null
         ? 'Tüm Hesaplar'
-        : (_accountNames[_selectedAccountId!] ?? 'Hesap #${_selectedAccountId!}');
+        : (_accountNames[_selectedAccountId!] ??
+            'Hesap #${_selectedAccountId!}');
 
     final category = _selectedCategoryKey == null
         ? 'Tüm Kategoriler'
@@ -765,11 +817,13 @@ class _IncomeExpenseTransactionsScreenState
                 )
               : Column(
                   children: [
-                    _buildSummary(totalIncome, totalExpense, net, filtered.length),
+                    _buildSummary(
+                        totalIncome, totalExpense, net, filtered.length),
                     _buildFilters(),
                     Expanded(
                       child: groups.isEmpty
-                          ? const Center(child: Text('Filtreye uygun işlem yok.'))
+                          ? const Center(
+                              child: Text('Filtreye uygun işlem yok.'))
                           : RefreshIndicator(
                               onRefresh: _load,
                               child: ListView.builder(
@@ -779,7 +833,11 @@ class _IncomeExpenseTransactionsScreenState
                                   final bucket = groups[index];
                                   final groupNet = bucket.items.fold<double>(
                                     0,
-                                    (s, e) => s + (e.type == 'income' ? e.amount : -e.amount),
+                                    (s, e) =>
+                                        s +
+                                        (e.type == 'income'
+                                            ? e.amount
+                                            : -e.amount),
                                   );
                                   return _buildGroup(bucket, groupNet);
                                 },
@@ -808,9 +866,11 @@ class _IncomeExpenseTransactionsScreenState
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _summaryMetricRow('Gelir', _fmtAmount(income), AppColors.income),
+                    _summaryMetricRow(
+                        'Gelir', _fmtAmount(income), AppColors.income),
                     const SizedBox(height: 8),
-                    _summaryMetricRow('Gider', _fmtAmount(expense), AppColors.expense),
+                    _summaryMetricRow(
+                        'Gider', _fmtAmount(expense), AppColors.expense),
                   ],
                 ),
               ),
@@ -849,7 +909,8 @@ class _IncomeExpenseTransactionsScreenState
     bool alignRight = false,
   }) {
     final textAlign = alignRight ? TextAlign.right : TextAlign.left;
-    final crossAlign = alignRight ? CrossAxisAlignment.end : CrossAxisAlignment.start;
+    final crossAlign =
+        alignRight ? CrossAxisAlignment.end : CrossAxisAlignment.start;
     return SizedBox(
       width: double.infinity,
       child: Column(
@@ -863,7 +924,8 @@ class _IncomeExpenseTransactionsScreenState
           const SizedBox(height: 2),
           FittedBox(
             fit: BoxFit.scaleDown,
-            alignment: alignRight ? Alignment.centerRight : Alignment.centerLeft,
+            alignment:
+                alignRight ? Alignment.centerRight : Alignment.centerLeft,
             child: Text(
               value,
               maxLines: 1,
@@ -909,7 +971,8 @@ class _IncomeExpenseTransactionsScreenState
                     Container(
                       width: double.infinity,
                       margin: const EdgeInsets.only(bottom: 8),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 10),
                       decoration: BoxDecoration(
                         color: Colors.grey.shade100,
                         borderRadius: BorderRadius.circular(8),
@@ -925,7 +988,8 @@ class _IncomeExpenseTransactionsScreenState
                           child: DropdownButtonFormField<int?>(
                             isExpanded: true,
                             initialValue: _selectedAccountId,
-                            decoration: const InputDecoration(labelText: 'Hesap'),
+                            decoration:
+                                const InputDecoration(labelText: 'Hesap'),
                             items: [
                               const DropdownMenuItem<int?>(
                                 value: null,
@@ -954,14 +1018,26 @@ class _IncomeExpenseTransactionsScreenState
                           child: DropdownButtonFormField<_DatePreset>(
                             isExpanded: true,
                             initialValue: _datePreset,
-                            decoration: const InputDecoration(labelText: 'Dönem'),
+                            decoration:
+                                const InputDecoration(labelText: 'Dönem'),
                             items: const [
-                              DropdownMenuItem(value: _DatePreset.all, child: Text('Tümü')),
-                              DropdownMenuItem(value: _DatePreset.day, child: Text('Günlük')),
-                              DropdownMenuItem(value: _DatePreset.week, child: Text('Haftalık')),
-                              DropdownMenuItem(value: _DatePreset.month, child: Text('Aylık')),
-                              DropdownMenuItem(value: _DatePreset.year, child: Text('Yıllık')),
-                              DropdownMenuItem(value: _DatePreset.custom, child: Text('Özel')),
+                              DropdownMenuItem(
+                                  value: _DatePreset.all, child: Text('Tümü')),
+                              DropdownMenuItem(
+                                  value: _DatePreset.day,
+                                  child: Text('Günlük')),
+                              DropdownMenuItem(
+                                  value: _DatePreset.week,
+                                  child: Text('Haftalık')),
+                              DropdownMenuItem(
+                                  value: _DatePreset.month,
+                                  child: Text('Aylık')),
+                              DropdownMenuItem(
+                                  value: _DatePreset.year,
+                                  child: Text('Yıllık')),
+                              DropdownMenuItem(
+                                  value: _DatePreset.custom,
+                                  child: Text('Özel')),
                             ],
                             onChanged: (v) {
                               if (v == null) return;
@@ -985,7 +1061,8 @@ class _IncomeExpenseTransactionsScreenState
                               child: OutlinedButton.icon(
                                 onPressed: _pickReferenceDate,
                                 icon: const Icon(Icons.date_range),
-                                label: Text('Hafta: ${_weekRangeLabel(_periodReferenceDate)}'),
+                                label: Text(
+                                    'Hafta: ${_weekRangeLabel(_periodReferenceDate)}'),
                               ),
                             ),
                           ],
@@ -997,7 +1074,8 @@ class _IncomeExpenseTransactionsScreenState
                               child: DropdownButtonFormField<int>(
                                 isExpanded: true,
                                 initialValue: _periodReferenceDate.year,
-                                decoration: const InputDecoration(labelText: 'Yıl'),
+                                decoration:
+                                    const InputDecoration(labelText: 'Yıl'),
                                 items: availableYears
                                     .map(
                                       (y) => DropdownMenuItem<int>(
@@ -1023,7 +1101,8 @@ class _IncomeExpenseTransactionsScreenState
                               child: DropdownButtonFormField<int>(
                                 isExpanded: true,
                                 initialValue: _periodReferenceDate.month,
-                                decoration: const InputDecoration(labelText: 'Ay'),
+                                decoration:
+                                    const InputDecoration(labelText: 'Ay'),
                                 items: List.generate(
                                   12,
                                   (i) => DropdownMenuItem<int>(
@@ -1085,7 +1164,9 @@ class _IncomeExpenseTransactionsScreenState
                             child: OutlinedButton(
                               onPressed: () => _pickCustomDate(start: false),
                               child: Text(
-                                _customEnd == null ? 'Bitiş' : _fmtDateOnly(_customEnd!),
+                                _customEnd == null
+                                    ? 'Bitiş'
+                                    : _fmtDateOnly(_customEnd!),
                               ),
                             ),
                           ),
@@ -1129,7 +1210,8 @@ class _IncomeExpenseTransactionsScreenState
                   Container(
                     width: double.infinity,
                     margin: const EdgeInsets.only(bottom: 8),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 10),
                     decoration: BoxDecoration(
                       color: Colors.grey.shade100,
                       borderRadius: BorderRadius.circular(8),
@@ -1147,9 +1229,14 @@ class _IncomeExpenseTransactionsScreenState
                           initialValue: _typeFilter,
                           decoration: const InputDecoration(labelText: 'Tür'),
                           items: const [
-                            DropdownMenuItem(value: _TypeFilter.all, child: Text('Tümü')),
-                            DropdownMenuItem(value: _TypeFilter.income, child: Text('Gelir')),
-                            DropdownMenuItem(value: _TypeFilter.expense, child: Text('Gider')),
+                            DropdownMenuItem(
+                                value: _TypeFilter.all, child: Text('Tümü')),
+                            DropdownMenuItem(
+                                value: _TypeFilter.income,
+                                child: Text('Gelir')),
+                            DropdownMenuItem(
+                                value: _TypeFilter.expense,
+                                child: Text('Gider')),
                           ],
                           onChanged: (v) {
                             if (v == null) return;
@@ -1167,12 +1254,19 @@ class _IncomeExpenseTransactionsScreenState
                           initialValue: _datePreset,
                           decoration: const InputDecoration(labelText: 'Dönem'),
                           items: const [
-                            DropdownMenuItem(value: _DatePreset.all, child: Text('Tümü')),
-                            DropdownMenuItem(value: _DatePreset.day, child: Text('Günlük')),
-                            DropdownMenuItem(value: _DatePreset.week, child: Text('Haftalık')),
-                            DropdownMenuItem(value: _DatePreset.month, child: Text('Aylık')),
-                            DropdownMenuItem(value: _DatePreset.year, child: Text('Yıllık')),
-                            DropdownMenuItem(value: _DatePreset.custom, child: Text('Özel')),
+                            DropdownMenuItem(
+                                value: _DatePreset.all, child: Text('Tümü')),
+                            DropdownMenuItem(
+                                value: _DatePreset.day, child: Text('Günlük')),
+                            DropdownMenuItem(
+                                value: _DatePreset.week,
+                                child: Text('Haftalık')),
+                            DropdownMenuItem(
+                                value: _DatePreset.month, child: Text('Aylık')),
+                            DropdownMenuItem(
+                                value: _DatePreset.year, child: Text('Yıllık')),
+                            DropdownMenuItem(
+                                value: _DatePreset.custom, child: Text('Özel')),
                           ],
                           onChanged: (v) {
                             if (v == null) return;
@@ -1196,7 +1290,8 @@ class _IncomeExpenseTransactionsScreenState
                             child: OutlinedButton.icon(
                               onPressed: _pickReferenceDate,
                               icon: const Icon(Icons.date_range),
-                              label: Text('Hafta: ${_weekRangeLabel(_periodReferenceDate)}'),
+                              label: Text(
+                                  'Hafta: ${_weekRangeLabel(_periodReferenceDate)}'),
                             ),
                           ),
                         ],
@@ -1208,7 +1303,8 @@ class _IncomeExpenseTransactionsScreenState
                             child: DropdownButtonFormField<int>(
                               isExpanded: true,
                               initialValue: _periodReferenceDate.year,
-                              decoration: const InputDecoration(labelText: 'Yıl'),
+                              decoration:
+                                  const InputDecoration(labelText: 'Yıl'),
                               items: availableYears
                                   .map(
                                     (y) => DropdownMenuItem<int>(
@@ -1234,7 +1330,8 @@ class _IncomeExpenseTransactionsScreenState
                             child: DropdownButtonFormField<int>(
                               isExpanded: true,
                               initialValue: _periodReferenceDate.month,
-                              decoration: const InputDecoration(labelText: 'Ay'),
+                              decoration:
+                                  const InputDecoration(labelText: 'Ay'),
                               items: List.generate(
                                 12,
                                 (i) => DropdownMenuItem<int>(
@@ -1296,7 +1393,9 @@ class _IncomeExpenseTransactionsScreenState
                           child: OutlinedButton(
                             onPressed: () => _pickCustomDate(start: false),
                             child: Text(
-                              _customEnd == null ? 'Bitiş' : _fmtDateOnly(_customEnd!),
+                              _customEnd == null
+                                  ? 'Bitiş'
+                                  : _fmtDateOnly(_customEnd!),
                             ),
                           ),
                         ),
@@ -1339,7 +1438,8 @@ class _IncomeExpenseTransactionsScreenState
                         child: DropdownButtonFormField<String?>(
                           isExpanded: true,
                           initialValue: _selectedCategoryKey,
-                          decoration: const InputDecoration(labelText: 'Kategori'),
+                          decoration:
+                              const InputDecoration(labelText: 'Kategori'),
                           items: [
                             const DropdownMenuItem<String?>(
                               value: null,
@@ -1372,18 +1472,25 @@ class _IncomeExpenseTransactionsScreenState
                         child: DropdownButtonFormField<_GroupBy>(
                           isExpanded: true,
                           initialValue: _groupBy,
-                          decoration: const InputDecoration(labelText: 'Gruplama'),
+                          decoration:
+                              const InputDecoration(labelText: 'Gruplama'),
                           items: const [
-                            DropdownMenuItem(value: _GroupBy.none, child: Text('Yok')),
-                            DropdownMenuItem(value: _GroupBy.day, child: Text('Gün')),
-                            DropdownMenuItem(value: _GroupBy.week, child: Text('Hafta')),
-                            DropdownMenuItem(value: _GroupBy.month, child: Text('Ay')),
-                            DropdownMenuItem(value: _GroupBy.year, child: Text('Yıl')),
+                            DropdownMenuItem(
+                                value: _GroupBy.none, child: Text('Yok')),
+                            DropdownMenuItem(
+                                value: _GroupBy.day, child: Text('Gün')),
+                            DropdownMenuItem(
+                                value: _GroupBy.week, child: Text('Hafta')),
+                            DropdownMenuItem(
+                                value: _GroupBy.month, child: Text('Ay')),
+                            DropdownMenuItem(
+                                value: _GroupBy.year, child: Text('Yıl')),
                             DropdownMenuItem(
                               value: _GroupBy.category,
                               child: Text('Kategori'),
                             ),
-                            DropdownMenuItem(value: _GroupBy.account, child: Text('Hesap')),
+                            DropdownMenuItem(
+                                value: _GroupBy.account, child: Text('Hesap')),
                           ],
                           onChanged: (v) {
                             if (v == null) return;
@@ -1460,6 +1567,8 @@ class _IncomeExpenseTransactionsScreenState
     final category = _categoryName(tx);
     final investmentTx = _linkedInvestmentTransaction(tx);
     final isInvestmentLinked = investmentTx != null;
+    final isCreditCardPaymentSynthetic =
+        _creditCardPaymentBySyntheticId.containsKey(tx.id);
 
     final attachmentCount = _attachmentCount(tx);
     return ListTile(
@@ -1500,11 +1609,12 @@ class _IncomeExpenseTransactionsScreenState
               }
             },
             itemBuilder: (_) => [
-              const PopupMenuItem<String>(
-                value: 'edit',
-                child: Text('Düzenle'),
-              ),
-              if (!isInvestmentLinked)
+              if (!isCreditCardPaymentSynthetic)
+                const PopupMenuItem<String>(
+                  value: 'edit',
+                  child: Text('Düzenle'),
+                ),
+              if (!isInvestmentLinked && !isCreditCardPaymentSynthetic)
                 const PopupMenuItem<String>(
                   value: 'delete',
                   child: Text('Sil'),
@@ -1577,7 +1687,8 @@ class _IncomeExpenseTransactionsScreenState
                   ),
                   itemCount: attachments.length,
                   itemBuilder: (context, index) {
-                    final imageBytes = Uint8List.fromList(attachments[index].imageBytes);
+                    final imageBytes =
+                        Uint8List.fromList(attachments[index].imageBytes);
                     return ClipRRect(
                       borderRadius: BorderRadius.circular(8),
                       child: InkWell(
@@ -1630,12 +1741,14 @@ class _IncomeExpenseTransactionsScreenState
       changed = await Navigator.push<bool>(
         context,
         MaterialPageRoute(
-          builder: (_) => InvestmentEntryScreen(initialTransaction: investmentTx),
+          builder: (_) =>
+              InvestmentEntryScreen(initialTransaction: investmentTx),
         ),
       );
     } else if (_isCariTx(tx)) {
       final originalCariTx = _cariTxBySyntheticId[tx.id];
-      final rawType = originalCariTx?.type ?? _cariRawTypeByTxId[tx.id] ?? 'debt';
+      final rawType =
+          originalCariTx?.type ?? _cariRawTypeByTxId[tx.id] ?? 'debt';
       final cariTx = CariTransaction()
         ..id = -tx.id - 1
         ..cariCardId = tx.categoryId
@@ -1654,6 +1767,15 @@ class _IncomeExpenseTransactionsScreenState
         ),
       );
     } else {
+      if (_creditCardPaymentBySyntheticId.containsKey(tx.id)) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Kredi kartı ödemeleri ekstre ekranından yönetilir.'),
+          ),
+        );
+        return;
+      }
       changed = await Navigator.push<bool>(
         context,
         MaterialPageRoute(
@@ -1693,6 +1815,8 @@ class _IncomeExpenseTransactionsScreenState
       if (_isCariTx(tx)) {
         final cariId = -tx.id - 1;
         await CariTransactionService.deleteAndReturn(cariId);
+      } else if (_creditCardPaymentBySyntheticId.containsKey(tx.id)) {
+        throw Exception('Kredi kartı ödemeleri bu listeden silinemez.');
       } else {
         await FinanceTransactionService.deleteAndReturn(tx.id);
       }
@@ -1710,7 +1834,8 @@ class _IncomeExpenseTransactionsScreenState
     }
   }
 
-  bool _isCariTx(FinanceTransaction tx) => _cariRawTypeByTxId.containsKey(tx.id);
+  bool _isCariTx(FinanceTransaction tx) =>
+      _cariRawTypeByTxId.containsKey(tx.id);
 
   InvestmentTransaction? _linkedInvestmentTransaction(FinanceTransaction tx) {
     final syntheticMeta = _investmentMetaByTxId[tx.id];
@@ -1725,7 +1850,12 @@ class _IncomeExpenseTransactionsScreenState
   String _txTypeLabel(FinanceTransaction tx) {
     final invMeta = _investmentMetaByTxId[tx.id];
     if (invMeta != null) {
-      return invMeta.rawType == 'buy' ? 'Yatırım Alış (Nakit)' : 'Yatırım Satış (Nakit)';
+      return invMeta.rawType == 'buy'
+          ? 'Yatırım Alış (Nakit)'
+          : 'Yatırım Satış (Nakit)';
+    }
+    if (_creditCardPaymentBySyntheticId.containsKey(tx.id)) {
+      return 'Kredi Kartı Ödeme';
     }
     if (_isCariTx(tx)) {
       if (_isCariDebt(tx)) return 'Cari Kart (Giden)';
@@ -1735,7 +1865,8 @@ class _IncomeExpenseTransactionsScreenState
     return tx.type == 'income' ? 'Gelir' : 'Gider';
   }
 
-  bool _isCariDebt(FinanceTransaction tx) => _cariRawTypeByTxId[tx.id] == 'debt';
+  bool _isCariDebt(FinanceTransaction tx) =>
+      _cariRawTypeByTxId[tx.id] == 'debt';
   bool _isCariCollection(FinanceTransaction tx) =>
       _cariRawTypeByTxId[tx.id] == 'collection';
 
@@ -1772,9 +1903,11 @@ class _IncomeExpenseTransactionsScreenState
         ..type = isBuy ? 'expense' : 'income'
         ..amount = isBuy
             ? it.total
-            : (it.costBasisTotal > 0 ? it.costBasisTotal : (it.total - it.realizedPnl))
+            : (it.costBasisTotal > 0
+                ? it.costBasisTotal
+                : (it.total - it.realizedPnl))
         ..description =
-            'Yatırım: ${it.symbol} • Miktar: ${it.quantity.toStringAsFixed(4)} • Birim: ${_fmtAmount(it.unitPrice)} TL • Karşı: ${accountNames[it.investmentAccountId] ?? 'Yatırım #${it.investmentAccountId}'}'
+            'Yatırım: ${it.symbol} • Miktar: ${_fmtQuantity(it.quantity)} • Birim: ${_fmtAmount(it.unitPrice)} TL • Yatırım Hesabı: ${accountNames[it.investmentAccountId] ?? 'Yatırım #${it.investmentAccountId}'}'
         ..date = it.date
         ..createdAt = it.createdAt;
       result.add(cash);
@@ -1783,6 +1916,43 @@ class _IncomeExpenseTransactionsScreenState
         symbol: it.symbol,
         rawType: it.type,
       );
+    }
+
+    return (result, metaById);
+  }
+
+  (List<FinanceTransaction>, Map<int, CreditCardPayment>)
+      _mapCreditCardPaymentsToFinanceLike({
+    required List<CreditCardPayment> creditCardPayments,
+    required Map<int, CreditCardStatement> statementsById,
+    required Map<int, String> accountNames,
+  }) {
+    final result = <FinanceTransaction>[];
+    final metaById = <int, CreditCardPayment>{};
+
+    for (final payment in creditCardPayments) {
+      final syntheticId = -(300000000 + payment.id);
+      final statement = statementsById[payment.creditCardStatementId];
+      final cardName = accountNames[payment.creditCardAccountId] ??
+          'Kredi Kartı #${payment.creditCardAccountId}';
+      final statementLabel = statement == null
+          ? '-'
+          : '${_fmtDateOnly(statement.periodStart)} - ${_fmtDateOnly(statement.periodEnd)}';
+      final description = payment.note?.trim().isNotEmpty == true
+          ? 'Kredi Kartı: $cardName • Dönem: $statementLabel • Not: ${payment.note!.trim()}'
+          : 'Kredi Kartı: $cardName • Dönem: $statementLabel';
+
+      final synthetic = FinanceTransaction()
+        ..id = syntheticId
+        ..accountId = payment.bankAccountId
+        ..categoryId = 0
+        ..type = 'expense'
+        ..amount = payment.amount
+        ..description = description
+        ..date = payment.paymentDate
+        ..createdAt = payment.createdAt;
+      result.add(synthetic);
+      metaById[syntheticId] = payment;
     }
 
     return (result, metaById);
@@ -1800,8 +1970,6 @@ class _IncomeExpenseTransactionsScreenState
 
       final expectedType = it.realizedPnl >= 0 ? 'income' : 'expense';
       final expectedAmount = it.realizedPnl.abs();
-      final expectedDesc = 'Yatirim satis K/Z • ${it.symbol.toUpperCase()}';
-
       FinanceTransaction? bestCandidate;
       var bestDelta = 1 << 62;
 
@@ -1810,7 +1978,12 @@ class _IncomeExpenseTransactionsScreenState
         if (ft.type != expectedType) continue;
         if (ft.accountId != it.cashAccountId) continue;
         if ((ft.amount - expectedAmount).abs() > 1e-6) continue;
-        if ((ft.description ?? '').trim() != expectedDesc) continue;
+        final normalizedDesc = (ft.description ?? '').trim();
+        final upperSymbol = it.symbol.toUpperCase();
+        final matchesDesc =
+            normalizedDesc == 'Yatırım satış K/Z • $upperSymbol' ||
+                normalizedDesc == 'Yatirim satis K/Z • $upperSymbol';
+        if (!matchesDesc) continue;
         if (!ft.date.isAtSameMomentAs(it.date)) continue;
 
         final delta = (ft.createdAt.millisecondsSinceEpoch -

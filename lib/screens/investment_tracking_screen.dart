@@ -162,7 +162,22 @@ class _InvestmentTrackingScreenState extends State<InvestmentTrackingScreen> {
     return '${b.toString()},$decPart';
   }
 
-  String _fmtQty(double q) => q.toStringAsFixed(4);
+  String _fmtQty(double value) {
+    final fixed = value.toStringAsFixed(4);
+    final normalized = fixed.replaceFirst(RegExp(r'([.,]?)0+$'), '');
+    final parts = normalized.split('.');
+    final intPart = parts[0];
+    final decPart = parts.length > 1 ? parts[1] : '';
+
+    final b = StringBuffer();
+    for (int i = 0; i < intPart.length; i++) {
+      final fromRight = intPart.length - i;
+      b.write(intPart[i]);
+      if (fromRight > 1 && fromRight % 3 == 1) b.write('.');
+    }
+    if (decPart.isEmpty) return b.toString();
+    return '${b.toString()},$decPart';
+  }
 
   String _fmtSignedMoney(double value) {
     final sign = value >= 0 ? '+' : '-';
@@ -196,6 +211,26 @@ class _InvestmentTrackingScreenState extends State<InvestmentTrackingScreen> {
       grouped.putIfAbsent(key, () => []).add(tx);
     }
     final orderedKeys = grouped.keys.toList()..sort();
+    final lotRowsByKey = <String, List<_LotView>>{};
+    double currentValueTotal = 0;
+    double openCostTotal = 0;
+    double realizedPnlTotal = 0;
+    for (final key in orderedKeys) {
+      final rows = _buildLotRows(grouped[key]!);
+      lotRowsByKey[key] = rows;
+      final symbol = key.split('|')[1].toUpperCase();
+      final rate = _livePriceBySymbol[symbol];
+      realizedPnlTotal += rows.fold<double>(0, (sum, row) => sum + row.lotPnl);
+      for (final row in rows) {
+        if (row.remainingQty <= 0) continue;
+        openCostTotal += row.remainingQty * row.buyUnitPrice;
+        if (rate != null && rate > 0) {
+          currentValueTotal += row.remainingQty * rate;
+        }
+      }
+    }
+    final summaryUnrealizedPnl = currentValueTotal - openCostTotal;
+    final summaryTotalPnl = realizedPnlTotal + summaryUnrealizedPnl;
 
     final doc = pw.Document(
       theme: pw.ThemeData.withFont(base: font, bold: bold),
@@ -207,9 +242,22 @@ class _InvestmentTrackingScreenState extends State<InvestmentTrackingScreen> {
         margin: const pw.EdgeInsets.all(20),
         build: (_) {
           final widgets = <pw.Widget>[
-            pw.Text('Yatirim Portfoyu', style: pw.TextStyle(font: bold, fontSize: 18)),
+            pw.Text('Yatırım Portföyü', style: pw.TextStyle(font: bold, fontSize: 18)),
             pw.SizedBox(height: 6),
-            pw.Text('Olusturma: ${_fmtDate(DateTime.now())}'),
+            pw.Text('Oluşturma: ${_fmtDate(DateTime.now())}'),
+            pw.SizedBox(height: 8),
+            pw.Text('Portföy Değeri: ${_fmtMoney(currentValueTotal)} TL'),
+            pw.Text('Açık Maliyet: ${_fmtMoney(openCostTotal)} TL'),
+            pw.Text(
+              'Gerç. K/Z: ${realizedPnlTotal >= 0 ? '+' : '-'}${_fmtMoney(realizedPnlTotal.abs())} TL',
+            ),
+            pw.Text(
+              'Açık Pozisyon K/Z: ${summaryUnrealizedPnl >= 0 ? '+' : '-'}${_fmtMoney(summaryUnrealizedPnl.abs())} TL',
+            ),
+            pw.Text(
+              'Toplam K/Z: ${summaryTotalPnl >= 0 ? '+' : '-'}${_fmtMoney(summaryTotalPnl.abs())} TL',
+              style: pw.TextStyle(font: bold),
+            ),
             pw.SizedBox(height: 12),
           ];
 
@@ -218,7 +266,7 @@ class _InvestmentTrackingScreenState extends State<InvestmentTrackingScreen> {
             final accountId = int.parse(parts[0]);
             final symbol = parts[1];
             final accountName = _accountNames[accountId] ?? 'Hesap #$accountId';
-            final rows = _buildLotRows(grouped[key]!);
+            final rows = lotRowsByKey[key] ?? const <_LotView>[];
 
             widgets.add(
               pw.Text(
@@ -230,13 +278,13 @@ class _InvestmentTrackingScreenState extends State<InvestmentTrackingScreen> {
             widgets.add(
               pw.TableHelper.fromTextArray(
                 headers: const [
-                  'Alis #',
+                  'Alış #',
                   'Tarih',
-                  'Giris',
-                  'Alis Tutar',
-                  'Alis Birim',
-                  'Cikan',
-                  'Satis Tutar',
+                  'Giriş',
+                  'Alış Tutar',
+                  'Alış Birim',
+                  'Çıkan',
+                  'Satış Tutar',
                   'Kalan',
                   'Lot K/Z',
                 ],
@@ -279,7 +327,7 @@ class _InvestmentTrackingScreenState extends State<InvestmentTrackingScreen> {
           drawer: buildAppMenuDrawer(),
           appBar: AppBar(
             leading: const BackButton(),
-            title: const Text('Yatirim Portfoyu - PDF'),
+            title: const Text('Yatırım Portföyü - PDF'),
             actions: [buildHomeAction(context)],
           ),
           body: PdfPreview(
@@ -374,23 +422,25 @@ class _InvestmentTrackingScreenState extends State<InvestmentTrackingScreen> {
     for (final key in orderedKeys) {
       lotRowsByKey[key] = _buildLotRows(grouped[key]!);
     }
-    double positiveTotal = 0;
-    double negativeTotal = 0;
+    double currentValueTotal = 0;
+    double openCostTotal = 0;
+    double realizedPnlTotal = 0;
     for (final key in orderedKeys) {
       final parts = key.split('|');
       final symbol = parts[1].toUpperCase();
       final rate = _livePriceBySymbol[symbol];
-      if (rate == null || rate <= 0) continue;
       final rows = lotRowsByKey[key] ?? const <_LotView>[];
-      final remainingTotal = rows.fold<double>(0, (sum, row) => sum + row.remainingQty);
-      final currentValue = remainingTotal * rate;
-      if (currentValue >= 0) {
-        positiveTotal += currentValue;
-      } else {
-        negativeTotal += currentValue.abs();
+      realizedPnlTotal += rows.fold<double>(0, (sum, row) => sum + row.lotPnl);
+      for (final row in rows) {
+        if (row.remainingQty <= 0) continue;
+        openCostTotal += row.remainingQty * row.buyUnitPrice;
+        if (rate != null && rate > 0) {
+          currentValueTotal += row.remainingQty * rate;
+        }
       }
     }
-    final netPnl = positiveTotal - negativeTotal;
+    final summaryUnrealizedPnl = currentValueTotal - openCostTotal;
+    final summaryTotalPnl = realizedPnlTotal + summaryUnrealizedPnl;
 
     return Scaffold(
       drawer: buildAppMenuDrawer(),
@@ -436,23 +486,37 @@ class _InvestmentTrackingScreenState extends State<InvestmentTrackingScreen> {
                                 runSpacing: 8,
                                 children: [
                                   Text(
-                                    'Toplam Olumlu: ${_fmtMoney(positiveTotal)} TL',
+                                    'Portföy Değeri: ${_fmtMoney(currentValueTotal)} TL',
+                                    style: const TextStyle(
+                                      color: Colors.blue,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Açık Maliyet: ${_fmtMoney(openCostTotal)} TL',
+                                    style: const TextStyle(
+                                      color: Colors.black87,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Gerç. K/Z: ${realizedPnlTotal >= 0 ? '+' : '-'}${_fmtMoney(realizedPnlTotal.abs())} TL',
                                     style: const TextStyle(
                                       color: Colors.green,
                                       fontWeight: FontWeight.w700,
                                     ),
                                   ),
                                   Text(
-                                    'Toplam Olumsuz: ${_fmtMoney(negativeTotal)} TL',
+                                    'Açık Pozisyon K/Z: ${summaryUnrealizedPnl >= 0 ? '+' : '-'}${_fmtMoney(summaryUnrealizedPnl.abs())} TL',
                                     style: const TextStyle(
-                                      color: Colors.red,
+                                      color: Colors.orange,
                                       fontWeight: FontWeight.w700,
                                     ),
                                   ),
                                   Text(
-                                    'Net K/Z: ${netPnl >= 0 ? '+' : '-'}${_fmtMoney(netPnl.abs())} TL',
+                                    'Toplam K/Z: ${summaryTotalPnl >= 0 ? '+' : '-'}${_fmtMoney(summaryTotalPnl.abs())} TL',
                                     style: TextStyle(
-                                      color: netPnl >= 0 ? Colors.green : Colors.red,
+                                      color: summaryTotalPnl >= 0 ? Colors.green : Colors.red,
                                       fontWeight: FontWeight.w800,
                                     ),
                                   ),
@@ -477,9 +541,16 @@ class _InvestmentTrackingScreenState extends State<InvestmentTrackingScreen> {
                           0,
                           (sum, row) => sum + row.lotPnl,
                         );
+                        final openCost = lotRows.fold<double>(
+                          0,
+                          (sum, row) => sum + (row.remainingQty * row.buyUnitPrice),
+                        );
                         final rate = _livePriceBySymbol[symbol.toUpperCase()];
                         final currentValue = rate == null ? null : (remainingTotal * rate);
-                        final sentimentValue = currentValue ?? lotPnlTotal;
+                        final unrealizedPnl =
+                            currentValue == null ? null : (currentValue - openCost);
+                        final totalPnl = lotPnlTotal + (unrealizedPnl ?? 0);
+                        final sentimentValue = unrealizedPnl ?? lotPnlTotal;
                         final isExpanded = _expandedPortfolioKeys.contains(key);
                         final subtype = (account?.investmentSubtype ?? '').trim().toLowerCase();
                         final kindLabel = subtype == 'currency'
@@ -492,8 +563,8 @@ class _InvestmentTrackingScreenState extends State<InvestmentTrackingScreen> {
                                         ? 'Kripto'
                                         : 'Yatırım';
                         final amountText = currentValue == null
-                            ? 'Tutar: veri yok'
-                            : 'Tutar: ${_fmtSignedMoney(currentValue)} TL';
+                            ? 'Portföy Değeri: veri yok'
+                            : 'Portföy Değeri: ${_fmtMoney(currentValue)} TL';
                         final rateText =
                             rate == null ? 'veri yok' : '${_fmtMoney(rate)} TL';
 
@@ -540,8 +611,9 @@ class _InvestmentTrackingScreenState extends State<InvestmentTrackingScreen> {
                                       Text('Cins: $kindLabel ($symbol)'),
                                       Text('Kalan Toplam: ${_fmtQty(remainingTotal)}'),
                                       Text('Güncel Kur (${_fmtRateDate()}): $rateText'),
+                                      Text('Açık Maliyet: ${_fmtMoney(openCost)} TL'),
                                       Text(
-                                        'Durum: ${_sentimentLabel(sentimentValue)}',
+                                        'Açık Pozisyon: ${_sentimentLabel(sentimentValue)}',
                                         style: TextStyle(
                                           color: _sentimentColor(sentimentValue),
                                           fontWeight: FontWeight.w700,
@@ -549,8 +621,29 @@ class _InvestmentTrackingScreenState extends State<InvestmentTrackingScreen> {
                                       ),
                                       Text(
                                         amountText,
+                                        style: const TextStyle(
+                                          color: Colors.blue,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                      Text(
+                                        'Açık Pozisyon K/Z: ${unrealizedPnl == null ? 'veri yok' : _fmtSignedMoney(unrealizedPnl)} TL',
                                         style: TextStyle(
                                           color: _sentimentColor(sentimentValue),
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                      Text(
+                                        'Gerç. K/Z: ${_fmtSignedMoney(lotPnlTotal)} TL',
+                                        style: TextStyle(
+                                          color: _sentimentColor(lotPnlTotal),
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                      Text(
+                                        'Toplam K/Z: ${_fmtSignedMoney(totalPnl)} TL',
+                                        style: TextStyle(
+                                          color: _sentimentColor(totalPnl),
                                           fontWeight: FontWeight.w700,
                                         ),
                                       ),

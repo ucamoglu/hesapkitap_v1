@@ -15,6 +15,13 @@ class ExpenseCategoryScreen extends StatefulWidget {
 class _ExpenseCategoryScreenState extends State<ExpenseCategoryScreen> {
   List<Category> categories = [];
 
+  void _showSnack(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
   void _showInfoDialog() {
     showDialog<void>(
       context: context,
@@ -75,12 +82,20 @@ class _ExpenseCategoryScreenState extends State<ExpenseCategoryScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
-              if (controller.text.isNotEmpty) {
-                await CategoryService.addExpenseCategory(controller.text);
-                await loadCategories();
+              final name = controller.text.trim();
+              if (name.isEmpty) {
+                _showSnack('Kategori adı zorunludur.');
+                return;
               }
-              if (!mounted) return;
-              Navigator.pop(context);
+
+              try {
+                await CategoryService.addExpenseCategory(name);
+                await loadCategories();
+                if (!mounted) return;
+                Navigator.pop(context);
+              } catch (e) {
+                _showSnack('Kayıt hatası: $e');
+              }
             },
             child: const Text("Kaydet"),
           ),
@@ -92,25 +107,20 @@ class _ExpenseCategoryScreenState extends State<ExpenseCategoryScreen> {
   // Kategori kaydini silmeden aktif/pasif duruma getirir.
   Future<void> _toggleActive(Category category) async {
     if (category.isSystemGenerated) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Sistem kategorisi degistirilemez.'),
-        ),
-      );
+      _showSnack('Sistem kategorisi degistirilemez.');
       return;
     }
-    await CategoryService.setActive(category.id, !category.isActive);
-    await loadCategories();
+    try {
+      await CategoryService.setActive(category.id, !category.isActive);
+      await loadCategories();
+    } catch (e) {
+      _showSnack('İşlem hatası: $e');
+    }
   }
 
   void _editCategory(Category category) {
     if (category.isSystemGenerated) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Sistem kategorisi duzenlenemez.'),
-        ),
-      );
+      _showSnack('Sistem kategorisi duzenlenemez.');
       return;
     }
     final controller = TextEditingController(text: category.name);
@@ -132,13 +142,21 @@ class _ExpenseCategoryScreenState extends State<ExpenseCategoryScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
-              if (controller.text.isNotEmpty) {
-                category.name = controller.text;
+              final name = controller.text.trim();
+              if (name.isEmpty) {
+                _showSnack('Kategori adı zorunludur.');
+                return;
+              }
+
+              category.name = name;
+              try {
                 await CategoryService.updateExpenseCategory(category);
                 await loadCategories();
+                if (!mounted) return;
+                Navigator.pop(context);
+              } catch (e) {
+                _showSnack('Güncelleme hatası: $e');
               }
-              if (!mounted) return;
-              Navigator.pop(context);
             },
             child: const Text("Kaydet"),
           ),
@@ -150,35 +168,22 @@ class _ExpenseCategoryScreenState extends State<ExpenseCategoryScreen> {
   // Kategoriyi kullanim durumuna gore kontrollu bicimde siler.
   Future<void> _deleteCategory(Category category) async {
     if (category.isSystemGenerated) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Sistem kategorisi silinemez.'),
-        ),
-      );
+      _showSnack('Sistem kategorisi silinemez.');
       return;
     }
-    final isUsed = await CategoryService.isExpenseCategoryUsed(category.id);
-    if (isUsed) {
-      await CategoryService.setActive(category.id, false);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            "Bu kategori işlemde kullanılmış. Silinmedi, pasife alındı.",
-          ),
-        ),
-      );
-    } else {
-      await CategoryService.deleteExpenseCategory(category.id);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Kategori silindi."),
-        ),
-      );
+    try {
+      final isUsed = await CategoryService.isExpenseCategoryUsed(category.id);
+      if (isUsed) {
+        await CategoryService.setActive(category.id, false);
+        _showSnack("Bu kategori işlemde kullanılmış. Silinmedi, pasife alındı.");
+      } else {
+        await CategoryService.deleteExpenseCategory(category.id);
+        _showSnack("Kategori silindi.");
+      }
+      await loadCategories();
+    } catch (e) {
+      _showSnack('Silme hatası: $e');
     }
-    await loadCategories();
   }
 
   @override

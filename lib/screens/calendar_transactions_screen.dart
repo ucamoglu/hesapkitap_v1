@@ -262,6 +262,23 @@ class _CalendarTransactionsScreenState
     return '${b.toString()},$decPart';
   }
 
+  String _fmtQuantity(double value) {
+    final fixed = value.toStringAsFixed(4);
+    final normalized = fixed.replaceFirst(RegExp(r'([.,]?)0+$'), '');
+    final parts = normalized.split('.');
+    final intPart = parts[0];
+    final decPart = parts.length > 1 ? parts[1] : '';
+
+    final b = StringBuffer();
+    for (int i = 0; i < intPart.length; i++) {
+      final fromRight = intPart.length - i;
+      b.write(intPart[i]);
+      if (fromRight > 1 && fromRight % 3 == 1) b.write('.');
+    }
+    if (decPart.isEmpty) return b.toString();
+    return '${b.toString()},$decPart';
+  }
+
   String _fmtDate(DateTime d) {
     final dd = d.day.toString().padLeft(2, '0');
     final mm = d.month.toString().padLeft(2, '0');
@@ -292,7 +309,8 @@ class _CalendarTransactionsScreenState
 
   bool _isSyntheticInvestmentPnlTx(FinanceTransaction tx) {
     final desc = (tx.description ?? '').trim().toLowerCase();
-    return desc.startsWith('yatirim satis k/z');
+    return desc.startsWith('yatirim satis k/z') ||
+        desc.startsWith('yatırım satış k/z');
   }
 
   FinanceTransaction _mapCariToFinanceLike(CariTransaction c) {
@@ -328,7 +346,7 @@ class _CalendarTransactionsScreenState
         ..type = isBuy ? 'expense' : 'income'
         ..amount = it.total
         ..description =
-            'Yatırım: ${it.symbol} • Miktar: ${it.quantity.toStringAsFixed(4)} • Birim: ${_fmtAmount(it.unitPrice)} TL'
+            'Yatırım: ${it.symbol} • Miktar: ${_fmtQuantity(it.quantity)} • Birim: ${_fmtAmount(it.unitPrice)} TL'
         ..date = it.date
         ..createdAt = it.createdAt;
       result.add(cash);
@@ -964,7 +982,7 @@ class _CalendarTransactionsScreenState
                               final amountText = invMeta == null
                                   ? '${isIncome ? '+' : '-'}${_fmtAmount(tx.amount)} TL'
                                   : invMeta.isAssetSide
-                                      ? '${isIncome ? '+' : '-'}${tx.amount.toStringAsFixed(4)} ${invMeta.symbol}'
+                                      ? '${isIncome ? '+' : '-'}${_fmtQuantity(tx.amount)} ${invMeta.symbol}'
                                       : '${isIncome ? '+' : '-'}${_fmtAmount(tx.amount)} TL';
 
                               return Column(
@@ -981,7 +999,7 @@ class _CalendarTransactionsScreenState
                                         '${_txTypeLabel(tx)} • ${_categoryName(tx)}'),
                                     subtitle: Text(
                                       '${_fmtDateTime(tx.date)} • $accountName\n'
-                                      '${invMeta != null ? 'Karşı: ${invMeta.linkedAccountName}\n' : ''}'
+                                      '${invMeta != null ? '${invMeta.isAssetSide ? 'Nakit Hesabı' : 'Yatırım Hesabı'}: ${invMeta.linkedAccountName}\n' : ''}'
                                       'Açıklama: ${(tx.description ?? '').trim().isEmpty ? '-' : tx.description!.trim()}',
                                     ),
                                     isThreeLine: true,

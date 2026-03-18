@@ -5,6 +5,15 @@ import '../models/finance_transaction.dart';
 import '../models/income_category.dart';
 
 class IncomeCategoryService {
+  static void _validateCategory(IncomeCategory category) {
+    final name = category.name.trim();
+    if (name.isEmpty) {
+      throw Exception('Kategori adı zorunludur.');
+    }
+
+    category.name = name;
+  }
+
   /// Tum gelir kategorilerini getirir.
   static Future<List<IncomeCategory>> getAll() async {
     final isar = IsarService.isar;
@@ -54,6 +63,7 @@ class IncomeCategoryService {
     final category = IncomeCategory()
       ..name = name
       ..createdAt = DateTime.now();
+    _validateCategory(category);
 
     await isar.writeTxn(() async {
       await isar.incomeCategorys.put(category);
@@ -82,6 +92,7 @@ class IncomeCategoryService {
     if (category.isSystemGenerated) {
       throw Exception('Sistem kategorisi duzenlenemez.');
     }
+    _validateCategory(category);
 
     await isar.writeTxn(() async {
       await isar.incomeCategorys.put(category);

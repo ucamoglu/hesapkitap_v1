@@ -90,14 +90,18 @@ class CurrencyTrackingScreen extends StatelessWidget {
       },
       linkStatusByCode: _linkStatus,
       trailingBuilder: (MarketRateItem? rate) {
-        if (rate == null) return const Text('Veri yok');
+        if (rate == null || (rate.buy <= 0 && rate.sell <= 0)) {
+          return const Text('Veri yok');
+        }
+        final buyPrice = rate.buy > 0 ? rate.buy : rate.sell;
+        final sellPrice = rate.sell > 0 ? rate.sell : rate.buy;
         // Doviz tarafinda alis ve satis ayrimi kullaniciya ayni kartta sunulur.
         return Column(
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            Text('Alış: ${_fmt(rate.buy)}'),
-            Text('Satış: ${_fmt(rate.sell)}'),
+            Text('Alış: ${_fmt(buyPrice)}'),
+            Text('Satış: ${_fmt(sellPrice)}'),
           ],
         );
       },

@@ -53,17 +53,17 @@ class _StockTrackingScreenState extends State<StockTrackingScreen> {
   Widget build(BuildContext context) {
     return InstrumentTrackingScreen(
       title: 'Borsa Takip (BIST)',
-      selectTitle: 'BIST Hisse Sec',
+      selectTitle: 'BIST Hisse Seç',
       emptyMessage:
-          'Takip listeniz bos.\nSag alttaki + butonuyla BIST hissesi ekleyebilirsiniz.',
-      noCandidateMessage: 'Eklenebilecek yeni BIST hissesi bulunamadi.',
-      loadErrorPrefix: 'Borsa verileri alinamadi',
-      blockedDeactivateMessage: 'Bu hisseye bagli aktif hesap var. Pasife alamazsiniz.',
-      blockedDeleteMessage: 'Bu hisseye bagli aktif hesap var. Silinemez veya pasife alinamaz.',
-      linkedPassiveMessage: 'Bu hisseye bagli hesap var. Silinemedi, pasife alindi.',
-      linkedActiveLabel: 'Bagli aktif yatirim hesabi var',
-      linkedPassiveLabel: 'Bagli pasif yatirim hesabi var',
-      linkedNoneLabel: 'Bagli yatirim hesabi yok',
+          'Takip listeniz boş.\nSağ alttaki + butonuyla BIST hissesi ekleyebilirsiniz.',
+      noCandidateMessage: 'Eklenebilecek yeni BIST hissesi bulunamadı.',
+      loadErrorPrefix: 'Borsa verileri alınamadı',
+      blockedDeactivateMessage: 'Bu hisseye bağlı aktif hesap var. Pasife alamazsınız.',
+      blockedDeleteMessage: 'Bu hisseye bağlı aktif hesap var. Silinemez veya pasife alınamaz.',
+      linkedPassiveMessage: 'Bu hisseye bağlı hesap var. Silinemedi, pasife alındı.',
+      linkedActiveLabel: 'Bağlı aktif yatırım hesabı var',
+      linkedPassiveLabel: 'Bağlı pasif yatırım hesabı var',
+      linkedNoneLabel: 'Bağlı yatırım hesabı yok',
       loadData: () async {
         // Sabit BIST katalogu ile canli fiyat verisi tek listede birlestirilir.
         final tracked = await TrackedStockService.getAll();

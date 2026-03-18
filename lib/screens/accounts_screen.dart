@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../models/account.dart';
 import '../models/market_rate_item.dart';
 import '../services/account_service.dart';
 import '../services/market_rate_service.dart';
 import '../services/investment_outcome_category_service.dart';
 import '../database/isar_service.dart';
+import '../services/tracked_crypto_service.dart';
 import '../services/tracked_currency_service.dart';
 import '../services/tracked_metal_service.dart';
+import '../services/tracked_stock_service.dart';
 import '../utils/navigation_helpers.dart';
 import '../utils/turkish_upper_case_formatter.dart';
 
@@ -66,7 +69,19 @@ class _AccountsScreenState extends State<AccountsScreen> {
   // Hesap tipine gore kart alt aciklamasini ve gerekiyorsa canli degeri uretir.
   String _accountSubtitle(Account acc) {
     if (acc.type != 'investment') {
-      final label = acc.type == "cash" ? "Kasa" : "Banka";
+      if (acc.type == 'cash') {
+        return 'Kasa\nBakiye: ${_fmtAmount(acc.balance)} TL';
+      }
+      if (acc.isCreditCard) {
+        final linkedName = _accountNameById(acc.linkedBankAccountId) ?? '-';
+        final statementDay = acc.statementDay?.toString() ?? '-';
+        final paymentDueDay = acc.paymentDueDay?.toString() ?? '-';
+        return 'Kredi Kartı\n'
+            'Bağlı Hesap: $linkedName\n'
+            'Kesim: $statementDay. gün • Son Ödeme: $paymentDueDay. gün\n'
+            'Kart Borcu: ${_fmtAmount(acc.balance.abs())} TL';
+      }
+      final label = 'Banka Hesabı';
       return '$label\nBakiye: ${_fmtAmount(acc.balance)} TL';
     }
 
@@ -82,6 +97,14 @@ class _AccountsScreenState extends State<AccountsScreen> {
         '$valueText';
   }
 
+  String? _accountNameById(int? id) {
+    if (id == null) return null;
+    for (final account in accounts) {
+      if (account.id == id) return account.name;
+    }
+    return null;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -92,14 +115,73 @@ class _AccountsScreenState extends State<AccountsScreen> {
   Future<void> loadAccounts() async {
     final data = await AccountService.getAllAccounts();
     final livePriceMap = <String, double>{};
+    final stockSymbols = data
+        .where(
+          (account) =>
+              account.type == 'investment' &&
+              account.investmentSubtype == 'stock' &&
+              (account.investmentSymbol?.trim().isNotEmpty ?? false),
+        )
+        .map((account) => account.investmentSymbol!.trim().toUpperCase())
+        .toSet()
+        .toList();
+    final cryptoSymbols = data
+        .where(
+          (account) =>
+              account.type == 'investment' &&
+              account.investmentSubtype == 'crypto' &&
+              (account.investmentSymbol?.trim().isNotEmpty ?? false),
+        )
+        .map((account) => account.investmentSymbol!.trim().toUpperCase())
+        .toSet()
+        .toList();
+
     try {
-      final results = await Future.wait([
-        MarketRateService.fetchAllCurrencies(),
-        MarketRateService.fetchAllMetals(),
+      final results = await Future.wait<Object?>([
+        (() async {
+          try {
+            return await MarketRateService.fetchAllCurrencies();
+          } catch (_) {
+            return null;
+          }
+        })(),
+        (() async {
+          try {
+            return await MarketRateService.fetchAllMetals();
+          } catch (_) {
+            return null;
+          }
+        })(),
+        (() async {
+          if (stockSymbols.isEmpty) return const <MarketRateItem>[];
+          try {
+            return await MarketRateService.fetchStocksByCodes(stockSymbols);
+          } catch (_) {
+            return const <MarketRateItem>[];
+          }
+        })(),
+        (() async {
+          if (cryptoSymbols.isEmpty) return const <MarketRateItem>[];
+          try {
+            return await MarketRateService.fetchCryptosByCodes(cryptoSymbols);
+          } catch (_) {
+            return const <MarketRateItem>[];
+          }
+        })(),
       ]);
-      final currencyRates = (results[0] as CurrencyRateListResult).items;
-      final metalRates = (results[1] as MetalRateListResult).items;
-      final allRates = <MarketRateItem>[...currencyRates, ...metalRates];
+
+      final currencyRates = (results[0] as CurrencyRateListResult?)?.items ??
+          const <MarketRateItem>[];
+      final metalRates = (results[1] as MetalRateListResult?)?.items ??
+          const <MarketRateItem>[];
+      final stockRates = results[2] as List<MarketRateItem>;
+      final cryptoRates = results[3] as List<MarketRateItem>;
+      final allRates = <MarketRateItem>[
+        ...currencyRates,
+        ...metalRates,
+        ...stockRates,
+        ...cryptoRates,
+      ];
       for (final item in allRates) {
         livePriceMap[item.code.toUpperCase()] = item.sell;
       }
@@ -114,8 +196,11 @@ class _AccountsScreenState extends State<AccountsScreen> {
     });
   }
 
-  IconData _getIcon(String type) {
-    switch (type) {
+  IconData _getIcon(Account account) {
+    if (account.isCreditCard) {
+      return Icons.credit_card;
+    }
+    switch (account.type) {
       case "cash":
         return Icons.account_balance_wallet;
       case "bank":
@@ -135,8 +220,8 @@ class _AccountsScreenState extends State<AccountsScreen> {
         content: const Text(
           'Bu ekranda para hareketlerinin bağlanacağı hesapları tanımlarsınız.\n\n'
           '• Kasa: Nakit cüzdan/paranız için kullanılır.\n'
-          '• Banka: Banka hesaplarınızı ayırmak için kullanılır.\n'
-          '• Yatırım: Altın, döviz gibi yatırım hesapları için kullanılır.\n\n'
+          '• Banka: Banka hesaplarınızı ve kredi kartlarınızı ayırmak için kullanılır.\n'
+          '• Yatırım: Altın, döviz, hisse ve kripto gibi yatırım varlıkları için kullanılır.\n\n'
           'Gelir, gider, cari ve planlama işlemleri doğru raporlanabilmesi için hesaplara bağlı çalışır.',
         ),
         actions: [
@@ -171,11 +256,11 @@ class _AccountsScreenState extends State<AccountsScreen> {
                 final acc = accounts[index];
 
                 return Card(
-                  margin: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 6),
+                  margin:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   child: ListTile(
                     leading: Icon(
-                      _getIcon(acc.type),
+                      _getIcon(acc),
                       color: Colors.deepPurple,
                     ),
                     title: Text(
@@ -234,160 +319,363 @@ class _AccountsScreenState extends State<AccountsScreen> {
   }
 
   void _showAddAccountDialog() {
-    _showAddAccountDialogInternal();
+    _showAccountDialog();
   }
 
-  Future<void> _showAddAccountDialogInternal() async {
+  Future<void> _showAccountDialog({Account? initialAccount}) async {
     final trackedCurrencies = await TrackedCurrencyService.getAll();
     final trackedMetals = await TrackedMetalService.getAll();
+    final trackedStocks = await TrackedStockService.getAll();
+    final trackedCryptos = await TrackedCryptoService.getAll();
+    final parentBankAccounts = await AccountService.getActiveParentBankAccounts(
+      excludeId: initialAccount?.id,
+    );
     if (!mounted) return;
-    final nameController = TextEditingController();
-    String selectedType = "cash";
-    String? selectedInvestmentSubtype;
-    String? selectedSymbol;
+    final nameController =
+        TextEditingController(text: initialAccount?.name ?? '');
+    final statementDayController = TextEditingController(
+      text: initialAccount?.statementDay?.toString() ?? '',
+    );
+    final paymentDueDayController = TextEditingController(
+      text: initialAccount?.paymentDueDay?.toString() ?? '',
+    );
+    String selectedType = initialAccount?.type ?? "cash";
+    String? selectedBankSubtype =
+        selectedType == 'bank' ? initialAccount?.effectiveBankSubtype : null;
+    int? selectedLinkedBankAccountId = initialAccount?.linkedBankAccountId;
+    String? selectedInvestmentSubtype = initialAccount?.investmentSubtype;
+    String? selectedSymbol = initialAccount?.investmentSymbol;
 
-    showDialog(
+    int? autoPaymentDueDayFromStatement(String raw) {
+      final day = int.tryParse(raw);
+      if (day == null || day < 1 || day > 31) return null;
+      return DateTime(2024, 1, day + 10).day;
+    }
+
+    void syncPaymentDueDayFromStatement() {
+      final autoValue = autoPaymentDueDayFromStatement(
+        statementDayController.text,
+      );
+      if (autoValue == null) return;
+      paymentDueDayController.value = TextEditingValue(
+        text: autoValue.toString(),
+        selection: TextSelection.collapsed(
+          offset: autoValue.toString().length,
+        ),
+      );
+    }
+
+    await showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text("Yeni Hesap"),
+          title: Text(initialAccount == null ? "Yeni Hesap" : "Hesabı Düzenle"),
           content: StatefulBuilder(
             builder: (context, setState) {
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: nameController,
-                    textCapitalization: TextCapitalization.words,
-                    inputFormatters: const [TurkishUpperCaseFormatter()],
-                    decoration: const InputDecoration(
-                      labelText: "Hesap Adı",
+              return SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: nameController,
+                      textCapitalization: TextCapitalization.words,
+                      inputFormatters: const [TurkishUpperCaseFormatter()],
+                      decoration: const InputDecoration(
+                        labelText: "Hesap Adı",
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    initialValue: selectedType,
-                    items: const [
-                      DropdownMenuItem(
-                        value: "cash",
-                        child: Text("Kasa"),
-                      ),
-                      DropdownMenuItem(
-                        value: "bank",
-                        child: Text("Banka"),
-                      ),
-                      DropdownMenuItem(
-                        value: "investment",
-                        child: Text("Yatırım"),
-                      ),
-                    ],
-                    onChanged: (value) {
-                      setState(() {
-                        selectedType = value!;
-                        if (selectedType != "investment") {
-                          selectedInvestmentSubtype = null;
-                          selectedSymbol = null;
-                        }
-                      });
-                    },
-                    decoration: const InputDecoration(
-                      labelText: "Hesap Türü",
-                    ),
-                  ),
-                  if (selectedType == "investment")
+                    const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
-                      initialValue: selectedInvestmentSubtype,
+                      initialValue: selectedType,
                       items: const [
                         DropdownMenuItem(
-                          value: "currency",
-                          child: Text("Döviz"),
+                          value: "cash",
+                          child: Text("Kasa"),
                         ),
                         DropdownMenuItem(
-                          value: "metal",
-                          child: Text("Kıymetli Maden"),
+                          value: "bank",
+                          child: Text("Banka"),
                         ),
                         DropdownMenuItem(
-                          value: "crypto",
-                          child: Text("Bitcoin"),
-                        ),
-                        DropdownMenuItem(
-                          value: "stock",
-                          child: Text("Borsa"),
+                          value: "investment",
+                          child: Text("Yatırım"),
                         ),
                       ],
                       onChanged: (value) {
                         setState(() {
-                          selectedInvestmentSubtype = value;
-                          selectedSymbol = null;
+                          selectedType = value!;
+                          if (selectedType != "investment") {
+                            selectedInvestmentSubtype = null;
+                            selectedSymbol = null;
+                          }
+                          if (selectedType != "bank") {
+                            selectedBankSubtype = null;
+                            selectedLinkedBankAccountId = null;
+                            statementDayController.clear();
+                            paymentDueDayController.clear();
+                          } else {
+                            selectedBankSubtype ??=
+                                AccountService.bankSubtypeBankAccount;
+                          }
                         });
                       },
                       decoration: const InputDecoration(
-                        labelText: "Yatırım Alt Türü",
+                        labelText: "Hesap Türü",
                       ),
                     ),
-                  if (selectedType == "investment" &&
-                      selectedInvestmentSubtype == "currency")
-                    DropdownButtonFormField<String>(
-                      initialValue: selectedSymbol,
-                      items: trackedCurrencies
-                          .map(
-                            (e) => DropdownMenuItem(
-                              value: e.code,
-                              child: Text('${e.name} (${e.code})'),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (value) {
-                        setState(() {
-                          selectedSymbol = value;
-                        });
-                      },
-                      decoration: const InputDecoration(
-                        labelText: "Kayıtlı Döviz Seçimi",
+                    if (selectedType == "bank") ...[
+                      const SizedBox(height: 12),
+                      DropdownButtonFormField<String>(
+                        initialValue: selectedBankSubtype,
+                        items: const [
+                          DropdownMenuItem(
+                            value: 'bank_account',
+                            child: Text('Banka Hesabı'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'credit_card',
+                            child: Text('Kredi Kartı'),
+                          ),
+                        ],
+                        onChanged: (value) {
+                          setState(() {
+                            selectedBankSubtype = value;
+                            if (value != AccountService.bankSubtypeCreditCard) {
+                              selectedLinkedBankAccountId = null;
+                              statementDayController.clear();
+                              paymentDueDayController.clear();
+                            } else if (paymentDueDayController.text
+                                .trim()
+                                .isEmpty) {
+                              syncPaymentDueDayFromStatement();
+                            }
+                          });
+                        },
+                        decoration: const InputDecoration(
+                          labelText: "Hesap Alt Türü",
+                        ),
                       ),
-                    ),
-                  if (selectedType == "investment" &&
-                      selectedInvestmentSubtype == "metal")
-                    DropdownButtonFormField<String>(
-                      initialValue: selectedSymbol,
-                      items: trackedMetals
-                          .map(
-                            (e) => DropdownMenuItem(
-                              value: e.code,
-                              child: Text('${e.name} (${e.code})'),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (value) {
-                        setState(() {
-                          selectedSymbol = value;
-                        });
-                      },
-                      decoration: const InputDecoration(
-                        labelText: "Kayıtlı Kıymetli Maden Seçimi",
+                    ],
+                    if (selectedType == "bank" &&
+                        selectedBankSubtype ==
+                            AccountService.bankSubtypeCreditCard) ...[
+                      const SizedBox(height: 12),
+                      DropdownButtonFormField<int>(
+                        initialValue: selectedLinkedBankAccountId,
+                        items: parentBankAccounts
+                            .map(
+                              (e) => DropdownMenuItem(
+                                value: e.id,
+                                child: Text(
+                                  '${e.name} • ${_fmtAmount(e.balance)} TL',
+                                ),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) {
+                          setState(() {
+                            selectedLinkedBankAccountId = value;
+                          });
+                        },
+                        decoration: const InputDecoration(
+                          labelText: "Bağlı Banka Hesabı",
+                        ),
                       ),
-                    ),
-                  if (selectedType == "investment" &&
-                      selectedInvestmentSubtype == "currency" &&
-                      trackedCurrencies.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.only(top: 8),
-                      child: Text(
-                        'Önce Döviz Takip ekranından döviz ekleyiniz.',
-                        style: TextStyle(color: Colors.red),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: statementDayController,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly
+                        ],
+                        onChanged: (_) {
+                          syncPaymentDueDayFromStatement();
+                        },
+                        decoration: const InputDecoration(
+                          labelText: "Hesap Kesim Günü",
+                          hintText: "1-31",
+                        ),
                       ),
-                    ),
-                  if (selectedType == "investment" &&
-                      selectedInvestmentSubtype == "metal" &&
-                      trackedMetals.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.only(top: 8),
-                      child: Text(
-                        'Önce Kıymetli Maden Takip ekranından maden ekleyiniz.',
-                        style: TextStyle(color: Colors.red),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: paymentDueDayController,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly
+                        ],
+                        decoration: const InputDecoration(
+                          labelText: "Son Ödeme Günü",
+                          hintText: "1-31",
+                        ),
                       ),
-                    ),
-                ],
+                      if (parentBankAccounts.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.only(top: 8),
+                          child: Text(
+                            'Önce banka türünde ve alt türü banka hesabı olan aktif bir hesap ekleyiniz.',
+                            style: TextStyle(color: Colors.red),
+                          ),
+                        ),
+                    ],
+                    if (selectedType == "investment") ...[
+                      const SizedBox(height: 12),
+                      DropdownButtonFormField<String>(
+                        initialValue: selectedInvestmentSubtype,
+                        items: const [
+                          DropdownMenuItem(
+                            value: "currency",
+                            child: Text("Döviz"),
+                          ),
+                          DropdownMenuItem(
+                            value: "metal",
+                            child: Text("Kıymetli Maden"),
+                          ),
+                          DropdownMenuItem(
+                            value: "crypto",
+                            child: Text("Kripto"),
+                          ),
+                          DropdownMenuItem(
+                            value: "stock",
+                            child: Text("Borsa"),
+                          ),
+                        ],
+                        onChanged: (value) {
+                          setState(() {
+                            selectedInvestmentSubtype = value;
+                            selectedSymbol = null;
+                          });
+                        },
+                        decoration: const InputDecoration(
+                          labelText: "Yatırım Alt Türü",
+                        ),
+                      ),
+                    ],
+                    if (selectedType == "investment" &&
+                        selectedInvestmentSubtype == "currency")
+                      DropdownButtonFormField<String>(
+                        initialValue: selectedSymbol,
+                        items: trackedCurrencies
+                            .map(
+                              (e) => DropdownMenuItem(
+                                value: e.code,
+                                child: Text('${e.name} (${e.code})'),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) {
+                          setState(() {
+                            selectedSymbol = value;
+                          });
+                        },
+                        decoration: const InputDecoration(
+                          labelText: "Kayıtlı Döviz Seçimi",
+                        ),
+                      ),
+                    if (selectedType == "investment" &&
+                        selectedInvestmentSubtype == "metal")
+                      DropdownButtonFormField<String>(
+                        initialValue: selectedSymbol,
+                        items: trackedMetals
+                            .map(
+                              (e) => DropdownMenuItem(
+                                value: e.code,
+                                child: Text('${e.name} (${e.code})'),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) {
+                          setState(() {
+                            selectedSymbol = value;
+                          });
+                        },
+                        decoration: const InputDecoration(
+                          labelText: "Kayıtlı Kıymetli Maden Seçimi",
+                        ),
+                      ),
+                    if (selectedType == "investment" &&
+                        selectedInvestmentSubtype == "stock")
+                      DropdownButtonFormField<String>(
+                        initialValue: selectedSymbol,
+                        items: trackedStocks
+                            .map(
+                              (e) => DropdownMenuItem(
+                                value: e.code,
+                                child: Text('${e.name} (${e.code})'),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) {
+                          setState(() {
+                            selectedSymbol = value;
+                          });
+                        },
+                        decoration: const InputDecoration(
+                          labelText: "Kayıtlı Hisse Seçimi",
+                        ),
+                      ),
+                    if (selectedType == "investment" &&
+                        selectedInvestmentSubtype == "crypto")
+                      DropdownButtonFormField<String>(
+                        initialValue: selectedSymbol,
+                        items: trackedCryptos
+                            .map(
+                              (e) => DropdownMenuItem(
+                                value: e.code,
+                                child: Text('${e.name} (${e.code})'),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) {
+                          setState(() {
+                            selectedSymbol = value;
+                          });
+                        },
+                        decoration: const InputDecoration(
+                          labelText: "Kayıtlı Kripto Seçimi",
+                        ),
+                      ),
+                    if (selectedType == "investment" &&
+                        selectedInvestmentSubtype == "currency" &&
+                        trackedCurrencies.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 8),
+                        child: Text(
+                          'Önce Döviz Takip ekranından döviz ekleyiniz.',
+                          style: TextStyle(color: Colors.red),
+                        ),
+                      ),
+                    if (selectedType == "investment" &&
+                        selectedInvestmentSubtype == "metal" &&
+                        trackedMetals.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 8),
+                        child: Text(
+                          'Önce Kıymetli Maden Takip ekranından maden ekleyiniz.',
+                          style: TextStyle(color: Colors.red),
+                        ),
+                      ),
+                    if (selectedType == "investment" &&
+                        selectedInvestmentSubtype == "stock" &&
+                        trackedStocks.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 8),
+                        child: Text(
+                          'Önce Borsa Takip ekranından hisse ekleyiniz.',
+                          style: TextStyle(color: Colors.red),
+                        ),
+                      ),
+                    if (selectedType == "investment" &&
+                        selectedInvestmentSubtype == "crypto" &&
+                        trackedCryptos.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 8),
+                        child: Text(
+                          'Önce Kripto Takip ekranından kripto ekleyiniz.',
+                          style: TextStyle(color: Colors.red),
+                        ),
+                      ),
+                  ],
+                ),
               );
             },
           ),
@@ -404,6 +692,47 @@ class _AccountsScreenState extends State<AccountsScreen> {
                   return;
                 }
 
+                if (selectedType == "bank" && selectedBankSubtype == null) {
+                  _showSnack("Banka türü için hesap alt türü seçiniz.");
+                  return;
+                }
+                if (selectedType == "bank" &&
+                    selectedBankSubtype ==
+                        AccountService.bankSubtypeCreditCard &&
+                    selectedLinkedBankAccountId == null) {
+                  _showSnack("Kredi kartı için bağlı banka hesabı seçiniz.");
+                  return;
+                }
+                if (selectedType == "bank" &&
+                    selectedBankSubtype ==
+                        AccountService.bankSubtypeCreditCard &&
+                    parentBankAccounts.isEmpty) {
+                  _showSnack(
+                    "Önce aktif bir banka hesabı tanımlayınız.",
+                  );
+                  return;
+                }
+                final statementDay = int.tryParse(statementDayController.text);
+                final paymentDueDay =
+                    int.tryParse(paymentDueDayController.text);
+                if (selectedType == "bank" &&
+                    selectedBankSubtype ==
+                        AccountService.bankSubtypeCreditCard &&
+                    (statementDay == null ||
+                        statementDay < 1 ||
+                        statementDay > 31)) {
+                  _showSnack("Hesap kesim günü 1-31 arasında olmalıdır.");
+                  return;
+                }
+                if (selectedType == "bank" &&
+                    selectedBankSubtype ==
+                        AccountService.bankSubtypeCreditCard &&
+                    (paymentDueDay == null ||
+                        paymentDueDay < 1 ||
+                        paymentDueDay > 31)) {
+                  _showSnack("Son ödeme günü 1-31 arasında olmalıdır.");
+                  return;
+                }
                 if (selectedType == "investment" &&
                     selectedInvestmentSubtype == null) {
                   _showSnack("Yatırım hesabı için alt tür seçiniz.");
@@ -423,22 +752,61 @@ class _AccountsScreenState extends State<AccountsScreen> {
                   );
                   return;
                 }
+                if (selectedType == "investment" &&
+                    selectedInvestmentSubtype == "stock" &&
+                    selectedSymbol == null) {
+                  _showSnack("Borsa alt türü için kayıtlı hisse seçiniz.");
+                  return;
+                }
+                if (selectedType == "investment" &&
+                    selectedInvestmentSubtype == "crypto" &&
+                    selectedSymbol == null) {
+                  _showSnack("Kripto alt türü için kayıtlı kripto seçiniz.");
+                  return;
+                }
 
-                final account = Account()
+                final account = initialAccount ?? Account();
+                account
                   ..name = name
                   ..type = selectedType
+                  ..bankSubtype =
+                      selectedType == 'bank' ? selectedBankSubtype : null
+                  ..linkedBankAccountId = selectedType == 'bank' &&
+                          selectedBankSubtype ==
+                              AccountService.bankSubtypeCreditCard
+                      ? selectedLinkedBankAccountId
+                      : null
+                  ..statementDay = selectedType == 'bank' &&
+                          selectedBankSubtype ==
+                              AccountService.bankSubtypeCreditCard
+                      ? statementDay
+                      : null
+                  ..paymentDueDay = selectedType == 'bank' &&
+                          selectedBankSubtype ==
+                              AccountService.bankSubtypeCreditCard
+                      ? paymentDueDay
+                      : null
                   ..investmentSubtype = selectedInvestmentSubtype
-                  ..investmentSymbol = selectedSymbol
-                  ..isActive = true
-                  ..createdAt = DateTime.now();
+                  ..investmentSymbol = selectedSymbol;
+
+                if (initialAccount == null) {
+                  account
+                    ..isActive = true
+                    ..createdAt = DateTime.now();
+                }
 
                 try {
-                  await AccountService.addAccount(account);
+                  if (initialAccount == null) {
+                    await AccountService.addAccount(account);
+                  } else {
+                    await AccountService.updateAccount(account);
+                  }
                   if (selectedType == 'investment' &&
                       selectedSymbol != null &&
                       selectedSymbol!.trim().isNotEmpty) {
                     await IsarService.isar.writeTxn(() async {
-                      await InvestmentOutcomeCategoryService.ensurePairForSymbol(
+                      await InvestmentOutcomeCategoryService
+                          .ensurePairForSymbol(
                         isar: IsarService.isar,
                         symbol: selectedSymbol!,
                       );
@@ -448,7 +816,11 @@ class _AccountsScreenState extends State<AccountsScreen> {
                   Navigator.pop(context);
                   await loadAccounts();
                 } catch (e) {
-                  _showSnack("Kayıt hatası: $e");
+                  _showSnack(
+                    initialAccount == null
+                        ? "Kayıt hatası: $e"
+                        : "Güncelleme hatası: $e",
+                  );
                 }
               },
               child: const Text("Kaydet"),
@@ -457,70 +829,42 @@ class _AccountsScreenState extends State<AccountsScreen> {
         );
       },
     );
+    nameController.dispose();
+    statementDayController.dispose();
+    paymentDueDayController.dispose();
   }
 
   void _showEditAccountDialog(Account account) {
-    final nameController = TextEditingController(text: account.name);
-
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text("Hesabı Düzenle"),
-        content: TextField(
-          controller: nameController,
-          textCapitalization: TextCapitalization.words,
-          inputFormatters: const [TurkishUpperCaseFormatter()],
-          decoration: const InputDecoration(labelText: "Hesap Adı"),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("İptal"),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              account.name = nameController.text;
-
-              await AccountService.updateAccount(account);
-              if (!mounted) return;
-
-              Navigator.pop(context);
-              loadAccounts();
-            },
-            child: const Text("Kaydet"),
-          ),
-        ],
-      ),
-    );
+    _showAccountDialog(initialAccount: account);
   }
 
   Future<String?> _confirmDelete(Account account) async {
     return await showDialog<String>(
-          context: context,
-          builder: (_) => AlertDialog(
-            title: const Text("Hesap Sil"),
-            content: Text("${account.name} silinsin mi?"),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, "cancel"),
-                child: const Text("İptal"),
-              ),
-              ElevatedButton(
-                onPressed: () async {
-                  try {
-                    final deleted = await AccountService.deleteAccount(account.id);
-                    if (!mounted) return;
-                    Navigator.pop(context, deleted ? "deleted" : "passived");
-                  } catch (_) {
-                    if (!mounted) return;
-                    Navigator.pop(context, "blocked_balance");
-                  }
-                },
-                child: const Text("Sil"),
-              ),
-            ],
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("Hesap Sil"),
+        content: Text("${account.name} silinsin mi?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, "cancel"),
+            child: const Text("İptal"),
           ),
-        );
+          ElevatedButton(
+            onPressed: () async {
+              try {
+                final deleted = await AccountService.deleteAccount(account.id);
+                if (!mounted) return;
+                Navigator.pop(context, deleted ? "deleted" : "passived");
+              } catch (_) {
+                if (!mounted) return;
+                Navigator.pop(context, "blocked_balance");
+              }
+            },
+            child: const Text("Sil"),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _toggleActive(Account account) async {
@@ -580,7 +924,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
       case 'metal':
         return 'Kıymetli Maden';
       case 'crypto':
-        return 'Bitcoin';
+        return 'Kripto';
       case 'stock':
         return 'Borsa';
       default:

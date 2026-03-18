@@ -78,4 +78,14 @@ class TransactionAttachmentService {
       }
     });
   }
+
+  /// Bir harekete ait ekleri tamamen yeniler.
+  static Future<void> replaceAll({
+    required String ownerType,
+    required int ownerId,
+    required List<List<int>> images,
+  }) async {
+    await deleteByOwner(ownerType: ownerType, ownerId: ownerId);
+    await addMany(ownerType: ownerType, ownerId: ownerId, images: images);
+  }
 }

@@ -8,6 +8,113 @@ import '../models/transfer_transaction.dart';
 class AccountService {
   static const String _defaultCashName = 'CÜZDAN';
   static const String _defaultCashType = 'cash';
+  static const String bankSubtypeBankAccount = 'bank_account';
+  static const String bankSubtypeCreditCard = 'credit_card';
+
+  static Future<void> _validateAccount(Account account) async {
+    final isar = IsarService.isar;
+    final name = account.name.trim();
+    if (name.isEmpty) {
+      throw Exception('Hesap adı zorunludur.');
+    }
+
+    final type = account.type.trim().toLowerCase();
+    final validTypes = {'cash', 'bank', 'investment'};
+    if (!validTypes.contains(type)) {
+      throw Exception('Geçersiz hesap türü.');
+    }
+
+    account
+      ..name = name
+      ..type = type;
+
+    if (type == 'cash') {
+      account
+        ..bankSubtype = null
+        ..linkedBankAccountId = null
+        ..statementDay = null
+        ..paymentDueDay = null
+        ..investmentSubtype = null
+        ..investmentSymbol = null
+        ..name = name;
+      return;
+    }
+
+    if (type == 'bank') {
+      final normalizedSubtype = account.effectiveBankSubtype;
+      final validBankSubtypes = {
+        bankSubtypeBankAccount,
+        bankSubtypeCreditCard,
+      };
+      if (!validBankSubtypes.contains(normalizedSubtype)) {
+        throw Exception('Banka hesabı için geçerli alt tür seçiniz.');
+      }
+
+      account
+        ..bankSubtype = normalizedSubtype
+        ..investmentSubtype = null
+        ..investmentSymbol = null;
+
+      if (normalizedSubtype == bankSubtypeBankAccount) {
+        account
+          ..linkedBankAccountId = null
+          ..statementDay = null
+          ..paymentDueDay = null;
+        return;
+      }
+
+      final linkedBankAccountId = account.linkedBankAccountId;
+      if (linkedBankAccountId == null) {
+        throw Exception('Kredi kartı için bağlı banka hesabı seçiniz.');
+      }
+      if (account.id != Isar.autoIncrement &&
+          linkedBankAccountId == account.id) {
+        throw Exception('Kredi kartı kendi kendine bağlanamaz.');
+      }
+
+      final statementDay = account.statementDay;
+      if (statementDay == null || statementDay < 1 || statementDay > 31) {
+        throw Exception('Hesap kesim günü 1-31 arasında olmalıdır.');
+      }
+
+      final paymentDueDay = account.paymentDueDay;
+      if (paymentDueDay == null || paymentDueDay < 1 || paymentDueDay > 31) {
+        throw Exception('Son ödeme günü 1-31 arasında olmalıdır.');
+      }
+
+      final linkedAccount = await isar.accounts.get(linkedBankAccountId);
+      if (linkedAccount == null ||
+          !linkedAccount.isActive ||
+          !linkedAccount.isBankAccount) {
+        throw Exception(
+          'Bağlı hesap, aktif bir banka hesabı olmalıdır.',
+        );
+      }
+      return;
+    }
+
+    account
+      ..bankSubtype = null
+      ..linkedBankAccountId = null
+      ..statementDay = null
+      ..paymentDueDay = null;
+
+    final validSubtypes = {'currency', 'metal', 'stock', 'crypto'};
+    final subtype = account.investmentSubtype?.trim();
+    if (subtype == null || !validSubtypes.contains(subtype)) {
+      throw Exception('Yatırım hesabı için geçerli alt tür seçiniz.');
+    }
+
+    final symbol = account.investmentSymbol?.trim().toUpperCase() ?? '';
+    if (symbol.isEmpty) {
+      throw Exception('Yatırım hesabı için sembol seçiniz.');
+    }
+
+    account
+      ..name = name
+      ..investmentSubtype = subtype
+      ..investmentSymbol = symbol;
+  }
 
   /// Uygulamanin her zaman kullanabilecegi varsayilan cüzdan hesabini garanti eder.
   static Future<void> ensureDefaultCashAccount() async {
@@ -47,12 +154,13 @@ class AccountService {
   /// Yeni bir hesap kaydini kalici olarak yazar.
   static Future<void> addAccount(Account account) async {
     final isar = IsarService.isar;
+    await _validateAccount(account);
 
     await isar.writeTxn(() async {
       await isar.accounts.put(account);
     });
   }
-  
+
   /// Hesabin baska hareketler tarafindan kullanilip kullanilmadigini kontrol eder.
   static Future<bool> isAccountUsed(int id) async {
     final isar = IsarService.isar;
@@ -89,7 +197,10 @@ class AccountService {
     if (used) {
       final account = await isar.accounts.get(id);
       if (account != null && account.isActive) {
-        if (account.balance > 0) {
+        final hasOpenBalance = account.isCreditCard
+            ? account.balance.abs() > 1e-9
+            : account.balance > 0;
+        if (hasOpenBalance) {
           throw Exception('Bakiyesi 0\'dan büyük hesap pasife alınamaz.');
         }
         await isar.writeTxn(() async {
@@ -112,10 +223,7 @@ class AccountService {
     await ensureDefaultCashAccount();
     try {
       return await isar.txn(() async {
-        return await isar.accounts
-            .where()
-            .anyId()
-            .findAll();
+        return await isar.accounts.where().anyId().findAll();
       });
     } catch (_) {
       await _cleanupCorruptedAccounts();
@@ -129,12 +237,42 @@ class AccountService {
     return all.where((a) => a.isActive).toList();
   }
 
+  static bool isCashflowAccount(Account account) {
+    return account.type != 'investment' && !account.isCreditCard;
+  }
+
+  static bool isExpensePaymentAccount(Account account) {
+    return account.type != 'investment';
+  }
+
+  static Future<List<Account>> getActiveCashflowAccounts() async {
+    final all = await getActiveAccounts();
+    return all.where(isCashflowAccount).toList();
+  }
+
+  static Future<List<Account>> getActiveExpenseAccounts() async {
+    final all = await getActiveAccounts();
+    return all.where(isExpensePaymentAccount).toList();
+  }
+
+  static Future<List<Account>> getActiveParentBankAccounts({
+    int? excludeId,
+  }) async {
+    final all = await getActiveAccounts();
+    return all
+        .where((account) => account.isBankAccount && account.id != excludeId)
+        .toList();
+  }
+
   /// Hesabin aktiflik durumunu is kurallarina uygun sekilde degistirir.
   static Future<void> setActive(int id, bool value) async {
     final isar = IsarService.isar;
     final account = await isar.accounts.get(id);
     if (account == null) return;
-    if (!value && account.balance > 0) {
+    final hasOpenBalance = account.isCreditCard
+        ? account.balance.abs() > 1e-9
+        : account.balance > 0;
+    if (!value && hasOpenBalance) {
       throw Exception('Bakiyesi 0\'dan büyük hesap pasife alınamaz.');
     }
 
@@ -147,6 +285,7 @@ class AccountService {
   /// Mevcut hesap kaydini gunceller.
   static Future<void> updateAccount(Account account) async {
     final isar = IsarService.isar;
+    await _validateAccount(account);
 
     await isar.writeTxn(() async {
       await isar.accounts.put(account);

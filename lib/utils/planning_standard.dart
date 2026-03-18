@@ -178,10 +178,11 @@ class PlanningStandard {
   }) {
     final dates = <DateTime>[];
     final safeFrequency = frequency < 1 ? 1 : frequency;
+    final inclusiveEndDate = endDate == null ? null : _inclusiveDayEnd(endDate);
     var current = startDate;
 
     while (dates.length < maxCount) {
-      if (endDate != null && current.isAfter(endDate)) {
+      if (inclusiveEndDate != null && current.isAfter(inclusiveEndDate)) {
         break;
       }
       dates.add(current);
@@ -258,5 +259,18 @@ class PlanningStandard {
       return DateTime(year + 1, 1, 0).day;
     }
     return DateTime(year, month + 1, 0).day;
+  }
+
+  static DateTime _inclusiveDayEnd(DateTime date) {
+    return DateTime(
+      date.year,
+      date.month,
+      date.day,
+      23,
+      59,
+      59,
+      999,
+      999,
+    );
   }
 }

@@ -80,13 +80,19 @@ class _CariCardSummaryForeignScreenState extends State<CariCardSummaryForeignScr
       try {
         final res = await MarketRateService.fetchAllCurrencies().timeout(_networkTimeout);
         for (final r in res.items) {
-          currencyPriceByCode[r.code.toUpperCase()] = r.sell;
+          final price = r.sell > 0 ? r.sell : r.buy;
+          if (price > 0) {
+            currencyPriceByCode[r.code.toUpperCase()] = price;
+          }
         }
       } catch (_) {}
       try {
         final res = await MarketRateService.fetchAllMetals().timeout(_networkTimeout);
         for (final r in res.items) {
-          metalPriceByCode[r.code.toUpperCase()] = r.sell;
+          final price = r.sell > 0 ? r.sell : r.buy;
+          if (price > 0) {
+            metalPriceByCode[r.code.toUpperCase()] = price;
+          }
         }
       } catch (_) {}
       try {
@@ -94,7 +100,10 @@ class _CariCardSummaryForeignScreenState extends State<CariCardSummaryForeignScr
             .fetchStocksByCodes(stockCodes.toList())
             .timeout(_networkTimeout);
         for (final r in list) {
-          stockPriceByCode[r.code.toUpperCase()] = r.sell;
+          final price = r.sell > 0 ? r.sell : r.buy;
+          if (price > 0) {
+            stockPriceByCode[r.code.toUpperCase()] = price;
+          }
         }
       } catch (_) {}
       try {
@@ -102,7 +111,10 @@ class _CariCardSummaryForeignScreenState extends State<CariCardSummaryForeignScr
             .fetchCryptosByCodes(cryptoCodes.toList())
             .timeout(_networkTimeout);
         for (final r in list) {
-          cryptoPriceByCode[r.code.toUpperCase()] = r.sell;
+          final price = r.sell > 0 ? r.sell : r.buy;
+          if (price > 0) {
+            cryptoPriceByCode[r.code.toUpperCase()] = price;
+          }
         }
       } catch (_) {}
 
@@ -449,6 +461,7 @@ class _CariCardSummaryForeignScreenState extends State<CariCardSummaryForeignScr
     );
 
     final net = item.totalCollection - item.totalPayment;
+    final metrics = item.metrics;
     final doc = pw.Document(
       theme: pw.ThemeData.withFont(base: font, bold: bold),
     );
@@ -465,6 +478,19 @@ class _CariCardSummaryForeignScreenState extends State<CariCardSummaryForeignScr
           pw.SizedBox(height: 6),
           pw.Text('Cari Kart: ${_cardName(item.card)}'),
           pw.Text('Oluşturulma: ${_fmtDateTime(DateTime.now())}'),
+          pw.SizedBox(height: 8),
+          pw.Text('Portföy Değeri: ${metrics.currentValueTl == null ? 'veri yok' : '${_fmtAmount(metrics.currentValueTl!)} TL'}'),
+          pw.Text('Açık Maliyet: ${_fmtAmount(metrics.openCostTl)} TL'),
+          pw.Text(
+            'Gerç. K/Z: ${metrics.realizedPnlTl >= 0 ? '+' : '-'}${_fmtAmount(metrics.realizedPnlTl.abs())} TL',
+          ),
+          pw.Text(
+            'Açık Pozisyon K/Z: ${metrics.unrealizedPnlTl == null ? 'veri yok' : '${metrics.unrealizedPnlTl! >= 0 ? '+' : '-'}${_fmtAmount(metrics.unrealizedPnlTl!.abs())} TL'}',
+          ),
+          pw.Text(
+            'Toplam K/Z: ${metrics.totalPnlTl == null ? 'veri yok' : '${metrics.totalPnlTl! >= 0 ? '+' : '-'}${_fmtAmount(metrics.totalPnlTl!.abs())} TL'}',
+            style: pw.TextStyle(font: bold),
+          ),
           pw.SizedBox(height: 8),
           pw.Text(
             'Gelen: ${_fmtAmount(item.totalCollection)} TL',
@@ -670,12 +696,13 @@ class _CariCardSummaryForeignScreenState extends State<CariCardSummaryForeignScr
                             final instrumentName = _currencyLabel(item.card);
                             final isExpanded = _expandedTrackCards.contains(item.card.id);
                             final valueText = m.currentValueTl == null
-                                ? 'Tutar: veri yok'
-                                : 'Tutar: ${_fmtSignedAmount(m.currentValueTl!)} TL';
+                                ? 'Portföy Değeri: veri yok'
+                                : 'Portföy Değeri: ${_fmtAmount(m.currentValueTl!)} TL';
                             final rateText = m.currentUnitPrice == null
                                 ? 'veri yok'
                                 : '${_fmtAmount(m.currentUnitPrice!)} TL';
-                            final sentimentColor = _sentimentColor(m.currentValueTl);
+                            final sentimentValue = m.unrealizedPnlTl ?? m.realizedPnlTl;
+                            final sentimentColor = _sentimentColor(sentimentValue);
                             return Dismissible(
                               key: ValueKey('cari-summary-$group-${item.card.id}'),
                               direction: DismissDirection.endToStart,
@@ -762,7 +789,10 @@ class _CariCardSummaryForeignScreenState extends State<CariCardSummaryForeignScr
                                                   'Güncel Kur (${_fmtDate(DateTime.now())}): $rateText',
                                                 ),
                                                 Text(
-                                                  'Durum: ${_sentimentLabel(m.currentValueTl)}',
+                                                  'Açık Maliyet: ${_fmtAmount(m.openCostTl)} TL',
+                                                ),
+                                                Text(
+                                                  'Açık Pozisyon: ${_sentimentLabel(sentimentValue)}',
                                                   style: TextStyle(
                                                     color: sentimentColor,
                                                     fontWeight: FontWeight.w700,
@@ -771,7 +801,28 @@ class _CariCardSummaryForeignScreenState extends State<CariCardSummaryForeignScr
                                                 Text(
                                                   valueText,
                                                   style: TextStyle(
+                                                    color: Colors.blue,
+                                                    fontWeight: FontWeight.w700,
+                                                  ),
+                                                ),
+                                                Text(
+                                                  'Açık Pozisyon K/Z: ${m.unrealizedPnlTl == null ? 'veri yok' : _fmtSignedAmount(m.unrealizedPnlTl!)} TL',
+                                                  style: TextStyle(
                                                     color: sentimentColor,
+                                                    fontWeight: FontWeight.w700,
+                                                  ),
+                                                ),
+                                                Text(
+                                                  'Gerç. K/Z: ${_fmtSignedAmount(m.realizedPnlTl)} TL',
+                                                  style: TextStyle(
+                                                    color: _sentimentColor(m.realizedPnlTl),
+                                                    fontWeight: FontWeight.w700,
+                                                  ),
+                                                ),
+                                                Text(
+                                                  'Toplam K/Z: ${m.totalPnlTl == null ? 'veri yok' : _fmtSignedAmount(m.totalPnlTl!)} TL',
+                                                  style: TextStyle(
+                                                    color: _sentimentColor(m.totalPnlTl),
                                                     fontWeight: FontWeight.w700,
                                                   ),
                                                 ),
