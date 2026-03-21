@@ -77,6 +77,8 @@ class FinanceTransactionService {
     required int categoryId,
     required double amount,
     required DateTime date,
+    double? latitude,
+    double? longitude,
     String? description,
     int? incomePlanId,
     int? expensePlanId,
@@ -86,6 +88,8 @@ class FinanceTransactionService {
       categoryId: categoryId,
       amount: amount,
       date: date,
+      latitude: latitude,
+      longitude: longitude,
       description: description,
       incomePlanId: incomePlanId,
       expensePlanId: expensePlanId,
@@ -98,6 +102,8 @@ class FinanceTransactionService {
     required int categoryId,
     required double amount,
     required DateTime date,
+    double? latitude,
+    double? longitude,
     String? description,
     int? incomePlanId,
     int? expensePlanId,
@@ -121,6 +127,8 @@ class FinanceTransactionService {
         ..categoryId = categoryId
         ..type = "income"
         ..amount = amount
+        ..latitude = latitude
+        ..longitude = longitude
         ..date = date
         ..description =
             description?.trim().isEmpty == true ? null : description?.trim()
@@ -143,6 +151,8 @@ class FinanceTransactionService {
     required int categoryId,
     required double amount,
     required DateTime date,
+    double? latitude,
+    double? longitude,
     String? description,
     int? expensePlanId,
     bool syncCreditCardStatement = true,
@@ -152,6 +162,8 @@ class FinanceTransactionService {
       categoryId: categoryId,
       amount: amount,
       date: date,
+      latitude: latitude,
+      longitude: longitude,
       description: description,
       expensePlanId: expensePlanId,
       syncCreditCardStatement: syncCreditCardStatement,
@@ -164,6 +176,8 @@ class FinanceTransactionService {
     required int categoryId,
     required double amount,
     required DateTime date,
+    double? latitude,
+    double? longitude,
     String? description,
     int? expensePlanId,
     bool syncCreditCardStatement = true,
@@ -190,6 +204,8 @@ class FinanceTransactionService {
         ..categoryId = categoryId
         ..type = "expense"
         ..amount = amount
+        ..latitude = latitude
+        ..longitude = longitude
         ..date = date
         ..description =
             description?.trim().isEmpty == true ? null : description?.trim()
@@ -247,6 +263,8 @@ class FinanceTransactionService {
     required String type,
     required double amount,
     required DateTime date,
+    double? latitude,
+    double? longitude,
     String? description,
     int? incomePlanId,
     int? expensePlanId,
@@ -286,6 +304,8 @@ class FinanceTransactionService {
         ..categoryId = categoryId
         ..type = type
         ..amount = amount
+        ..latitude = latitude ?? oldTx.latitude
+        ..longitude = longitude ?? oldTx.longitude
         ..date = date
         ..description =
             description?.trim().isEmpty == true ? null : description?.trim()

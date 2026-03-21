@@ -14,7 +14,10 @@ import 'screens/cari_card_summary_screen.dart';
 import 'screens/cari_card_summary_foreign_screen.dart';
 import 'screens/credit_card_statements_screen.dart';
 import 'screens/expense_category_screen.dart';
+import 'screens/expense_map_screen.dart';
 import 'screens/expense_planning_screen.dart';
+import 'screens/financial_analysis_screen.dart';
+import 'screens/fixed_incomes_screen.dart';
 import 'screens/calendar_transactions_screen.dart';
 import 'models/cari_card.dart';
 import 'models/cari_transaction.dart';
@@ -45,6 +48,7 @@ import 'screens/precious_metal_tracking_screen.dart';
 import 'screens/stock_tracking_screen.dart';
 import 'screens/crypto_tracking_screen.dart';
 import 'screens/onboarding_welcome_screen.dart';
+import 'screens/subscriptions_screen.dart';
 import 'services/local_notification_service.dart';
 import 'services/user_profile_service.dart';
 import 'theme/app_colors.dart';
@@ -1023,6 +1027,32 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         },
                       ),
                       ListTile(
+                        leading: const Icon(
+                          Icons.savings_outlined,
+                          color: Colors.green,
+                        ),
+                        title: const Text('Sabit Gelirlerim'),
+                        onTap: () async {
+                          await _openFromDrawer(
+                            const FixedIncomesScreen(),
+                            reloadOnReturn: true,
+                          );
+                        },
+                      ),
+                      ListTile(
+                        leading: const Icon(
+                          Icons.repeat_on_outlined,
+                          color: Colors.deepOrange,
+                        ),
+                        title: const Text('Aboneliklerim'),
+                        onTap: () async {
+                          await _openFromDrawer(
+                            const SubscriptionsScreen(),
+                            reloadOnReturn: true,
+                          );
+                        },
+                      ),
+                      ListTile(
                         leading:
                             const Icon(Icons.category, color: AppColors.income),
                         title: const Text('Gelir Kategorileri'),
@@ -1077,6 +1107,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           );
                         },
                       ),
+                    ],
+                  ),
+                  ExpansionTile(
+                    leading:
+                        const Icon(Icons.query_stats, color: AppColors.brand),
+                    title: const Text('Analiz'),
+                    children: [
+                      ListTile(
+                        leading: const Icon(Icons.query_stats,
+                            color: AppColors.brand),
+                        title: const Text('Finansal Analiz'),
+                        onTap: () async {
+                          await _openFromDrawer(
+                            const FinancialAnalysisScreen(),
+                          );
+                        },
+                      ),
                       ListTile(
                         leading: const Icon(Icons.analytics_outlined,
                             color: Colors.teal),
@@ -1126,7 +1173,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ListTile(
                         leading: const Icon(Icons.circle,
                             color: Colors.deepOrange, size: 12),
-                        title: const Text('Cari Kart Özet (Dış Finans)'),
+                        title: const Text('Cari Kart Özet (Yabancı Kaynak)'),
                         onTap: () async {
                           await _openFromDrawer(
                             const CariCardSummaryForeignScreen(),
@@ -1169,6 +1216,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         },
                       ),
                     ],
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.map_outlined,
+                        color: Colors.redAccent),
+                    title: const Text('Harcama Haritası'),
+                    onTap: () async {
+                      await _openFromDrawer(const ExpenseMapScreen());
+                    },
                   ),
                   ListTile(
                     leading:

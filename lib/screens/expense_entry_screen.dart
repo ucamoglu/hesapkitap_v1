@@ -12,6 +12,8 @@ import '../services/category_service.dart';
 import '../services/credit_card_installment_service.dart';
 import '../services/credit_card_statement_service.dart';
 import '../services/finance_transaction_service.dart';
+import '../services/location_consent_service.dart';
+import '../services/transaction_location_service.dart';
 import '../services/transaction_attachment_service.dart';
 import '../theme/app_colors.dart';
 import '../utils/app_feedback.dart';
@@ -193,6 +195,7 @@ class _ExpenseEntryScreenState extends State<ExpenseEntryScreen> {
     });
 
     try {
+      final location = await _resolveLocationForSave();
       if (_isEditMode) {
         final tx = widget.initialTransaction!;
         await FinanceTransactionService.updateTransaction(
@@ -202,6 +205,8 @@ class _ExpenseEntryScreenState extends State<ExpenseEntryScreen> {
           type: 'expense',
           amount: amount,
           date: _selectedDate,
+          latitude: location?.latitude,
+          longitude: location?.longitude,
           description: _descriptionController.text,
           incomePlanId: null,
           expensePlanId: tx.expensePlanId,
@@ -220,6 +225,8 @@ class _ExpenseEntryScreenState extends State<ExpenseEntryScreen> {
           categoryId: _selectedCategoryId!,
           amount: amount,
           date: _selectedDate,
+          latitude: location?.latitude,
+          longitude: location?.longitude,
           description: _descriptionController.text,
           syncCreditCardStatement: !_isInstallment,
         );
@@ -251,6 +258,43 @@ class _ExpenseEntryScreenState extends State<ExpenseEntryScreen> {
         });
       }
     }
+  }
+
+  Future<TransactionLocationPoint?> _resolveLocationForSave() async {
+    final preference = await LocationConsentService.getPreference();
+    if (preference == null) {
+      if (!mounted) return null;
+      final approved = await showDialog<bool>(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('Konum İlişkilendirilsin mi?'),
+          content: const Text(
+            'İstersen işlemler kaydedilirken bulunduğun konum otomatik ilişkilendirilebilir. Bu özellik daha sonra harita üzerinde harcamaları göstermemize yardımcı olur.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Şimdilik Kullanma'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Konumu Kullan'),
+            ),
+          ],
+        ),
+      );
+      final allowAutoCapture = approved == true;
+      await LocationConsentService.savePreference(
+        autoCaptureEnabled: allowAutoCapture,
+      );
+      if (!allowAutoCapture) return null;
+      return TransactionLocationService.tryGetCurrentLocation(
+        requestPermission: true,
+      );
+    }
+
+    if (!preference.autoCaptureEnabled) return null;
+    return TransactionLocationService.tryGetCurrentLocation();
   }
 
   // Edit modundaki gider hareketini geri sararak siler.

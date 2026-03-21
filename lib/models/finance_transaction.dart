@@ -17,6 +17,9 @@ class FinanceTransaction {
 
   late double amount;
 
+  double? latitude;
+  double? longitude;
+
   String? description;
   // Plan uzerinden olusan gelirlerde kaynagi izlemek icin tutulur.
   int? incomePlanId;

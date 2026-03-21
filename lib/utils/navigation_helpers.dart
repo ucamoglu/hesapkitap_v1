@@ -14,7 +14,10 @@ import '../screens/crypto_tracking_screen.dart';
 import '../screens/currency_tracking_screen.dart';
 import '../screens/credit_card_statements_screen.dart';
 import '../screens/expense_category_screen.dart';
+import '../screens/expense_map_screen.dart';
 import '../screens/expense_planning_screen.dart';
+import '../screens/financial_analysis_screen.dart';
+import '../screens/fixed_incomes_screen.dart';
 import '../screens/income_category_screen.dart';
 import '../screens/income_expense_transactions_screen.dart';
 import '../screens/income_planning_screen.dart';
@@ -22,19 +25,31 @@ import '../screens/investment_tracking_screen.dart';
 import '../screens/precious_metal_tracking_screen.dart';
 import '../screens/profile_screen.dart';
 import '../screens/stock_tracking_screen.dart';
+import '../screens/subscriptions_screen.dart';
 import '../services/user_profile_service.dart';
 import '../theme/app_colors.dart';
 
-enum _MenuSection { definition, transactions, cariOperations, planning, rates }
+enum _MenuSection {
+  definition,
+  transactions,
+  analysis,
+  cariOperations,
+  planning,
+  rates,
+}
 
 _MenuSection? _lastExpandedSection;
 
 enum _MenuItem {
   profile,
   accounts,
+  fixedIncomes,
+  subscriptions,
   creditCardStatements,
+  financialAnalysis,
   incomeCategories,
   expenseCategories,
+  expenseMap,
   cariCards,
   cariTransactionsHistory,
   transactionsHistory,
@@ -66,9 +81,24 @@ void rememberDrawerSelectionForScreen(Widget screen) {
     _lastExpandedSection = _MenuSection.definition;
     return;
   }
+  if (screen is FixedIncomesScreen) {
+    _lastSelectedMenuItem = _MenuItem.fixedIncomes;
+    _lastExpandedSection = _MenuSection.definition;
+    return;
+  }
+  if (screen is SubscriptionsScreen) {
+    _lastSelectedMenuItem = _MenuItem.subscriptions;
+    _lastExpandedSection = _MenuSection.definition;
+    return;
+  }
   if (screen is CreditCardStatementsScreen) {
     _lastSelectedMenuItem = _MenuItem.creditCardStatements;
     _lastExpandedSection = _MenuSection.transactions;
+    return;
+  }
+  if (screen is FinancialAnalysisScreen) {
+    _lastSelectedMenuItem = _MenuItem.financialAnalysis;
+    _lastExpandedSection = _MenuSection.analysis;
     return;
   }
   if (screen is IncomeCategoryScreen) {
@@ -79,6 +109,11 @@ void rememberDrawerSelectionForScreen(Widget screen) {
   if (screen is ExpenseCategoryScreen) {
     _lastSelectedMenuItem = _MenuItem.expenseCategories;
     _lastExpandedSection = _MenuSection.definition;
+    return;
+  }
+  if (screen is ExpenseMapScreen) {
+    _lastSelectedMenuItem = _MenuItem.expenseMap;
+    _lastExpandedSection = null;
     return;
   }
   if (screen is CariCardsScreen) {
@@ -103,12 +138,12 @@ void rememberDrawerSelectionForScreen(Widget screen) {
   }
   if (screen is InvestmentTrackingScreen) {
     _lastSelectedMenuItem = _MenuItem.investmentTracking;
-    _lastExpandedSection = _MenuSection.transactions;
+    _lastExpandedSection = _MenuSection.analysis;
     return;
   }
   if (screen is AssetStatusScreen) {
     _lastSelectedMenuItem = _MenuItem.assetStatus;
-    _lastExpandedSection = _MenuSection.transactions;
+    _lastExpandedSection = _MenuSection.analysis;
     return;
   }
   if (screen is CariCardSummaryScreen) {
@@ -432,6 +467,32 @@ class _AppMenuDrawerState extends State<_AppMenuDrawer> {
                       },
                     ),
                     _menuItem(
+                      item: _MenuItem.fixedIncomes,
+                      icon: Icons.savings_outlined,
+                      color: Colors.green,
+                      title: 'Sabit Gelirlerim',
+                      onTap: () {
+                        _rememberSelection(
+                          item: _MenuItem.fixedIncomes,
+                          section: _MenuSection.definition,
+                        );
+                        _openScreen(const FixedIncomesScreen());
+                      },
+                    ),
+                    _menuItem(
+                      item: _MenuItem.subscriptions,
+                      icon: Icons.repeat_on_outlined,
+                      color: Colors.deepOrange,
+                      title: 'Aboneliklerim',
+                      onTap: () {
+                        _rememberSelection(
+                          item: _MenuItem.subscriptions,
+                          section: _MenuSection.definition,
+                        );
+                        _openScreen(const SubscriptionsScreen());
+                      },
+                    ),
+                    _menuItem(
                       item: _MenuItem.incomeCategories,
                       icon: Icons.category,
                       color: AppColors.income,
@@ -513,6 +574,35 @@ class _AppMenuDrawerState extends State<_AppMenuDrawer> {
                         _openScreen(const CreditCardStatementsScreen());
                       },
                     ),
+                  ],
+                ),
+                ExpansionTile(
+                  leading: const Icon(Icons.query_stats, color: AppColors.brand),
+                  title: const Text('Analiz'),
+                  initiallyExpanded:
+                      _lastExpandedSection == _MenuSection.analysis,
+                  onExpansionChanged: (expanded) {
+                    if (expanded) {
+                      _lastExpandedSection = _MenuSection.analysis;
+                    } else if (_lastExpandedSection ==
+                        _MenuSection.analysis) {
+                      _lastExpandedSection = null;
+                    }
+                  },
+                  children: [
+                    _menuItem(
+                      item: _MenuItem.financialAnalysis,
+                      icon: Icons.query_stats,
+                      color: AppColors.brand,
+                      title: 'Finansal Analiz',
+                      onTap: () {
+                        _rememberSelection(
+                          item: _MenuItem.financialAnalysis,
+                          section: _MenuSection.analysis,
+                        );
+                        _openScreen(const FinancialAnalysisScreen());
+                      },
+                    ),
                     _menuItem(
                       item: _MenuItem.investmentTracking,
                       icon: Icons.analytics_outlined,
@@ -521,7 +611,7 @@ class _AppMenuDrawerState extends State<_AppMenuDrawer> {
                       onTap: () {
                         _rememberSelection(
                           item: _MenuItem.investmentTracking,
-                          section: _MenuSection.transactions,
+                          section: _MenuSection.analysis,
                         );
                         _openScreen(const InvestmentTrackingScreen());
                       },
@@ -534,7 +624,7 @@ class _AppMenuDrawerState extends State<_AppMenuDrawer> {
                       onTap: () {
                         _rememberSelection(
                           item: _MenuItem.assetStatus,
-                          section: _MenuSection.transactions,
+                          section: _MenuSection.analysis,
                         );
                         _openScreen(const AssetStatusScreen());
                       },
@@ -587,7 +677,7 @@ class _AppMenuDrawerState extends State<_AppMenuDrawer> {
                       item: _MenuItem.cariSummaryForeign,
                       icon: Icons.circle,
                       color: Colors.deepOrange,
-                      title: 'Cari Kart Özet (Dış Finans)',
+                      title: 'Cari Kart Özet (Yabancı Kaynak)',
                       onTap: () {
                         _rememberSelection(item: _MenuItem.cariSummaryForeign);
                         _openScreen(const CariCardSummaryForeignScreen());
@@ -649,6 +739,16 @@ class _AppMenuDrawerState extends State<_AppMenuDrawer> {
                       },
                     ),
                   ],
+                ),
+                ListTile(
+                  leading: const Icon(Icons.map_outlined, color: Colors.redAccent),
+                  title: const Text('Harcama Haritası'),
+                  selected: _lastSelectedMenuItem == _MenuItem.expenseMap,
+                  selectedTileColor: Colors.black.withValues(alpha: 0.05),
+                  onTap: () {
+                    _rememberSelection(item: _MenuItem.expenseMap);
+                    _openScreen(const ExpenseMapScreen());
+                  },
                 ),
                 ListTile(
                   leading:

@@ -25,6 +25,20 @@ import '../services/investment_transaction_service.dart';
 import '../utils/navigation_helpers.dart';
 import '../utils/turkish_money_input_formatter.dart';
 
+class _PdfMovementItem {
+  final DateTime date;
+  final String category;
+  final String description;
+  final String amountText;
+
+  const _PdfMovementItem({
+    required this.date,
+    required this.category,
+    required this.description,
+    required this.amountText,
+  });
+}
+
 class CreditCardStatementsScreen extends StatefulWidget {
   const CreditCardStatementsScreen({super.key});
 
@@ -815,6 +829,75 @@ class _CreditCardStatementsScreenState
     );
   }
 
+  List<List<String>> _pdfMovementRows(CreditCardStatement statement) {
+    final installments = _installmentsByStatementKey[_statementKey(
+          statement.creditCardAccountId,
+          statement.statementDate,
+        )] ??
+        const <CreditCardInstallment>[];
+    final singleChargeFinance =
+        _singleChargeFinanceTransactions(statement, installments);
+    final singleChargeInvestments =
+        _singleChargeInvestmentTransactions(statement, installments);
+    final payments =
+        _paymentsByStatementId[statement.id] ?? const <CreditCardPayment>[];
+    final adjustments = _adjustmentsByStatementId[statement.id] ??
+        const <CreditCardStatementAdjustment>[];
+
+    final rows = <_PdfMovementItem>[
+      for (final tx in singleChargeFinance)
+        _PdfMovementItem(
+          date: tx.date,
+          category: _financeTitle(tx),
+          description: _financeDescription(tx) ?? 'Tek çekim gider yansıması',
+          amountText: '+${_fmtMoney(tx.amount)} TL',
+        ),
+      for (final tx in singleChargeInvestments)
+        _PdfMovementItem(
+          date: tx.date,
+          category: 'Yatırım',
+          description:
+              '${tx.symbol.trim().toUpperCase()} • ${_fmtQuantity(tx.quantity)} adet',
+          amountText: '+${_fmtMoney(tx.total)} TL',
+        ),
+      for (final installment in installments)
+        _PdfMovementItem(
+          date: installment.installmentDate,
+          category: _lineLabel(installment),
+          description:
+              'Taksit ${installment.installmentNumber}/${installment.installmentCount}',
+          amountText: '+${_fmtMoney(installment.amount)} TL',
+        ),
+      for (final payment in payments)
+        _PdfMovementItem(
+          date: payment.paymentDate,
+          category: 'Kart Ödemesi',
+          description:
+              '${_accountsById[payment.bankAccountId]?.name ?? 'Banka #${payment.bankAccountId}'}${payment.note?.trim().isNotEmpty == true ? ' • ${payment.note!.trim()}' : ''}',
+          amountText: '-${_fmtMoney(payment.amount)} TL',
+        ),
+      for (final adjustment in adjustments)
+        _PdfMovementItem(
+          date: adjustment.adjustmentDate,
+          category: _adjustmentTitle(adjustment),
+          description: _adjustmentDescription(adjustment),
+          amountText: _signedAdjustmentText(adjustment),
+        ),
+    ]
+      ..sort((a, b) => b.date.compareTo(a.date));
+
+    return rows
+        .map(
+          (item) => [
+            _fmtDate(item.date),
+            item.category,
+            item.description,
+            item.amountText,
+          ],
+        )
+        .toList();
+  }
+
   Future<Uint8List> _buildPdf(PdfPageFormat format) async {
     final font = pw.Font.ttf(
       await rootBundle.load('assets/fonts/Roboto-Regular.ttf'),
@@ -912,10 +995,6 @@ class _CreditCardStatementsScreenState
 
           for (final statement in statementsForReport) {
             final account = _accountsById[statement.creditCardAccountId];
-            final payments = _paymentsByStatementId[statement.id] ??
-                const <CreditCardPayment>[];
-            final adjustments = _adjustmentsByStatementId[statement.id] ??
-                const <CreditCardStatementAdjustment>[];
             final installments = _installmentsByStatementKey[_statementKey(
                   statement.creditCardAccountId,
                   statement.statementDate,
@@ -931,32 +1010,7 @@ class _CreditCardStatementsScreenState
             final remaining = (statement.totalAmount - statement.paidAmount)
                 .clamp(0, double.infinity)
                 .toDouble();
-            final movementRows = <List<String>>[
-              ...installments.map(
-                (installment) => [
-                  _fmtDate(installment.installmentDate),
-                  _lineLabel(installment),
-                  'Taksit ${installment.installmentNumber}/${installment.installmentCount}',
-                  '+${_fmtMoney(installment.amount)} TL',
-                ],
-              ),
-              ...payments.map((payment) {
-                final bankAccount = _accountsById[payment.bankAccountId];
-                final note = payment.note?.trim();
-                return [
-                  _fmtDate(payment.paymentDate),
-                  'Kart Ödemesi',
-                  '${bankAccount?.name ?? 'Banka'}${note != null && note.isNotEmpty ? ' • $note' : ''}',
-                  '-${_fmtMoney(payment.amount)} TL',
-                ];
-              }),
-              ...adjustments.map((adjustment) => [
-                    _fmtDate(adjustment.adjustmentDate),
-                    _adjustmentTitle(adjustment),
-                    _adjustmentDescription(adjustment),
-                    _signedAdjustmentText(adjustment),
-                  ]),
-            ];
+            final movementRows = _pdfMovementRows(statement);
 
             widgets.add(
               pw.Container(

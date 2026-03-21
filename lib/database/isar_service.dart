@@ -27,6 +27,7 @@ import '../models/tracked_stock.dart';
 import '../models/tracked_stock_state.dart';
 import '../models/tracked_crypto.dart';
 import '../models/tracked_crypto_state.dart';
+import '../models/subscription_definition.dart';
 
 class IsarService {
   static late Isar isar;
@@ -68,6 +69,7 @@ class IsarService {
         TrackedStockStateSchema,
         TrackedCryptoSchema,
         TrackedCryptoStateSchema,
+        SubscriptionDefinitionSchema,
       ],
       directory: dir.path,
     );

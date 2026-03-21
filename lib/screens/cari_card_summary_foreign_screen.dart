@@ -660,7 +660,7 @@ class _CariCardSummaryForeignScreenState extends State<CariCardSummaryForeignScr
       drawer: buildAppMenuDrawer(),
       appBar: AppBar(
         leading: buildMenuLeading(),
-        title: const Text('Cari Kart Özet (Dış Finans)'),
+        title: const Text('Cari Kart Özet (Yabancı Kaynak)'),
         actions: [
           IconButton(
             onPressed: _load,

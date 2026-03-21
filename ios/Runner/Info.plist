@@ -49,5 +49,7 @@
 	<string>Profil resmi eklemek için kameraya erişim gerekiyor.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Profil resmi seçmek için fotoğraf arşivine erişim gerekiyor.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>İşlem kaydedilirken bulunduğunuz konumu otomatik ilişkilendirmek için konum erişimi gerekiyor.</string>
 </dict>
 </plist>

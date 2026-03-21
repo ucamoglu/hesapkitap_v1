@@ -28,5 +28,7 @@
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>NSLocationUsageDescription</key>
+	<string>İşlem kaydedilirken bulunduğunuz konumu otomatik ilişkilendirmek için konum erişimi gerekiyor.</string>
 </dict>
 </plist>
