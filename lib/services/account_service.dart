@@ -60,6 +60,13 @@ class AccountService {
         if (account.overdraftLimit < 0) {
           throw Exception('Ek hesap tutarı negatif olamaz.');
         }
+        final currentNegativeUsage = account.balance < 0 ? account.balance.abs() : 0.0;
+        if (account.overdraftLimit + 1e-9 < currentNegativeUsage) {
+          throw Exception(
+            'Ek hesap tutarı, mevcut eksi bakiyeden küçük olamaz. '
+            'Önce bakiyeyi azaltın ya da ek hesap limitini yeterli seviyede tutun.',
+          );
+        }
         account
           ..linkedBankAccountId = null
           ..statementDay = null

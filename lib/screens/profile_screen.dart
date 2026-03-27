@@ -209,12 +209,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     try {
       await UserProfileService.save(profile);
-      await AppThemeController.instance.applyTheme(
-        _themeKey,
-        fanTeamKey: _fanTeamKey,
-      );
       if (!mounted) return;
+      final nextThemeKey = _themeKey;
+      final nextFanTeamKey = _fanTeamKey;
       Navigator.pop(context, true);
+      Future<void>.delayed(const Duration(milliseconds: 180), () async {
+        await AppThemeController.instance.applyTheme(
+          nextThemeKey,
+          fanTeamKey: nextFanTeamKey,
+        );
+      });
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
