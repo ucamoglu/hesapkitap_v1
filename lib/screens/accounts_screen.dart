@@ -24,6 +24,10 @@ class AccountsScreen extends StatefulWidget {
 class _AccountsScreenState extends State<AccountsScreen> {
   List<Account> accounts = [];
   Map<String, double> _livePriceBySymbol = {};
+  TextEditingController? _dialogNameController;
+  TextEditingController? _dialogStatementDayController;
+  TextEditingController? _dialogPaymentDueDayController;
+  TextEditingController? _dialogOverdraftLimitController;
 
   Color _accountAccentColor(BuildContext context, Account account) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -132,6 +136,23 @@ class _AccountsScreenState extends State<AccountsScreen> {
   void initState() {
     super.initState();
     loadAccounts();
+  }
+
+  @override
+  void dispose() {
+    _disposeDialogControllers();
+    super.dispose();
+  }
+
+  void _disposeDialogControllers() {
+    _dialogNameController?.dispose();
+    _dialogStatementDayController?.dispose();
+    _dialogPaymentDueDayController?.dispose();
+    _dialogOverdraftLimitController?.dispose();
+    _dialogNameController = null;
+    _dialogStatementDayController = null;
+    _dialogPaymentDueDayController = null;
+    _dialogOverdraftLimitController = null;
   }
 
   // Hesaplari ve canli piyasa degerlerini birlikte yukleyip listeyi tazeler.
@@ -388,15 +409,20 @@ class _AccountsScreenState extends State<AccountsScreen> {
       excludeId: initialAccount?.id,
     );
     if (!mounted) return;
+    _disposeDialogControllers();
     final nameController =
-        TextEditingController(text: initialAccount?.name ?? '');
-    final statementDayController = TextEditingController(
+        _dialogNameController =
+            TextEditingController(text: initialAccount?.name ?? '');
+    final statementDayController =
+        _dialogStatementDayController = TextEditingController(
       text: initialAccount?.statementDay?.toString() ?? '',
     );
-    final paymentDueDayController = TextEditingController(
+    final paymentDueDayController =
+        _dialogPaymentDueDayController = TextEditingController(
       text: initialAccount?.paymentDueDay?.toString() ?? '',
     );
-    final overdraftLimitController = TextEditingController(
+    final overdraftLimitController =
+        _dialogOverdraftLimitController = TextEditingController(
       text: initialAccount == null || initialAccount.effectiveOverdraftLimit <= 0
           ? ''
           : _fmtAmount(initialAccount.effectiveOverdraftLimit),
@@ -523,6 +549,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
                             AccountService.bankSubtypeBankAccount) ...[
                       const SizedBox(height: 12),
                       TextField(
+                        key: const ValueKey('bank-overdraft-limit-field'),
                         controller: overdraftLimitController,
                         keyboardType: const TextInputType.numberWithOptions(
                           decimal: true,
@@ -539,6 +566,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
                             AccountService.bankSubtypeCreditCard) ...[
                       const SizedBox(height: 12),
                       DropdownButtonFormField<int>(
+                        key: const ValueKey('credit-card-linked-account-field'),
                         initialValue: selectedLinkedBankAccountId,
                         items: parentBankAccounts
                             .map(
@@ -561,6 +589,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
                       ),
                       const SizedBox(height: 12),
                       TextField(
+                        key: const ValueKey('credit-card-statement-day-field'),
                         controller: statementDayController,
                         keyboardType: TextInputType.number,
                         inputFormatters: [
@@ -576,6 +605,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
                       ),
                       const SizedBox(height: 12),
                       TextField(
+                        key: const ValueKey('credit-card-payment-due-day-field'),
                         controller: paymentDueDayController,
                         keyboardType: TextInputType.number,
                         inputFormatters: [
@@ -923,10 +953,6 @@ class _AccountsScreenState extends State<AccountsScreen> {
         );
       },
     );
-    nameController.dispose();
-    statementDayController.dispose();
-    paymentDueDayController.dispose();
-    overdraftLimitController.dispose();
   }
 
   void _showEditAccountDialog(Account account) {

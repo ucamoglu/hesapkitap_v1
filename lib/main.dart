@@ -89,53 +89,41 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> {
   @override
-  void initState() {
-    super.initState();
-    AppThemeController.instance.addListener(_handleThemeChanged);
-  }
-
-  @override
-  void dispose() {
-    AppThemeController.instance.removeListener(_handleThemeChanged);
-    super.dispose();
-  }
-
-  void _handleThemeChanged() {
-    if (!mounted) return;
-    setState(() {});
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'HesapKitap',
-      scaffoldMessengerKey: appScaffoldMessengerKey,
-      locale: const Locale('tr', 'TR'),
-      supportedLocales: const [
-        Locale('tr', 'TR'),
-        Locale('en', 'US'),
-      ],
-      localizationsDelegates: const [
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      theme: AppTheme.resolve(
-        AppThemeController.instance.themeKey,
-        fanTeamKey: AppThemeController.instance.fanTeamKey,
-      ),
-      builder: (context, child) {
-        final media = MediaQuery.of(context);
-        final clampedScaler = media.textScaler.clamp(
-          minScaleFactor: 0.95,
-          maxScaleFactor: 1.0,
-        );
-        return MediaQuery(
-          data: media.copyWith(textScaler: clampedScaler),
-          child: child ?? const SizedBox.shrink(),
+    return AnimatedBuilder(
+      animation: AppThemeController.instance,
+      builder: (context, _) {
+        return MaterialApp(
+          title: 'HesapKitap',
+          scaffoldMessengerKey: appScaffoldMessengerKey,
+          locale: const Locale('tr', 'TR'),
+          supportedLocales: const [
+            Locale('tr', 'TR'),
+            Locale('en', 'US'),
+          ],
+          localizationsDelegates: const [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          theme: AppTheme.resolve(
+            AppThemeController.instance.themeKey,
+            fanTeamKey: AppThemeController.instance.fanTeamKey,
+          ),
+          builder: (context, child) {
+            final media = MediaQuery.of(context);
+            final clampedScaler = media.textScaler.clamp(
+              minScaleFactor: 0.95,
+              maxScaleFactor: 1.0,
+            );
+            return MediaQuery(
+              data: media.copyWith(textScaler: clampedScaler),
+              child: child ?? const SizedBox.shrink(),
+            );
+          },
+          home: const AppStartGate(),
         );
       },
-      home: const AppStartGate(),
     );
   }
 }
@@ -1291,402 +1279,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final onPrimary = colorScheme.onPrimary;
 
     return Scaffold(
-      drawer: Drawer(
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-        child: Column(
-          children: [
-            Expanded(
-              child: ListView(
-                padding: EdgeInsets.zero,
-                children: [
-                DrawerHeader(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          colorScheme.primary,
-                          colorScheme.tertiary,
-                        ],
-                      ),
-                    ),
-                    margin: EdgeInsets.zero,
-                    padding: EdgeInsets.zero,
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              CircleAvatar(
-                                radius: 28,
-                                backgroundColor:
-                                    onPrimary.withValues(alpha: 0.18),
-                                backgroundImage: profilePhoto != null
-                                    ? MemoryImage(profilePhoto!)
-                                    : null,
-                                child: profilePhoto == null
-                                    ? Icon(Icons.person,
-                                        color: onPrimary, size: 30)
-                                    : null,
-                              ),
-                              const SizedBox(width: 10),
-                              InkWell(
-                                onTap: _openProfileScreen,
-                                borderRadius: BorderRadius.circular(18),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 6,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(18),
-                                    border: Border.all(
-                                      color: onPrimary.withValues(alpha: 0.42),
-                                    ),
-                                    color: onPrimary.withValues(alpha: 0.08),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(Icons.account_circle,
-                                          color: onPrimary, size: 18),
-                                      const SizedBox(width: 6),
-                                      Text(
-                                        'Profil',
-                                        style: TextStyle(
-                                          color: onPrimary,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 10),
-                          Text(
-                            profileName,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: onPrimary,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'by Pagumex Teknoloji',
-                            style: TextStyle(
-                              color: onPrimary.withValues(alpha: 0.78),
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                    ),
-                  ),
-                ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(14, 14, 14, 6),
-                    child: Column(
-                      children: [
-                        _dashboardSection(
-                          icon: Icons.folder_open,
-                          color: Colors.blueGrey,
-                          title: 'Tanım',
-                          children: [
-                            _dashboardMenuItem(
-                              icon: Icons.account_balance,
-                              color: Colors.blueGrey,
-                              title: 'Hesap Tanım',
-                              onTap: () async {
-                                await _openFromDrawer(
-                                  const AccountsScreen(),
-                                  reloadOnReturn: true,
-                                );
-                              },
-                            ),
-                            _dashboardMenuItem(
-                              icon: Icons.savings_outlined,
-                              color: Colors.green,
-                              title: 'Sabit Gelirlerim',
-                              onTap: () async {
-                                await _openFromDrawer(
-                                  const FixedIncomesScreen(),
-                                  reloadOnReturn: true,
-                                );
-                              },
-                            ),
-                            _dashboardMenuItem(
-                              icon: Icons.repeat_on_outlined,
-                              color: Colors.deepOrange,
-                              title: 'Sabit Odemelerim',
-                              onTap: () async {
-                                await _openFromDrawer(
-                                  const SubscriptionsScreen(),
-                                  reloadOnReturn: true,
-                                );
-                              },
-                            ),
-                            _dashboardMenuItem(
-                              icon: Icons.category,
-                              color: AppColors.income,
-                              title: 'Gelir Kategorileri',
-                              onTap: () async {
-                                await _openFromDrawer(
-                                  const IncomeCategoryScreen(),
-                                );
-                              },
-                            ),
-                            _dashboardMenuItem(
-                              icon: Icons.sell,
-                              color: AppColors.expense,
-                              title: 'Gider Kategorileri',
-                              onTap: () async {
-                                await _openFromDrawer(
-                                  const ExpenseCategoryScreen(),
-                                );
-                              },
-                            ),
-                          ],
-                        ),
-                        _dashboardSection(
-                          icon: Icons.receipt_long,
-                          color: AppColors.info,
-                          title: 'İşlemler',
-                          children: [
-                            _dashboardMenuItem(
-                              icon: Icons.swap_vert_circle,
-                              color: AppColors.info,
-                              title: 'İşlem Geçmişi',
-                              onTap: () async {
-                                await _openFromDrawer(
-                                  const IncomeExpenseTransactionsScreen(),
-                                  reloadOnReturn: true,
-                                );
-                              },
-                            ),
-                            _dashboardMenuItem(
-                              icon: Icons.account_tree_outlined,
-                              color: Colors.indigo,
-                              title: 'Hesap Geçmişi',
-                              onTap: () async {
-                                await _openFromDrawer(
-                                  const AccountMovementsScreen(),
-                                );
-                              },
-                            ),
-                            _dashboardMenuItem(
-                              icon: Icons.receipt_long_outlined,
-                              color: Colors.indigo,
-                              title: 'Kredi Kartı Ekstreleri',
-                              onTap: () async {
-                                await _openFromDrawer(
-                                  const CreditCardStatementsScreen(),
-                                  reloadOnReturn: true,
-                                );
-                              },
-                            ),
-                          ],
-                        ),
-                        _dashboardSection(
-                          icon: Icons.query_stats,
-                          color: AppColors.brand,
-                          title: 'Analiz',
-                          children: [
-                            _dashboardMenuItem(
-                              icon: Icons.query_stats,
-                              color: AppColors.brand,
-                              title: 'Finansal Analiz',
-                              onTap: () async {
-                                await _openFromDrawer(
-                                  const FinancialAnalysisScreen(),
-                                );
-                              },
-                            ),
-                            _dashboardMenuItem(
-                              icon: Icons.analytics_outlined,
-                              color: Colors.teal,
-                              title: 'Yatırım Portföyü',
-                              onTap: () async {
-                                await _openFromDrawer(
-                                  const InvestmentTrackingScreen(),
-                                );
-                              },
-                            ),
-                            _dashboardMenuItem(
-                              icon: Icons.inventory_2_outlined,
-                              color: Colors.teal,
-                              title: 'Finans Özet',
-                              onTap: () async {
-                                await _openFromDrawer(
-                                  const AssetStatusScreen(),
-                                );
-                              },
-                            ),
-                          ],
-                        ),
-                        _dashboardSection(
-                          icon: Icons.people_alt_outlined,
-                          color: Colors.orange,
-                          title: 'Cari Kart İşlemleri',
-                          children: [
-                            _dashboardMenuItem(
-                              icon: Icons.badge,
-                              color: AppColors.brand,
-                              title: 'Cari Kart Tanım',
-                              onTap: () async {
-                                await _openFromDrawer(const CariCardsScreen());
-                              },
-                            ),
-                            _dashboardMenuItem(
-                              icon: Icons.circle,
-                              color: Colors.orange,
-                              title: 'Cari Kart Özet (TL)',
-                              onTap: () async {
-                                await _openFromDrawer(
-                                  const CariCardSummaryScreen(),
-                                  reloadOnReturn: true,
-                                );
-                              },
-                            ),
-                            _dashboardMenuItem(
-                              icon: Icons.circle,
-                              color: Colors.deepOrange,
-                              title: 'Cari Kart Özet (Yabancı Kaynak)',
-                              onTap: () async {
-                                await _openFromDrawer(
-                                  const CariCardSummaryForeignScreen(),
-                                  reloadOnReturn: true,
-                                );
-                              },
-                            ),
-                            _dashboardMenuItem(
-                              icon: Icons.swap_vert_circle,
-                              color: Colors.orange,
-                              title: 'Cari Kart İşlem Geçmişi',
-                              onTap: () async {
-                                await _openFromDrawer(
-                                  const CariTransactionsScreen(),
-                                  reloadOnReturn: true,
-                                );
-                              },
-                            ),
-                          ],
-                        ),
-                        _dashboardSection(
-                          icon: Icons.event_available,
-                          color: AppColors.planIncome,
-                          title: 'Planlamalar',
-                          children: [
-                            _dashboardMenuItem(
-                              icon: Icons.event_note,
-                              color: AppColors.income,
-                              title: 'Gelir Planlama',
-                              onTap: () async {
-                                await _openFromDrawer(
-                                  const IncomePlanningScreen(),
-                                );
-                              },
-                            ),
-                            _dashboardMenuItem(
-                              icon: Icons.event_busy,
-                              color: AppColors.expense,
-                              title: 'Gider Planlama',
-                              onTap: () async {
-                                await _openFromDrawer(
-                                  const ExpensePlanningScreen(),
-                                );
-                              },
-                            ),
-                          ],
-                        ),
-                        _dashboardStandaloneItem(
-                          icon: Icons.map_outlined,
-                          color: Colors.redAccent,
-                          title: 'Harcama Haritası',
-                          onTap: () async {
-                            await _openFromDrawer(const ExpenseMapScreen());
-                          },
-                        ),
-                        _dashboardStandaloneItem(
-                          icon: Icons.calendar_month,
-                          color: AppColors.info,
-                          title: 'Takvim',
-                          onTap: () async {
-                            await _openFromDrawer(
-                              const CalendarTransactionsScreen(),
-                            );
-                          },
-                        ),
-                        _dashboardSection(
-                          icon: Icons.currency_exchange,
-                          color: Colors.teal,
-                          title: 'Yatırımcı',
-                          children: [
-                            _dashboardMenuItem(
-                              icon: Icons.attach_money,
-                              color: Colors.teal,
-                              title: 'Döviz Takip',
-                              onTap: () async {
-                                await _openFromDrawer(
-                                  const CurrencyTrackingScreen(),
-                                  reloadOnReturn: true,
-                                );
-                              },
-                            ),
-                            _dashboardMenuItem(
-                              icon: Icons.workspace_premium,
-                              color: Colors.amber,
-                              title: 'Kıymetli Maden Takip',
-                              onTap: () async {
-                                await _openFromDrawer(
-                                  const PreciousMetalTrackingScreen(),
-                                  reloadOnReturn: true,
-                                );
-                              },
-                            ),
-                            _dashboardMenuItem(
-                              icon: Icons.show_chart,
-                              color: Colors.green,
-                              title: 'Borsa Takip',
-                              onTap: () async {
-                                await _openFromDrawer(
-                                  const StockTrackingScreen(),
-                                  reloadOnReturn: true,
-                                );
-                              },
-                            ),
-                            _dashboardMenuItem(
-                              icon: Icons.currency_bitcoin,
-                              color: Colors.deepOrange,
-                              title: 'Kripto Para Takip',
-                              onTap: () async {
-                                await _openFromDrawer(
-                                  const CryptoTrackingScreen(),
-                                  reloadOnReturn: true,
-                                );
-                              },
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const Divider(height: 1),
-            _buildHelpFooter(),
-            _buildAboutFooter(),
-          ],
-        ),
-      ),
+      drawer: buildAppMenuDrawer(),
       bottomNavigationBar: SafeArea(
         top: false,
         child: Container(

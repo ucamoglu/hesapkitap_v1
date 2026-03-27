@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/account.dart';
 import '../models/category.dart';
+import '../models/finance_transaction.dart';
 import '../models/subscription_definition.dart';
 import '../services/account_service.dart';
 import '../services/category_service.dart';
@@ -26,9 +27,11 @@ class _FixedPaymentEntryScreenState extends State<FixedPaymentEntryScreen> {
   final _amountController = TextEditingController();
   final _descriptionController = TextEditingController();
 
+  List<SubscriptionDefinition> _allPayments = [];
   List<SubscriptionDefinition> _payments = [];
   List<Account> _accounts = [];
   List<Category> _categories = [];
+  List<FinanceTransaction> _paymentTransactions = [];
   bool _isLoading = true;
   bool _isSaving = false;
 
@@ -54,39 +57,83 @@ class _FixedPaymentEntryScreenState extends State<FixedPaymentEntryScreen> {
       SubscriptionDefinitionService.getAll(),
       AccountService.getActiveExpenseAccounts(),
       CategoryService.getAllExpenseCategories(),
+      FinanceTransactionService.getAll(),
     ]);
     if (!mounted) return;
 
-    final payments = (results[0] as List<SubscriptionDefinition>)
+    final allPayments = (results[0] as List<SubscriptionDefinition>)
         .where((item) => item.isActive)
         .toList();
     final accounts = results[1] as List<Account>;
     final categories = results[2] as List<Category>;
+    final paymentTransactions = (results[3] as List<FinanceTransaction>)
+        .where((tx) => tx.type == 'expense' && (tx.expensePlanId ?? 0) < 0)
+        .toList();
 
-    int? selectedPaymentId;
+    setState(() {
+      _allPayments = allPayments;
+      _accounts = accounts;
+      _categories = categories;
+      _paymentTransactions = paymentTransactions;
+      _isLoading = false;
+    });
+    _refreshAvailablePayments();
+  }
+
+  int _subscriptionMarker(int subscriptionId) => -subscriptionId;
+
+  bool _isPaymentPaidInSelectedPeriod(SubscriptionDefinition item) {
+    final marker = _subscriptionMarker(item.id);
+    for (final tx in _paymentTransactions) {
+      if (tx.expensePlanId != marker) continue;
+      if (item.duePeriod == 'yearly') {
+        if (tx.date.year == _selectedDate.year) {
+          return true;
+        }
+        continue;
+      }
+      if (tx.date.year == _selectedDate.year &&
+          tx.date.month == _selectedDate.month) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  void _refreshAvailablePayments() {
+    final payments = _allPayments
+        .where((item) => !_isPaymentPaidInSelectedPeriod(item))
+        .toList();
+
+    int? selectedPaymentId = _selectedPaymentId;
     int? selectedAccountId;
     if (payments.isNotEmpty) {
-      selectedPaymentId = payments.first.id;
-      final payment = payments.first;
+      final selectedStillExists = selectedPaymentId != null &&
+          payments.any((payment) => payment.id == selectedPaymentId);
+      if (!selectedStillExists) {
+        selectedPaymentId = payments.first.id;
+      }
+      final payment = payments.firstWhere((p) => p.id == selectedPaymentId);
       if (payment.paymentAccountId != null &&
-          accounts.any((a) => a.id == payment.paymentAccountId)) {
+          _accounts.any((a) => a.id == payment.paymentAccountId)) {
         selectedAccountId = payment.paymentAccountId;
-      } else if (accounts.isNotEmpty) {
-        selectedAccountId = accounts.first.id;
+      } else if (_accounts.isNotEmpty) {
+        selectedAccountId = _accounts.first.id;
       }
       if (payment.paymentType == 'fixed' && payment.defaultAmount != null) {
         _amountController.text = _fmtAmount(payment.defaultAmount!);
       }
       _descriptionController.text = _defaultDescription(payment);
+    } else {
+      selectedPaymentId = null;
+      _amountController.clear();
+      _descriptionController.clear();
     }
 
     setState(() {
       _payments = payments;
-      _accounts = accounts;
-      _categories = categories;
       _selectedPaymentId = selectedPaymentId;
-      _selectedAccountId = selectedAccountId;
-      _isLoading = false;
+      _selectedAccountId = selectedAccountId ?? _selectedAccountId;
     });
   }
 
@@ -219,6 +266,13 @@ class _FixedPaymentEntryScreenState extends State<FixedPaymentEntryScreen> {
       _showSnack('Gecerli bir tutar giriniz.');
       return;
     }
+    if (_isPaymentPaidInSelectedPeriod(payment)) {
+      final periodLabel = payment.duePeriod == 'yearly'
+          ? '${_selectedDate.year}'
+          : '${_selectedDate.month.toString().padLeft(2, '0')}.${_selectedDate.year}';
+      _showSnack('Bu sabit odeme $periodLabel donemi icin zaten kaydedildi.');
+      return;
+    }
 
     setState(() {
       _isSaving = true;
@@ -231,6 +285,7 @@ class _FixedPaymentEntryScreenState extends State<FixedPaymentEntryScreen> {
         amount: amount,
         date: _selectedDate,
         description: _descriptionController.text,
+        expensePlanId: _subscriptionMarker(payment.id),
       );
       if (!mounted) return;
       AppFeedback.saved();
@@ -423,7 +478,11 @@ class _FixedPaymentEntryScreenState extends State<FixedPaymentEntryScreen> {
                       ),
                       const SizedBox(height: 12),
                       InkWell(
-                        onTap: _pickDate,
+                        onTap: () async {
+                          await _pickDate();
+                          if (!mounted) return;
+                          _refreshAvailablePayments();
+                        },
                         child: InputDecorator(
                           decoration: const InputDecoration(
                             labelText: 'Tarih',
@@ -433,6 +492,22 @@ class _FixedPaymentEntryScreenState extends State<FixedPaymentEntryScreen> {
                         ),
                       ),
                       const SizedBox(height: 12),
+                      if (_payments.isEmpty)
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: context.surfaceDecoration(
+                            accent: Colors.green,
+                            fillColor: Colors.green.withValues(alpha: 0.10),
+                          ),
+                          child: Text(
+                            'Secili donem icin odeme bekleyen sabit fatura bulunmuyor.',
+                            style: TextStyle(
+                              color: colorScheme.onSurface,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      if (_payments.isNotEmpty) const SizedBox(height: 12),
                       TextFormField(
                         controller: _descriptionController,
                         textCapitalization: TextCapitalization.words,
@@ -446,7 +521,11 @@ class _FixedPaymentEntryScreenState extends State<FixedPaymentEntryScreen> {
                       const SizedBox(height: 20),
                       ElevatedButton.icon(
                         onPressed:
-                            _isSaving || _liveBalanceWarning() != null ? null : _save,
+                            _isSaving ||
+                                    _liveBalanceWarning() != null ||
+                                    _payments.isEmpty
+                                ? null
+                                : _save,
                         icon: const Icon(Icons.payments_outlined),
                         label: Text(_isSaving ? 'Kaydediliyor...' : 'Odemeyi Kaydet'),
                       ),

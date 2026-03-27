@@ -4,7 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 
 import '../models/cari_card.dart';
+import '../models/cari_transaction.dart';
+import '../services/account_service.dart';
 import '../services/cari_card_service.dart';
+import '../services/cari_transaction_service.dart';
 import '../services/tracked_crypto_service.dart';
 import '../services/tracked_currency_service.dart';
 import '../services/tracked_metal_service.dart';
@@ -96,6 +99,84 @@ class _CariCardsScreenState extends State<CariCardsScreen> {
     };
     final symbol = (c.foreignCode ?? '').trim();
     return symbol.isEmpty ? market : '$market • $symbol';
+  }
+
+  String _fmtAmount(double value) => value.toStringAsFixed(2);
+
+  String _fmtDateTime(DateTime value) {
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${two(value.day)}.${two(value.month)}.${value.year} '
+        '${two(value.hour)}:${two(value.minute)}';
+  }
+
+  Future<void> _openMovements(CariCard card) async {
+    final transactions = (await CariTransactionService.getAll())
+        .where((tx) => tx.cariCardId == card.id)
+        .toList()
+      ..sort((a, b) => b.date.compareTo(a.date));
+    final accounts = await AccountService.getAllAccounts();
+    final accountNames = {for (final account in accounts) account.id: account.name};
+    if (!mounted) return;
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return SafeArea(
+          child: SizedBox(
+            height: MediaQuery.of(ctx).size.height * 0.72,
+            child: Column(
+              children: [
+                ListTile(
+                  title: Text(
+                    _label(card),
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  subtitle: Text('${transactions.length} hareket'),
+                ),
+                const Divider(height: 1),
+                Expanded(
+                  child: transactions.isEmpty
+                      ? const Center(
+                          child: Text('Bu cari kart için hareket bulunamadı.'),
+                        )
+                      : ListView.separated(
+                          itemCount: transactions.length,
+                          separatorBuilder: (_, __) => const Divider(height: 1),
+                          itemBuilder: (_, i) {
+                            final tx = transactions[i];
+                            final isCollection = tx.type == 'collection';
+                            final accountName =
+                                accountNames[tx.accountId] ?? 'Hesap #${tx.accountId}';
+
+                            return ListTile(
+                              leading: Icon(
+                                isCollection ? Icons.arrow_downward : Icons.arrow_upward,
+                                color: isCollection ? Colors.green : Colors.red,
+                              ),
+                              title: Text(isCollection ? 'Gelen' : 'Giden'),
+                              subtitle: Text(
+                                '${_fmtDateTime(tx.date)} • $accountName\n'
+                                'Açıklama: ${(tx.description ?? '').trim().isEmpty ? '-' : tx.description!.trim()}',
+                              ),
+                              isThreeLine: true,
+                              trailing: Text(
+                                '${isCollection ? '+' : '-'}${_fmtAmount(tx.amount)} TL',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: isCollection ? Colors.green : Colors.red,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   // Ekleme ve duzenleme akislarini ayni dialog uzerinden yurutur.
@@ -468,55 +549,81 @@ class _CariCardsScreenState extends State<CariCardsScreen> {
               itemCount: cards.length,
               itemBuilder: (context, index) {
                 final c = cards[index];
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 10),
-                  decoration: context.surfaceDecoration(
-                    accent: accent,
-                    fillColor: c.isActive
-                        ? context.softAccent(accent, 0.06)
-                        : Colors.white,
-                  ),
-                  child: ListTile(
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 10,
+                return Dismissible(
+                  key: ValueKey('cari-card-${c.id}'),
+                  direction: DismissDirection.endToStart,
+                  confirmDismiss: (_) async {
+                    await _openMovements(c);
+                    return false;
+                  },
+                  background: Container(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    alignment: Alignment.centerRight,
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    decoration: BoxDecoration(
+                      color: Colors.deepPurple.shade100,
+                      borderRadius: BorderRadius.circular(24),
                     ),
-                    leading: CircleAvatar(
-                      backgroundColor: context.softAccent(accent),
-                      backgroundImage:
-                          c.photoBytes != null ? MemoryImage(Uint8List.fromList(c.photoBytes!)) : null,
-                      child: c.photoBytes == null ? Icon(_icon(c.type), color: accent) : null,
-                    ),
-                    title: Text(
-                      _label(c),
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        decoration: c.isActive ? null : TextDecoration.lineThrough,
-                      ),
-                    ),
-                    subtitle: Text(
-                      '${c.type == 'company' ? 'Firma' : 'Kişi'} • ${_currencySummary(c)}',
-                      style: TextStyle(color: colorScheme.onSurfaceVariant),
-                    ),
-                    trailing: PopupMenuButton<String>(
-                      icon: const Icon(Icons.more_horiz, color: accent),
-                      onSelected: (value) async {
-                        if (value == 'edit') {
-                          _openDialog(edit: c);
-                        } else if (value == 'toggle') {
-                          await _toggle(c);
-                        }
-                      },
-                      itemBuilder: (_) => [
-                        const PopupMenuItem(
-                          value: 'edit',
-                          child: Text('Düzenle'),
-                        ),
-                        PopupMenuItem(
-                          value: 'toggle',
-                          child: Text(c.isActive ? 'Pasif Yap' : 'Aktif Yap'),
-                        ),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        Icon(Icons.chevron_left),
+                        SizedBox(width: 8),
+                        Text('Hareketleri Aç'),
                       ],
+                    ),
+                  ),
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    decoration: context.surfaceDecoration(
+                      accent: accent,
+                      fillColor: c.isActive
+                          ? context.softAccent(accent, 0.06)
+                          : Colors.white,
+                    ),
+                    child: ListTile(
+                      onTap: () => _openMovements(c),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 10,
+                      ),
+                      leading: CircleAvatar(
+                        backgroundColor: context.softAccent(accent),
+                        backgroundImage:
+                            c.photoBytes != null ? MemoryImage(Uint8List.fromList(c.photoBytes!)) : null,
+                        child: c.photoBytes == null ? Icon(_icon(c.type), color: accent) : null,
+                      ),
+                      title: Text(
+                        _label(c),
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          decoration: c.isActive ? null : TextDecoration.lineThrough,
+                        ),
+                      ),
+                      subtitle: Text(
+                        '${c.type == 'company' ? 'Firma' : 'Kişi'} • ${_currencySummary(c)}',
+                        style: TextStyle(color: colorScheme.onSurfaceVariant),
+                      ),
+                      trailing: PopupMenuButton<String>(
+                        icon: const Icon(Icons.more_horiz, color: accent),
+                        onSelected: (value) async {
+                          if (value == 'edit') {
+                            _openDialog(edit: c);
+                          } else if (value == 'toggle') {
+                            await _toggle(c);
+                          }
+                        },
+                        itemBuilder: (_) => [
+                          const PopupMenuItem(
+                            value: 'edit',
+                            child: Text('Düzenle'),
+                          ),
+                          PopupMenuItem(
+                            value: 'toggle',
+                            child: Text(c.isActive ? 'Pasif Yap' : 'Aktif Yap'),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 );
