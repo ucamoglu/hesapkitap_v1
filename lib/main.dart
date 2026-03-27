@@ -912,6 +912,79 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
+  Future<void> _openQuickActionSheet() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 6, 16, 18),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Yeni Islem',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Kaydetmek istedigin islemi sec.',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    _quickSheetAction(
+                      icon: Icons.swap_horiz,
+                      label: 'Transfer',
+                      color: Colors.blue,
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        _openTransferEntry();
+                      },
+                    ),
+                    _quickSheetAction(
+                      icon: Icons.handshake,
+                      label: 'Cari',
+                      color: Colors.orange,
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        _openCariEntry();
+                      },
+                    ),
+                    _quickSheetAction(
+                      icon: Icons.trending_up,
+                      label: 'Yatirim',
+                      color: AppColors.brand,
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        _openInvestmentEntry();
+                      },
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   void _openAboutDialog() {
     Navigator.pop(context);
     Future<void>.delayed(const Duration(milliseconds: 120), () {
@@ -1617,10 +1690,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
       bottomNavigationBar: SafeArea(
         top: false,
         child: Container(
-          height: 82,
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          height: 92,
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.96),
+            color: Colors.white.withValues(alpha: 0.97),
             border: Border(
               top: BorderSide(
                 color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.16),
@@ -1637,27 +1710,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           child: Row(
             children: [
               Expanded(
-                child: _quickActionItem(
-                  icon: Icons.swap_horiz,
-                  label: 'Transfer',
-                  color: Colors.blue,
-                  onTap: _openTransferEntry,
-                ),
-              ),
-              Expanded(
-                child: _quickActionItem(
-                  icon: Icons.handshake,
-                  label: 'Cari',
-                  color: Colors.orange,
-                  onTap: _openCariEntry,
-                ),
-              ),
-              Expanded(
-                child: _quickActionItem(
-                  icon: Icons.trending_up,
-                  label: 'Yatırım',
-                  color: AppColors.brand,
-                  onTap: _openInvestmentEntry,
+                child: _quickActionFabItem(
+                  onTap: _openQuickActionSheet,
                 ),
               ),
               Expanded(
@@ -1728,8 +1782,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 const SizedBox(height: 10),
                 _buildPlannedTodayCard(),
               ],
-              const SizedBox(height: 14),
-              _buildActionHintCard(),
             ],
           ),
         ),
@@ -2857,37 +2909,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildActionHintCard() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.18),
-        ),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            Icons.tips_and_updates_outlined,
-            color: Theme.of(context).colorScheme.primary,
-          ),
-          const SizedBox(width: 10),
-          const Expanded(
-            child: Text(
-              'Alt çubuktan Gelir/Gider/Transfer işlemlerini hızlıca başlatabilirsin.',
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                color: Colors.black87,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildSubscriptionPaymentCard() {
     final hasDueSubscriptions = dueSubscriptionCount > 0;
     final colorScheme = Theme.of(context).colorScheme;
@@ -3156,6 +3177,110 @@ class _DashboardScreenState extends State<DashboardScreen> {
               label,
               style: TextStyle(
                 color: color,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _quickSheetAction({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return SizedBox(
+      width: (MediaQuery.of(context).size.width - 56) / 2,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(22),
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: color.withValues(alpha: 0.18)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.75),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(icon, color: color),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      color: color,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _quickActionFabItem({
+    required VoidCallback onTap,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return InkWell(
+      borderRadius: BorderRadius.circular(18),
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 2),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    colorScheme.primary,
+                    colorScheme.secondary,
+                  ],
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: colorScheme.primary.withValues(alpha: 0.22),
+                    blurRadius: 14,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+              ),
+              child: Icon(
+                Icons.add,
+                color: colorScheme.onPrimary,
+                size: 26,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Islem',
+              style: TextStyle(
+                color: colorScheme.primary,
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
               ),
