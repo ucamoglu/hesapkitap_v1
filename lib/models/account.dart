@@ -15,6 +15,8 @@ class Account {
   String? bankSubtype;
   // Kredi kartinin odemesinin yapilacagi bagli banka hesabi.
   int? linkedBankAccountId;
+  // Banka hesabinin kullanabilecegi eksi limit.
+  double overdraftLimit = 0;
   // Kredi karti icin hesap kesim gunu.
   int? statementDay;
   // Kredi karti icin son odeme gunu.
@@ -45,4 +47,16 @@ class Account {
 
   bool get isCreditCard =>
       type == 'bank' && effectiveBankSubtype == 'credit_card';
+
+  bool get supportsOverdraft =>
+      type == 'bank' && effectiveBankSubtype == 'bank_account';
+
+  double get effectiveOverdraftLimit =>
+      supportsOverdraft && overdraftLimit > 0 ? overdraftLimit : 0;
+
+  bool canWithdraw(double amount) {
+    if (amount <= 0) return true;
+    if (isCreditCard) return true;
+    return balance + effectiveOverdraftLimit + 1e-9 >= amount;
+  }
 }

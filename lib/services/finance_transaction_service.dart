@@ -57,7 +57,7 @@ class FinanceTransactionService {
     if (amount <= 0) {
       throw Exception('Gider tutarı sıfırdan büyük olmalıdır.');
     }
-    if (!account.isCreditCard && account.balance + 1e-9 < amount) {
+    if (!account.canWithdraw(amount)) {
       throw Exception('Hesap bakiyesi gider tutarı için yetersiz.');
     }
     account.balance -= amount;
@@ -195,7 +195,7 @@ class FinanceTransactionService {
       if (amount <= 0) {
         throw Exception('Gider tutarı sıfırdan büyük olmalıdır.');
       }
-      if (!account.isCreditCard && account.balance + 1e-9 < amount) {
+      if (!account.canWithdraw(amount)) {
         throw Exception('Hesap bakiyesi gider tutarı için yetersiz.');
       }
 

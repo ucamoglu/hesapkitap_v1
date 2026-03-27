@@ -16,6 +16,7 @@ import '../services/location_consent_service.dart';
 import '../services/transaction_location_service.dart';
 import '../services/transaction_attachment_service.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_theme_helpers.dart';
 import '../utils/app_feedback.dart';
 import '../utils/camera_support.dart';
 import '../utils/navigation_helpers.dart';
@@ -385,7 +386,7 @@ class _ExpenseEntryScreenState extends State<ExpenseEntryScreen> {
     if (account.isCreditCard) {
       return null;
     }
-    if (account.balance + 1e-9 < amount) {
+    if (!account.canWithdraw(amount)) {
       return 'Bu gider mevcut hesap bakiyesini aşıyor.';
     }
     return null;
@@ -496,14 +497,11 @@ class _ExpenseEntryScreenState extends State<ExpenseEntryScreen> {
     );
     return Container(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: hasWarning ? const Color(0xFFFFF4E5) : AppColors.expenseSoft,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: hasWarning
-              ? const Color(0xFFE09F3E)
-              : AppColors.expense.withValues(alpha: 0.22),
-        ),
+      decoration: context.surfaceDecoration(
+        accent: hasWarning ? Colors.orange : AppColors.expense,
+        fillColor: hasWarning
+            ? Colors.orange.withValues(alpha: 0.12)
+            : context.softAccent(AppColors.expense, 0.10),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -519,6 +517,10 @@ class _ExpenseEntryScreenState extends State<ExpenseEntryScreen> {
                   '→ ${_fmtAmount(projectedCardDebt)} TL'
               : 'Hesap bakiyesi: ${_fmtAmount(account.balance)} TL '
                   '→ ${_fmtAmount(projectedBalance)} TL'),
+          if (!isCreditCard && account.effectiveOverdraftLimit > 0)
+            Text(
+              'Ek hesap limiti: ${_fmtAmount(account.effectiveOverdraftLimit)} TL',
+            ),
           if (isCreditCard)
             const Text(
               'Bu işlem ilgili hesap ekstresine borç olarak yansıtılacaktır.',

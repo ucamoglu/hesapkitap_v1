@@ -6,6 +6,8 @@ import 'package:intl/intl.dart';
 import '../database/isar_service.dart';
 import '../models/user_profile.dart';
 import '../services/user_profile_service.dart';
+import '../theme/app_theme.dart';
+import '../theme/app_theme_controller.dart';
 import '../utils/camera_support.dart';
 import '../utils/navigation_helpers.dart';
 import '../utils/tr_phone_input_formatter.dart';
@@ -33,6 +35,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   DateTime? _birthDate;
   Uint8List? _photoBytes;
+  String _themeKey = UserProfile.defaultThemeKey;
+  String _fanTeamKey = UserProfile.defaultFanTeamKey;
   bool _loading = true;
   bool _saving = false;
   bool _resetting = false;
@@ -70,6 +74,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _photoBytes = profile.photoBytes == null
             ? null
             : Uint8List.fromList(profile.photoBytes!);
+        _themeKey = AppTheme.normalizeKey(profile.themeKey);
+        _fanTeamKey = AppTheme.normalizeFanTeamKey(profile.fanTeamKey);
       }
     } catch (_) {
       if (!mounted) return;
@@ -197,10 +203,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ..birthDate = _birthDate
       ..email = _emailController.text.trim()
       ..phone = _phoneController.text.replaceAll(RegExp(r'[^0-9]'), '')
+      ..fanTeamKey = _fanTeamKey
+      ..themeKey = _themeKey
       ..photoBytes = _photoBytes?.toList();
 
     try {
       await UserProfileService.save(profile);
+      await AppThemeController.instance.applyTheme(
+        _themeKey,
+        fanTeamKey: _fanTeamKey,
+      );
       if (!mounted) return;
       Navigator.pop(context, true);
     } catch (e) {
@@ -232,6 +244,191 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildThemeSelector(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Tema',
+          style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'Uygulamanin genel gorunumunu profilinden degistirebilirsin.',
+          style: textTheme.bodyMedium?.copyWith(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Column(
+          children: AppTheme.options
+              .map((option) => _buildThemeOptionCard(context, option))
+              .toList(),
+        ),
+        if (_themeKey == AppTheme.fanThemeKey) ...[
+          const SizedBox(height: 8),
+          DropdownButtonFormField<String>(
+            initialValue: _fanTeamKey,
+            decoration: const InputDecoration(
+              labelText: 'Takım Seçimi',
+            ),
+            items: AppTheme.fanTeams
+                .map(
+                  (team) => DropdownMenuItem<String>(
+                    value: team.key,
+                    child: Text(team.name),
+                  ),
+                )
+                .toList(),
+            onChanged: (value) {
+              if (value == null) return;
+              setState(() {
+                _fanTeamKey = value;
+              });
+            },
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildThemeOptionCard(BuildContext context, AppThemeOption option) {
+    final isSelected = _themeKey == option.key;
+    final displaySeedColor = option.requiresFanTeam
+        ? AppTheme.fanTeamFor(_fanTeamKey).seedColor
+        : option.seedColor;
+    final displayGradient = option.requiresFanTeam
+        ? AppTheme.fanTeamFor(_fanTeamKey).heroGradient
+        : option.heroGradient;
+    final displayAccentColor = option.requiresFanTeam
+        ? AppTheme.fanTeamFor(_fanTeamKey).accentColor
+        : option.accentColor;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(22),
+        onTap: () {
+          setState(() {
+            _themeKey = option.key;
+            if (option.requiresFanTeam) {
+              _fanTeamKey = AppTheme.normalizeFanTeamKey(_fanTeamKey);
+            }
+          });
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(
+              color: isSelected
+                  ? displaySeedColor
+                  : displaySeedColor.withValues(alpha: 0.12),
+              width: isSelected ? 1.4 : 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: displaySeedColor.withValues(alpha: isSelected ? 0.16 : 0.08),
+                blurRadius: isSelected ? 20 : 12,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 54,
+                height: 54,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(colors: displayGradient),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: Icon(option.icon, color: Colors.white),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      option.name,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      option.description,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurfaceVariant,
+                          ),
+                    ),
+                    if (option.requiresFanTeam) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        'Takım: ${AppTheme.fanTeamFor(_fanTeamKey).name}',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: displaySeedColor,
+                              fontWeight: FontWeight.w700,
+                            ),
+                      ),
+                    ],
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        for (final color in displayGradient) ...[
+                          _buildColorSwatch(color),
+                          const SizedBox(width: 6),
+                        ],
+                        _buildColorSwatch(displayAccentColor),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                width: 26,
+                height: 26,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: isSelected ? displaySeedColor : Colors.transparent,
+                  border: Border.all(
+                    color: isSelected
+                        ? displaySeedColor
+                        : displaySeedColor.withValues(alpha: 0.30),
+                    width: 1.4,
+                  ),
+                ),
+                child: isSelected
+                    ? const Icon(Icons.check, size: 16, color: Colors.white)
+                    : null,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildColorSwatch(Color color) {
+    return Container(
+      width: 18,
+      height: 18,
+      decoration: BoxDecoration(
+        color: color,
+        shape: BoxShape.circle,
       ),
     );
   }
@@ -464,6 +661,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           return null;
                         },
                       ),
+                      const SizedBox(height: 18),
+                      _buildThemeSelector(context),
                       const SizedBox(height: 16),
                       SizedBox(
                         width: double.infinity,

@@ -10,6 +10,7 @@ import '../services/account_service.dart';
 import '../services/cari_card_service.dart';
 import '../services/cari_transaction_service.dart';
 import '../services/transaction_attachment_service.dart';
+import '../theme/app_theme_helpers.dart';
 import '../utils/app_feedback.dart';
 import '../utils/camera_support.dart';
 import '../utils/navigation_helpers.dart';
@@ -344,12 +345,11 @@ class _CariAccountScreenState extends State<CariAccountScreen> {
 
     return Container(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: hasWarning ? const Color(0xFFFFF4E5) : const Color(0xFFF6F8FB),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: hasWarning ? const Color(0xFFE09F3E) : Colors.black12,
-        ),
+      decoration: context.surfaceDecoration(
+        accent: hasWarning ? Colors.orange : Theme.of(context).colorScheme.primary,
+        fillColor: hasWarning
+            ? Colors.orange.withValues(alpha: 0.12)
+            : Theme.of(context).colorScheme.primary.withValues(alpha: 0.06),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

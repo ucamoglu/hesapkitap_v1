@@ -8,6 +8,7 @@ import '../models/expense_plan.dart';
 import '../models/finance_transaction.dart';
 import '../models/income_plan.dart';
 import '../models/investment_transaction.dart';
+import '../models/subscription_definition.dart';
 import '../screens/cari_account_screen.dart';
 import '../screens/expense_entry_screen.dart';
 import '../screens/income_entry_screen.dart';
@@ -21,7 +22,9 @@ import '../services/finance_transaction_service.dart';
 import '../services/income_category_service.dart';
 import '../services/income_plan_service.dart';
 import '../services/investment_transaction_service.dart';
+import '../services/subscription_definition_service.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_theme_helpers.dart';
 import '../utils/navigation_helpers.dart';
 import '../utils/planning_standard.dart';
 
@@ -43,6 +46,9 @@ class _CalendarTransactionsScreenState
   List<FinanceTransaction> _all = [];
   List<IncomePlan> _plans = [];
   List<ExpensePlan> _expensePlans = [];
+  List<SubscriptionDefinition> _subscriptions = [];
+  List<_IncomePlanOccurrence> _incomePlanOccurrences = [];
+  List<_ExpensePlanOccurrence> _expensePlanOccurrences = [];
   final LinkedHashMap<DateTime, int> _txCountByDay =
       LinkedHashMap<DateTime, int>(
     equals: isSameDay,
@@ -54,6 +60,11 @@ class _CalendarTransactionsScreenState
     hashCode: _getHashCode,
   );
   final LinkedHashMap<DateTime, int> _expensePlanCountByDay =
+      LinkedHashMap<DateTime, int>(
+    equals: isSameDay,
+    hashCode: _getHashCode,
+  );
+  final LinkedHashMap<DateTime, int> _subscriptionCountByDay =
       LinkedHashMap<DateTime, int>(
     equals: isSameDay,
     hashCode: _getHashCode,
@@ -93,6 +104,7 @@ class _CalendarTransactionsScreenState
       final investmentTx = await InvestmentTransactionService.getAll();
       final plans = await IncomePlanService.getAll();
       final expensePlans = await ExpensePlanService.getAll();
+      final subscriptions = await SubscriptionDefinitionService.getAll();
 
       if (!mounted) return;
 
@@ -111,38 +123,30 @@ class _CalendarTransactionsScreenState
         final dayKey = DateTime(t.date.year, t.date.month, t.date.day);
         txCounts[dayKey] = (txCounts[dayKey] ?? 0) + 1;
       }
-      final planCounts = LinkedHashMap<DateTime, int>(
-        equals: isSameDay,
-        hashCode: _getHashCode,
-      );
-      for (final p in plans.where((e) => e.isActive)) {
-        final dayKey = DateTime(
-            p.nextDueDate.year, p.nextDueDate.month, p.nextDueDate.day);
-        planCounts[dayKey] = (planCounts[dayKey] ?? 0) + 1;
-      }
-      final expensePlanCounts = LinkedHashMap<DateTime, int>(
-        equals: isSameDay,
-        hashCode: _getHashCode,
-      );
-      for (final p in expensePlans.where((e) => e.isActive)) {
-        final dayKey = DateTime(
-            p.nextDueDate.year, p.nextDueDate.month, p.nextDueDate.day);
-        expensePlanCounts[dayKey] = (expensePlanCounts[dayKey] ?? 0) + 1;
-      }
+      final activeSubscriptions =
+          subscriptions.where((item) => item.isActive).toList();
+      final activePlans = plans.where((e) => e.isActive).toList();
+      final activeExpensePlans = expensePlans.where((e) => e.isActive).toList();
 
       setState(() {
         _all = merged;
-        _plans = plans.where((e) => e.isActive).toList();
-        _expensePlans = expensePlans.where((e) => e.isActive).toList();
+        _plans = activePlans;
+        _expensePlans = activeExpensePlans;
+        _subscriptions = activeSubscriptions;
+        _incomePlanOccurrences = _buildIncomePlanOccurrences(_focusedDay);
+        _expensePlanOccurrences = _buildExpensePlanOccurrences(_focusedDay);
         _txCountByDay
           ..clear()
           ..addAll(txCounts);
         _planCountByDay
           ..clear()
-          ..addAll(planCounts);
+          ..addAll(_buildIncomePlanCounts(_focusedDay));
         _expensePlanCountByDay
           ..clear()
-          ..addAll(expensePlanCounts);
+          ..addAll(_buildExpensePlanCounts(_focusedDay));
+        _subscriptionCountByDay
+          ..clear()
+          ..addAll(_buildSubscriptionCounts(_focusedDay));
         _accountNames = {for (final a in accounts) a.id: a.name};
         _incomeCategoryNames = {for (final c in incomeCategories) c.id: c.name};
         _expenseCategoryNames = {
@@ -188,24 +192,33 @@ class _CalendarTransactionsScreenState
   bool _isCariCollection(FinanceTransaction tx) =>
       _cariRawTypeByTxId[tx.id] == 'collection';
 
-  List<IncomePlan> _selectedDayPlans() {
-    final list =
-        _plans.where((p) => isSameDay(p.nextDueDate, _selectedDate)).toList();
-    list.sort((a, b) => a.nextDueDate.compareTo(b.nextDueDate));
+  List<_IncomePlanOccurrence> _selectedDayIncomeOccurrences() {
+    final list = _incomePlanOccurrences
+        .where((item) => isSameDay(item.date, _selectedDate))
+        .toList();
+    list.sort((a, b) => a.date.compareTo(b.date));
     return list;
   }
 
-  List<ExpensePlan> _selectedDayExpensePlans() {
-    final list = _expensePlans
-        .where((p) => isSameDay(p.nextDueDate, _selectedDate))
+  List<_ExpensePlanOccurrence> _selectedDayExpenseOccurrences() {
+    final list = _expensePlanOccurrences
+        .where((item) => isSameDay(item.date, _selectedDate))
         .toList();
-    list.sort((a, b) => a.nextDueDate.compareTo(b.nextDueDate));
+    list.sort((a, b) => a.date.compareTo(b.date));
     return list;
   }
 
   List<FinanceTransaction> _selectedDayTransactions() {
     final list = _all.where((tx) => isSameDay(tx.date, _selectedDate)).toList();
     list.sort((a, b) => b.date.compareTo(a.date));
+    return list;
+  }
+
+  List<SubscriptionDefinition> _selectedDaySubscriptions() {
+    final list = _subscriptions.where((item) {
+      return _subscriptionOccursOnDate(item, _selectedDate);
+    }).toList();
+    list.sort((a, b) => a.name.compareTo(b.name));
     return list;
   }
 
@@ -305,6 +318,214 @@ class _CalendarTransactionsScreenState
       frequency: plan.frequency,
       reminderMinutesBefore: plan.reminderMinutesBefore,
     );
+  }
+
+  DateTime _windowStart(DateTime focusedDay) {
+    return DateTime(focusedDay.year, focusedDay.month - 12, 1);
+  }
+
+  DateTime _windowEnd(DateTime focusedDay) {
+    return DateTime(focusedDay.year, focusedDay.month + 13, 0, 23, 59, 59, 999);
+  }
+
+  List<_IncomePlanOccurrence> _buildIncomePlanOccurrences(DateTime focusedDay) {
+    final occurrences = <_IncomePlanOccurrence>[];
+    final start = _windowStart(focusedDay);
+    final end = _windowEnd(focusedDay);
+    for (final plan in _plans.where((p) => p.isActive)) {
+      occurrences.addAll(_generateIncomeOccurrences(plan, start, end));
+    }
+    return occurrences;
+  }
+
+  List<_ExpensePlanOccurrence> _buildExpensePlanOccurrences(DateTime focusedDay) {
+    final occurrences = <_ExpensePlanOccurrence>[];
+    final start = _windowStart(focusedDay);
+    final end = _windowEnd(focusedDay);
+    for (final plan in _expensePlans.where((p) => p.isActive)) {
+      occurrences.addAll(_generateExpenseOccurrences(plan, start, end));
+    }
+    return occurrences;
+  }
+
+  List<_IncomePlanOccurrence> _generateIncomeOccurrences(
+    IncomePlan plan,
+    DateTime start,
+    DateTime end,
+  ) {
+    final result = <_IncomePlanOccurrence>[];
+    final inclusiveEnd = plan.endDate == null
+        ? null
+        : DateTime(
+            plan.endDate!.year,
+            plan.endDate!.month,
+            plan.endDate!.day,
+            23,
+            59,
+            59,
+            999,
+          );
+    var current = plan.nextDueDate;
+    while (!current.isAfter(end)) {
+      if (inclusiveEnd != null && current.isAfter(inclusiveEnd)) {
+        break;
+      }
+      if (!current.isBefore(start)) {
+        result.add(
+          _IncomePlanOccurrence(
+            plan: plan,
+            date: current,
+            isActionable: isSameDay(current, plan.nextDueDate),
+          ),
+        );
+      }
+      if (plan.periodType == 'once') {
+        break;
+      }
+      current = PlanningStandard.nextOccurrence(
+        from: current,
+        periodType: plan.periodType,
+        frequency: plan.frequency,
+      );
+    }
+    return result;
+  }
+
+  List<_ExpensePlanOccurrence> _generateExpenseOccurrences(
+    ExpensePlan plan,
+    DateTime start,
+    DateTime end,
+  ) {
+    final result = <_ExpensePlanOccurrence>[];
+    final inclusiveEnd = plan.endDate == null
+        ? null
+        : DateTime(
+            plan.endDate!.year,
+            plan.endDate!.month,
+            plan.endDate!.day,
+            23,
+            59,
+            59,
+            999,
+          );
+    var current = plan.nextDueDate;
+    while (!current.isAfter(end)) {
+      if (inclusiveEnd != null && current.isAfter(inclusiveEnd)) {
+        break;
+      }
+      if (!current.isBefore(start)) {
+        result.add(
+          _ExpensePlanOccurrence(
+            plan: plan,
+            date: current,
+            isActionable: isSameDay(current, plan.nextDueDate),
+          ),
+        );
+      }
+      if (plan.periodType == 'once') {
+        break;
+      }
+      current = PlanningStandard.nextOccurrence(
+        from: current,
+        periodType: plan.periodType,
+        frequency: plan.frequency,
+      );
+    }
+    return result;
+  }
+
+  LinkedHashMap<DateTime, int> _buildIncomePlanCounts(DateTime focusedDay) {
+    final counts = LinkedHashMap<DateTime, int>(
+      equals: isSameDay,
+      hashCode: _getHashCode,
+    );
+    for (final item in _buildIncomePlanOccurrences(focusedDay)) {
+      final dayKey = DateTime(item.date.year, item.date.month, item.date.day);
+      counts[dayKey] = (counts[dayKey] ?? 0) + 1;
+    }
+    return counts;
+  }
+
+  LinkedHashMap<DateTime, int> _buildExpensePlanCounts(DateTime focusedDay) {
+    final counts = LinkedHashMap<DateTime, int>(
+      equals: isSameDay,
+      hashCode: _getHashCode,
+    );
+    for (final item in _buildExpensePlanOccurrences(focusedDay)) {
+      final dayKey = DateTime(item.date.year, item.date.month, item.date.day);
+      counts[dayKey] = (counts[dayKey] ?? 0) + 1;
+    }
+    return counts;
+  }
+
+  DateTime _subscriptionDueDateForMonth(
+    SubscriptionDefinition item,
+    DateTime month,
+  ) {
+    final year = month.year;
+    final monthValue = month.month;
+    if (item.duePeriod == 'yearly' && item.dueDay != null) {
+      final dueMonth = item.dueMonth ?? monthValue;
+      final lastDay = DateUtils.getDaysInMonth(year, dueMonth);
+      final day = item.dueDay!.clamp(1, lastDay);
+      return DateTime(year, dueMonth, day);
+    }
+    if (item.dueDay != null) {
+      final lastDay = DateUtils.getDaysInMonth(year, monthValue);
+      final day = item.dueDay!.clamp(1, lastDay);
+      return DateTime(year, monthValue, day);
+    }
+    return _lastBusinessDayOfMonth(year, monthValue);
+  }
+
+  bool _subscriptionOccursOnDate(SubscriptionDefinition item, DateTime date) {
+    final dueDate = _subscriptionDueDateForMonth(item, date);
+    return isSameDay(dueDate, date);
+  }
+
+  DateTime _lastBusinessDayOfMonth(int year, int month) {
+    var date = DateTime(year, month + 1, 0);
+    while (date.weekday == DateTime.saturday ||
+        date.weekday == DateTime.sunday) {
+      date = date.subtract(const Duration(days: 1));
+    }
+    return DateTime(year, month, date.day);
+  }
+
+  LinkedHashMap<DateTime, int> _buildSubscriptionCounts(DateTime focusedDay) {
+    final counts = LinkedHashMap<DateTime, int>(
+      equals: isSameDay,
+      hashCode: _getHashCode,
+    );
+    final startMonth = DateTime(focusedDay.year, focusedDay.month - 12);
+    final endMonth = DateTime(focusedDay.year, focusedDay.month + 12);
+    for (final item in _subscriptions) {
+      for (var month = DateTime(startMonth.year, startMonth.month);
+          !month.isAfter(endMonth);
+          month = DateTime(month.year, month.month + 1)) {
+        if (item.duePeriod == 'yearly' &&
+            item.dueDay != null &&
+            item.dueMonth != null &&
+            item.dueMonth != month.month) {
+          continue;
+        }
+        final dueDate = _subscriptionDueDateForMonth(item, month);
+        counts[dueDate] = (counts[dueDate] ?? 0) + 1;
+      }
+    }
+    return counts;
+  }
+
+  String _subscriptionTimingLabel(SubscriptionDefinition item, DateTime month) {
+    if (item.duePeriod == 'yearly' &&
+        item.dueDay != null &&
+        item.dueMonth != null) {
+      return 'Her yil: ${_fmtDate(_subscriptionDueDateForMonth(item, month))}';
+    }
+    if (item.dueDay != null) {
+      return 'Son odeme gunu: ${_fmtDate(_subscriptionDueDateForMonth(item, month))}';
+    }
+    return 'Bu ay son is gunu: ${_fmtDate(_subscriptionDueDateForMonth(item, month))}';
   }
 
   bool _isSyntheticInvestmentPnlTx(FinanceTransaction tx) {
@@ -622,9 +843,11 @@ class _CalendarTransactionsScreenState
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     final list = _selectedDayTransactions();
-    final dayPlans = _selectedDayPlans();
-    final dayExpensePlans = _selectedDayExpensePlans();
+    final dayPlans = _selectedDayIncomeOccurrences();
+    final dayExpensePlans = _selectedDayExpenseOccurrences();
+    final daySubscriptions = _selectedDaySubscriptions();
     final income = list
         .where((e) => e.type == 'income' && !_isInvestmentAssetTx(e))
         .fold<double>(0, (sum, e) => sum + e.amount);
@@ -661,7 +884,8 @@ class _CalendarTransactionsScreenState
                   children: [
                     _stableSection(
                       padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-                      child: Card(
+                      child: Container(
+                        decoration: context.surfaceDecoration(),
                         child: Padding(
                           padding: const EdgeInsets.all(8),
                           child: TableCalendar<String>(
@@ -677,21 +901,25 @@ class _CalendarTransactionsScreenState
                               final planCount = _planCountByDay[day] ?? 0;
                               final expensePlanCount =
                                   _expensePlanCountByDay[day] ?? 0;
+                              final subscriptionCount =
+                                  _subscriptionCountByDay[day] ?? 0;
                               result.addAll(List.filled(txCount, 'tx'));
                               result.addAll(List.filled(planCount, 'plan'));
                               result.addAll(List.filled(
                                   expensePlanCount, 'expense_plan'));
+                              result.addAll(List.filled(
+                                  subscriptionCount, 'subscription'));
                               return result;
                             },
                             startingDayOfWeek: StartingDayOfWeek.monday,
                             calendarStyle: CalendarStyle(
                               outsideDaysVisible: false,
-                              selectedDecoration: const BoxDecoration(
-                                color: Colors.deepPurple,
+                              selectedDecoration: BoxDecoration(
+                                color: colorScheme.primary,
                                 shape: BoxShape.circle,
                               ),
                               todayDecoration: BoxDecoration(
-                                color: Colors.deepPurple.shade200,
+                                color: colorScheme.primary.withValues(alpha: 0.30),
                                 shape: BoxShape.circle,
                               ),
                             ),
@@ -701,19 +929,30 @@ class _CalendarTransactionsScreenState
                                 final hasPlan = (_planCountByDay[day] ?? 0) > 0;
                                 final hasExpensePlan =
                                     (_expensePlanCountByDay[day] ?? 0) > 0;
-                                if (!hasTx && !hasPlan && !hasExpensePlan) {
+                                final hasSubscription =
+                                    (_subscriptionCountByDay[day] ?? 0) > 0;
+                                if (!hasTx &&
+                                    !hasPlan &&
+                                    !hasExpensePlan &&
+                                    !hasSubscription) {
                                   return null;
                                 }
-                                final borderColor = (hasPlan || hasExpensePlan)
+                                final borderColor =
+                                    (hasPlan || hasExpensePlan || hasSubscription)
                                     ? (hasExpensePlan
                                         ? Colors.red.shade400
-                                        : Colors.orange.shade500)
-                                    : Colors.deepPurple.shade300;
-                                final bgColor = (hasPlan || hasExpensePlan)
+                                        : hasSubscription
+                                            ? Colors.teal.shade500
+                                            : Colors.orange.shade500)
+                                    : colorScheme.primary.withValues(alpha: 0.75);
+                                final bgColor =
+                                    (hasPlan || hasExpensePlan || hasSubscription)
                                     ? (hasExpensePlan
                                         ? Colors.red.shade50
-                                        : Colors.orange.shade50)
-                                    : Colors.deepPurple.shade50;
+                                        : hasSubscription
+                                            ? Colors.teal.shade50
+                                            : Colors.orange.shade50)
+                                    : colorScheme.primary.withValues(alpha: 0.10);
                                 return Container(
                                   margin: const EdgeInsets.all(6),
                                   decoration: BoxDecoration(
@@ -734,7 +973,12 @@ class _CalendarTransactionsScreenState
                                 final hasPlan = events.contains('plan');
                                 final hasExpensePlan =
                                     events.contains('expense_plan');
-                                if (!hasTx && !hasPlan && !hasExpensePlan) {
+                                final hasSubscription =
+                                    events.contains('subscription');
+                                if (!hasTx &&
+                                    !hasPlan &&
+                                    !hasExpensePlan &&
+                                    !hasSubscription) {
                                   return const SizedBox.shrink();
                                 }
                                 return Padding(
@@ -747,7 +991,7 @@ class _CalendarTransactionsScreenState
                                           width: 6,
                                           height: 6,
                                           decoration: BoxDecoration(
-                                            color: Colors.deepPurple.shade400,
+                                            color: colorScheme.primary,
                                             shape: BoxShape.circle,
                                           ),
                                         ),
@@ -773,6 +1017,18 @@ class _CalendarTransactionsScreenState
                                             shape: BoxShape.circle,
                                           ),
                                         ),
+                                      if ((hasTx || hasPlan || hasExpensePlan) &&
+                                          hasSubscription)
+                                        const SizedBox(width: 3),
+                                      if (hasSubscription)
+                                        Container(
+                                          width: 6,
+                                          height: 6,
+                                          decoration: BoxDecoration(
+                                            color: Colors.teal.shade500,
+                                            shape: BoxShape.circle,
+                                          ),
+                                        ),
                                     ],
                                   ),
                                 );
@@ -785,7 +1041,22 @@ class _CalendarTransactionsScreenState
                               });
                             },
                             onPageChanged: (focusedDay) {
-                              _focusedDay = focusedDay;
+                              setState(() {
+                                _focusedDay = focusedDay;
+                                _incomePlanOccurrences =
+                                    _buildIncomePlanOccurrences(focusedDay);
+                                _expensePlanOccurrences =
+                                    _buildExpensePlanOccurrences(focusedDay);
+                                _planCountByDay
+                                  ..clear()
+                                  ..addAll(_buildIncomePlanCounts(focusedDay));
+                                _expensePlanCountByDay
+                                  ..clear()
+                                  ..addAll(_buildExpensePlanCounts(focusedDay));
+                                _subscriptionCountByDay
+                                  ..clear()
+                                  ..addAll(_buildSubscriptionCounts(focusedDay));
+                              });
                             },
                           ),
                         ),
@@ -831,11 +1102,76 @@ class _CalendarTransactionsScreenState
                       child: Align(
                         alignment: Alignment.centerLeft,
                         child: Text(
-                          '${_fmtDate(_selectedDate)} • ${list.length} hareket • ${dayPlans.length + dayExpensePlans.length} plan',
+                          '${_fmtDate(_selectedDate)} • ${list.length} hareket • ${dayPlans.length + dayExpensePlans.length} plan • ${daySubscriptions.length} sabit odeme',
                           style: const TextStyle(fontWeight: FontWeight.w600),
                         ),
                       ),
                     ),
+                    if (daySubscriptions.isNotEmpty)
+                      _stableSection(
+                        padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+                      child: Container(
+                          decoration: context.surfaceDecoration(
+                            accent: Colors.teal,
+                            fillColor: Colors.teal.shade50,
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(10),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Sabit Odemeler',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: colorScheme.primary,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                ...daySubscriptions.map(
+                                  (item) => Padding(
+                                    padding: const EdgeInsets.only(bottom: 8),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          '• ${item.name} • ${item.providerName}',
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          _subscriptionTimingLabel(
+                                            item,
+                                            _selectedDate,
+                                          ),
+                                          style: const TextStyle(
+                                            color: Colors.black54,
+                                          ),
+                                        ),
+                                        if (item.paymentType == 'fixed' &&
+                                            item.defaultAmount != null)
+                                          Text(
+                                            'Sabit tutar: ${_fmtAmount(item.defaultAmount!)} TL',
+                                            style: const TextStyle(
+                                              color: Colors.black54,
+                                            ),
+                                          )
+                                        else
+                                          const Text(
+                                            'Degisken tutarli sabit odeme',
+                                            style: TextStyle(
+                                              color: Colors.black54,
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
                     if (dayPlans.isNotEmpty)
                       _stableSection(
                         padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
@@ -852,43 +1188,61 @@ class _CalendarTransactionsScreenState
                                 ),
                                 const SizedBox(height: 6),
                                 ...dayPlans.map(
-                                  (p) => Padding(
+                                  (occurrence) => Padding(
                                     padding: const EdgeInsets.only(bottom: 8),
                                     child: Column(
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
                                       children: [
                                         Text(
-                                          '• ${_incomeCategoryNameById(p.incomeCategoryId)}'
-                                          ' • ${_fmtAmount(p.amount)} TL'
-                                          ' • ${_incomePlanSummary(p)}',
+                                          '• ${_incomeCategoryNameById(occurrence.plan.incomeCategoryId)}'
+                                          ' • ${_fmtAmount(occurrence.plan.amount)} TL'
+                                          ' • ${_incomePlanSummary(occurrence.plan)}'
+                                          ' • ${_fmtDate(occurrence.date)}',
                                         ),
-                                        const SizedBox(height: 6),
-                                        Wrap(
-                                          spacing: 6,
-                                          runSpacing: 6,
-                                          children: [
-                                            OutlinedButton(
-                                              style: OutlinedButton.styleFrom(
-                                                foregroundColor:
-                                                    AppColors.income,
-                                                side: const BorderSide(
-                                                  color: AppColors.income,
+                                        if (occurrence.isActionable) ...[
+                                          const SizedBox(height: 6),
+                                          Wrap(
+                                            spacing: 6,
+                                            runSpacing: 6,
+                                            children: [
+                                              OutlinedButton(
+                                                style: OutlinedButton.styleFrom(
+                                                  foregroundColor:
+                                                      AppColors.income,
+                                                  side: const BorderSide(
+                                                    color: AppColors.income,
+                                                  ),
                                                 ),
+                                                onPressed: () => _completePlan(
+                                                  occurrence.plan,
+                                                ),
+                                                child: const Text('Gerçekleşti'),
                                               ),
-                                              onPressed: () => _completePlan(p),
-                                              child: const Text('Gerçekleşti'),
+                                              OutlinedButton(
+                                                onPressed: () => _postponePlan(
+                                                  occurrence.plan,
+                                                ),
+                                                child: const Text('Ertele'),
+                                              ),
+                                              OutlinedButton(
+                                                onPressed: () => _cancelPlan(
+                                                  occurrence.plan,
+                                                ),
+                                                child: const Text('İptal Et'),
+                                              ),
+                                            ],
+                                          ),
+                                        ] else
+                                          const Padding(
+                                            padding: EdgeInsets.only(top: 6),
+                                            child: Text(
+                                              'Gelecek plan onizlemesi',
+                                              style: TextStyle(
+                                                color: Colors.black54,
+                                              ),
                                             ),
-                                            OutlinedButton(
-                                              onPressed: () => _postponePlan(p),
-                                              child: const Text('Ertele'),
-                                            ),
-                                            OutlinedButton(
-                                              onPressed: () => _cancelPlan(p),
-                                              child: const Text('İptal Et'),
-                                            ),
-                                          ],
-                                        ),
+                                          ),
                                       ],
                                     ),
                                   ),
@@ -914,46 +1268,64 @@ class _CalendarTransactionsScreenState
                                 ),
                                 const SizedBox(height: 6),
                                 ...dayExpensePlans.map(
-                                  (p) => Padding(
+                                  (occurrence) => Padding(
                                     padding: const EdgeInsets.only(bottom: 8),
                                     child: Column(
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
                                       children: [
                                         Text(
-                                          '• ${_expenseCategoryNameById(p.expenseCategoryId)}'
-                                          ' • ${_fmtAmount(p.amount)} TL'
-                                          ' • ${_expensePlanSummary(p)}',
+                                          '• ${_expenseCategoryNameById(occurrence.plan.expenseCategoryId)}'
+                                          ' • ${_fmtAmount(occurrence.plan.amount)} TL'
+                                          ' • ${_expensePlanSummary(occurrence.plan)}'
+                                          ' • ${_fmtDate(occurrence.date)}',
                                         ),
-                                        const SizedBox(height: 6),
-                                        Wrap(
-                                          spacing: 6,
-                                          runSpacing: 6,
-                                          children: [
-                                            OutlinedButton(
-                                              style: OutlinedButton.styleFrom(
-                                                foregroundColor:
-                                                    AppColors.expense,
-                                                side: const BorderSide(
-                                                  color: AppColors.expense,
+                                        if (occurrence.isActionable) ...[
+                                          const SizedBox(height: 6),
+                                          Wrap(
+                                            spacing: 6,
+                                            runSpacing: 6,
+                                            children: [
+                                              OutlinedButton(
+                                                style: OutlinedButton.styleFrom(
+                                                  foregroundColor:
+                                                      AppColors.expense,
+                                                  side: const BorderSide(
+                                                    color: AppColors.expense,
+                                                  ),
                                                 ),
+                                                onPressed: () =>
+                                                    _completeExpensePlan(
+                                                  occurrence.plan,
+                                                ),
+                                                child: const Text('Gerçekleşti'),
                                               ),
-                                              onPressed: () =>
-                                                  _completeExpensePlan(p),
-                                              child: const Text('Gerçekleşti'),
+                                              OutlinedButton(
+                                                onPressed: () =>
+                                                    _postponeExpensePlan(
+                                                  occurrence.plan,
+                                                ),
+                                                child: const Text('Ertele'),
+                                              ),
+                                              OutlinedButton(
+                                                onPressed: () =>
+                                                    _cancelExpensePlan(
+                                                  occurrence.plan,
+                                                ),
+                                                child: const Text('İptal Et'),
+                                              ),
+                                            ],
+                                          ),
+                                        ] else
+                                          const Padding(
+                                            padding: EdgeInsets.only(top: 6),
+                                            child: Text(
+                                              'Gelecek plan onizlemesi',
+                                              style: TextStyle(
+                                                color: Colors.black54,
+                                              ),
                                             ),
-                                            OutlinedButton(
-                                              onPressed: () =>
-                                                  _postponeExpensePlan(p),
-                                              child: const Text('Ertele'),
-                                            ),
-                                            OutlinedButton(
-                                              onPressed: () =>
-                                                  _cancelExpensePlan(p),
-                                              child: const Text('İptal Et'),
-                                            ),
-                                          ],
-                                        ),
+                                          ),
                                       ],
                                     ),
                                   ),
@@ -1065,20 +1437,29 @@ class _CalendarTransactionsScreenState
   }
 
   Widget _summary(String title, double value, Color color) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(10),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title, style: const TextStyle(fontSize: 12)),
-            const SizedBox(height: 4),
-            Text(
-              _fmtAmount(value),
-              style: TextStyle(
-                  color: color, fontWeight: FontWeight.bold, fontSize: 16),
-            ),
-          ],
+    return Builder(
+      builder: (context) => Container(
+        decoration: context.surfaceDecoration(accent: color),
+        child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                _fmtAmount(value),
+                style: TextStyle(
+                    color: color, fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1099,4 +1480,28 @@ class _InvestmentCalendarMeta {
     required this.linkedAccountName,
     required this.investmentTransactionId,
   });
+}
+
+class _IncomePlanOccurrence {
+  const _IncomePlanOccurrence({
+    required this.plan,
+    required this.date,
+    required this.isActionable,
+  });
+
+  final IncomePlan plan;
+  final DateTime date;
+  final bool isActionable;
+}
+
+class _ExpensePlanOccurrence {
+  const _ExpensePlanOccurrence({
+    required this.plan,
+    required this.date,
+    required this.isActionable,
+  });
+
+  final ExpensePlan plan;
+  final DateTime date;
+  final bool isActionable;
 }

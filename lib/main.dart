@@ -18,6 +18,7 @@ import 'screens/expense_map_screen.dart';
 import 'screens/expense_planning_screen.dart';
 import 'screens/financial_analysis_screen.dart';
 import 'screens/fixed_incomes_screen.dart';
+import 'screens/help_documentation_screen.dart';
 import 'screens/calendar_transactions_screen.dart';
 import 'models/cari_card.dart';
 import 'models/cari_transaction.dart';
@@ -35,6 +36,7 @@ import 'services/income_plan_service.dart';
 import 'services/expense_plan_service.dart';
 import 'services/finance_transaction_service.dart';
 import 'screens/expense_entry_screen.dart';
+import 'screens/fixed_payment_entry_screen.dart';
 import 'screens/income_category_screen.dart';
 import 'screens/income_entry_screen.dart';
 import 'screens/income_expense_transactions_screen.dart';
@@ -48,11 +50,14 @@ import 'screens/precious_metal_tracking_screen.dart';
 import 'screens/stock_tracking_screen.dart';
 import 'screens/crypto_tracking_screen.dart';
 import 'screens/onboarding_welcome_screen.dart';
+import 'models/subscription_definition.dart';
 import 'screens/subscriptions_screen.dart';
 import 'services/local_notification_service.dart';
+import 'services/subscription_definition_service.dart';
 import 'services/user_profile_service.dart';
 import 'theme/app_colors.dart';
 import 'theme/app_theme.dart';
+import 'theme/app_theme_controller.dart';
 import 'screens/profile_screen.dart';
 import 'screens/transfer_entry_screen.dart';
 import 'screens/investment_entry_screen.dart';
@@ -63,6 +68,7 @@ void main() async {
   await initializeDateFormatting('tr_TR');
   await IsarService.init();
   await AppRuntime.initialize();
+  await AppThemeController.instance.initialize();
   runApp(const MyApp());
 
   // Do not block first frame with notification setup.
@@ -74,8 +80,30 @@ void main() async {
   );
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  @override
+  void initState() {
+    super.initState();
+    AppThemeController.instance.addListener(_handleThemeChanged);
+  }
+
+  @override
+  void dispose() {
+    AppThemeController.instance.removeListener(_handleThemeChanged);
+    super.dispose();
+  }
+
+  void _handleThemeChanged() {
+    if (!mounted) return;
+    setState(() {});
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -92,7 +120,10 @@ class MyApp extends StatelessWidget {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      theme: AppTheme.light,
+      theme: AppTheme.resolve(
+        AppThemeController.instance.themeKey,
+        fanTeamKey: AppThemeController.instance.fanTeamKey,
+      ),
       builder: (context, child) {
         final media = MediaQuery.of(context);
         final clampedScaler = media.textScaler.clamp(
@@ -189,9 +220,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
   List<_AccountPreviewRow> cashPreviewRows = [];
   List<_AccountPreviewRow> bankPreviewRows = [];
   List<_AccountPreviewRow> investmentPreviewRows = [];
+  int activeSubscriptionCount = 0;
+  int dueSubscriptionCount = 0;
+  List<_SubscriptionReminderRow> subscriptionPreviewRows = [];
   String? selectedAccountTypePreview;
   List<_CariPreviewRow> cariPreviewRows = [];
   bool showCariPreview = false;
+  bool showSubscriptionPreview = false;
   bool showTrackedPreview = false;
   final Set<String> expandedTrackedMarkets = <String>{};
   String profileName = 'Kullanıcı Profili';
@@ -225,6 +260,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final allIncomePlans = await IncomePlanService.getAll();
     final allExpensePlans = await ExpensePlanService.getAll();
     final allFinanceTx = await FinanceTransactionService.getAll();
+    final subscriptions = await SubscriptionDefinitionService.getAll();
 
     final ratesByCode = <String, double>{};
     try {
@@ -702,6 +738,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
     duePlanRows.sort((a, b) => a.dueDate.compareTo(b.dueDate));
 
+    final today = DateTime(now.year, now.month, now.day);
+    final activeSubscriptions =
+        subscriptions.where((item) => item.isActive).toList(growable: false);
+    final subscriptionRows = activeSubscriptions
+        .map((item) => _buildSubscriptionReminderRow(item, today))
+        .where((item) => _isSameDay(item.reminderDate, today))
+        .toList()
+      ..sort((a, b) => a.title.compareTo(b.title));
+    final dueSubscriptions = subscriptionRows.length;
+
     final displayName = profile == null
         ? 'Kullanıcı Profili'
         : '${profile.firstName} ${profile.lastName}'.trim();
@@ -726,6 +772,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
       cashPreviewRows = cashRows;
       bankPreviewRows = bankRows;
       investmentPreviewRows = investmentRows;
+      activeSubscriptionCount = activeSubscriptions.length;
+      dueSubscriptionCount = dueSubscriptions;
+      subscriptionPreviewRows = subscriptionRows;
+      if (dueSubscriptions == 0) {
+        showSubscriptionPreview = false;
+      }
       cariPreviewRows = cariRows;
       totalBalance = cash + bank + investmentCurrent;
       profileName = displayName;
@@ -812,6 +864,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
+  Future<void> _openFixedPaymentEntry() async {
+    final saved = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const FixedPaymentEntryScreen(),
+      ),
+    );
+    if (saved == true) {
+      await loadDashboard();
+    }
+  }
+
   Future<void> _openCariEntry() async {
     final saved = await Navigator.push<bool>(
       context,
@@ -863,11 +927,69 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
   }
 
+  Future<void> _openHelpScreen() async {
+    await _openFromDrawer(const HelpDocumentationScreen());
+  }
+
+  Widget _buildHelpFooter() {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      child: Material(
+        color: colorScheme.primary.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: _openHelpScreen,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Row(
+              children: [
+                Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white,
+                    border: Border.all(
+                      color: Colors.black.withValues(alpha: 0.08),
+                    ),
+                  ),
+                  child: Icon(
+                    Icons.menu_book_outlined,
+                    size: 16,
+                    color: colorScheme.primary,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Text(
+                    'Yardım Dökümanı',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                Icon(
+                  Icons.chevron_right,
+                  size: 16,
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildAboutFooter() {
+    final colorScheme = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
       child: Material(
-        color: Colors.black.withValues(alpha: 0.03),
+        color: colorScheme.primary.withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(14),
         child: InkWell(
           borderRadius: BorderRadius.circular(14),
@@ -918,19 +1040,202 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  Widget _dashboardMenuBadgeIcon({
+    required IconData icon,
+    required Color color,
+  }) {
+    return Container(
+      width: 42,
+      height: 42,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Icon(icon, color: color, size: 21),
+    );
+  }
+
+  Widget _dashboardMenuItem({
+    required IconData icon,
+    required Color color,
+    required String title,
+    bool isSelected = false,
+    required VoidCallback onTap,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Material(
+        color: isSelected ? color : color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(18),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(18),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            child: Row(
+              children: [
+                _dashboardMenuBadgeIcon(icon: icon, color: color),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 14.5,
+                      fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                      color: isSelected ? Colors.white : null,
+                    ),
+                  ),
+                ),
+                Icon(
+                  Icons.chevron_right,
+                  size: 18,
+                  color: isSelected ? Colors.white : colorScheme.onSurfaceVariant,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _dashboardStandaloneItem({
+    required IconData icon,
+    required Color color,
+    required String title,
+    bool isSelected = false,
+    required VoidCallback onTap,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: isSelected ? color : Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: isSelected ? color : colorScheme.outline.withValues(alpha: 0.35),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: colorScheme.shadow.withValues(alpha: 0.05),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(24),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            child: Row(
+              children: [
+                _dashboardMenuBadgeIcon(icon: icon, color: color),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                      color: isSelected ? Colors.white : null,
+                    ),
+                  ),
+                ),
+                if (isSelected)
+                  const Icon(Icons.check_circle, color: Colors.white, size: 18)
+                else
+                Icon(
+                  Icons.chevron_right,
+                  color: colorScheme.onSurfaceVariant,
+                  size: 18,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _dashboardSection({
+    required IconData icon,
+    required Color color,
+    required String title,
+    required List<Widget> children,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: colorScheme.outline.withValues(alpha: 0.35)),
+        boxShadow: [
+          BoxShadow(
+            color: colorScheme.shadow.withValues(alpha: 0.05),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          tilePadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+          childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+          iconColor: colorScheme.primary,
+          collapsedIconColor: colorScheme.onSurfaceVariant,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
+          collapsedShape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
+          leading: _dashboardMenuBadgeIcon(icon: icon, color: color),
+          title: Text(
+            title,
+            style: const TextStyle(
+              fontSize: 15.5,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          children: children,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final onPrimary = colorScheme.onPrimary;
+
     return Scaffold(
       drawer: Drawer(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         child: Column(
           children: [
             Expanded(
               child: ListView(
                 padding: EdgeInsets.zero,
                 children: [
-                  DrawerHeader(
-                    decoration: const BoxDecoration(
-                      color: AppColors.brand,
+                DrawerHeader(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          colorScheme.primary,
+                          colorScheme.tertiary,
+                        ],
+                      ),
                     ),
                     margin: EdgeInsets.zero,
                     padding: EdgeInsets.zero,
@@ -944,13 +1249,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             children: [
                               CircleAvatar(
                                 radius: 28,
-                                backgroundColor: Colors.white24,
+                                backgroundColor:
+                                    onPrimary.withValues(alpha: 0.18),
                                 backgroundImage: profilePhoto != null
                                     ? MemoryImage(profilePhoto!)
                                     : null,
                                 child: profilePhoto == null
-                                    ? const Icon(Icons.person,
-                                        color: Colors.white, size: 30)
+                                    ? Icon(Icons.person,
+                                        color: onPrimary, size: 30)
                                     : null,
                               ),
                               const SizedBox(width: 10),
@@ -964,19 +1270,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   ),
                                   decoration: BoxDecoration(
                                     borderRadius: BorderRadius.circular(18),
-                                    border: Border.all(color: Colors.white54),
-                                    color: Colors.white.withValues(alpha: 0.08),
+                                    border: Border.all(
+                                      color: onPrimary.withValues(alpha: 0.42),
+                                    ),
+                                    color: onPrimary.withValues(alpha: 0.08),
                                   ),
-                                  child: const Row(
+                                  child: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       Icon(Icons.account_circle,
-                                          color: Colors.white, size: 18),
-                                      SizedBox(width: 6),
+                                          color: onPrimary, size: 18),
+                                      const SizedBox(width: 6),
                                       Text(
                                         'Profil',
                                         style: TextStyle(
-                                          color: Colors.white,
+                                          color: onPrimary,
                                           fontWeight: FontWeight.w600,
                                         ),
                                       ),
@@ -991,292 +1299,317 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             profileName,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Colors.white,
+                            style: TextStyle(
+                              color: onPrimary,
                               fontSize: 18,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
                           const SizedBox(height: 4),
-                          const Text(
+                          Text(
                             'by Pagumex Teknoloji',
                             style: TextStyle(
-                              color: Colors.white70,
+                              color: onPrimary.withValues(alpha: 0.78),
                               fontSize: 12,
                               fontWeight: FontWeight.w500,
                             ),
                           ),
                         ],
-                      ),
                     ),
                   ),
-                  ExpansionTile(
-                    leading:
-                        const Icon(Icons.folder_open, color: Colors.blueGrey),
-                    title: const Text('Tanım'),
-                    children: [
-                      ListTile(
-                        leading: const Icon(Icons.account_balance,
-                            color: Colors.blueGrey),
-                        title: const Text('Hesap Tanım'),
-                        onTap: () async {
-                          await _openFromDrawer(
-                            const AccountsScreen(),
-                            reloadOnReturn: true,
-                          );
-                        },
-                      ),
-                      ListTile(
-                        leading: const Icon(
-                          Icons.savings_outlined,
-                          color: Colors.green,
+                ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 14, 14, 6),
+                    child: Column(
+                      children: [
+                        _dashboardSection(
+                          icon: Icons.folder_open,
+                          color: Colors.blueGrey,
+                          title: 'Tanım',
+                          children: [
+                            _dashboardMenuItem(
+                              icon: Icons.account_balance,
+                              color: Colors.blueGrey,
+                              title: 'Hesap Tanım',
+                              onTap: () async {
+                                await _openFromDrawer(
+                                  const AccountsScreen(),
+                                  reloadOnReturn: true,
+                                );
+                              },
+                            ),
+                            _dashboardMenuItem(
+                              icon: Icons.savings_outlined,
+                              color: Colors.green,
+                              title: 'Sabit Gelirlerim',
+                              onTap: () async {
+                                await _openFromDrawer(
+                                  const FixedIncomesScreen(),
+                                  reloadOnReturn: true,
+                                );
+                              },
+                            ),
+                            _dashboardMenuItem(
+                              icon: Icons.repeat_on_outlined,
+                              color: Colors.deepOrange,
+                              title: 'Sabit Odemelerim',
+                              onTap: () async {
+                                await _openFromDrawer(
+                                  const SubscriptionsScreen(),
+                                  reloadOnReturn: true,
+                                );
+                              },
+                            ),
+                            _dashboardMenuItem(
+                              icon: Icons.category,
+                              color: AppColors.income,
+                              title: 'Gelir Kategorileri',
+                              onTap: () async {
+                                await _openFromDrawer(
+                                  const IncomeCategoryScreen(),
+                                );
+                              },
+                            ),
+                            _dashboardMenuItem(
+                              icon: Icons.sell,
+                              color: AppColors.expense,
+                              title: 'Gider Kategorileri',
+                              onTap: () async {
+                                await _openFromDrawer(
+                                  const ExpenseCategoryScreen(),
+                                );
+                              },
+                            ),
+                          ],
                         ),
-                        title: const Text('Sabit Gelirlerim'),
-                        onTap: () async {
-                          await _openFromDrawer(
-                            const FixedIncomesScreen(),
-                            reloadOnReturn: true,
-                          );
-                        },
-                      ),
-                      ListTile(
-                        leading: const Icon(
-                          Icons.repeat_on_outlined,
-                          color: Colors.deepOrange,
+                        _dashboardSection(
+                          icon: Icons.receipt_long,
+                          color: AppColors.info,
+                          title: 'İşlemler',
+                          children: [
+                            _dashboardMenuItem(
+                              icon: Icons.swap_vert_circle,
+                              color: AppColors.info,
+                              title: 'İşlem Geçmişi',
+                              onTap: () async {
+                                await _openFromDrawer(
+                                  const IncomeExpenseTransactionsScreen(),
+                                  reloadOnReturn: true,
+                                );
+                              },
+                            ),
+                            _dashboardMenuItem(
+                              icon: Icons.account_tree_outlined,
+                              color: Colors.indigo,
+                              title: 'Hesap Geçmişi',
+                              onTap: () async {
+                                await _openFromDrawer(
+                                  const AccountMovementsScreen(),
+                                );
+                              },
+                            ),
+                            _dashboardMenuItem(
+                              icon: Icons.receipt_long_outlined,
+                              color: Colors.indigo,
+                              title: 'Kredi Kartı Ekstreleri',
+                              onTap: () async {
+                                await _openFromDrawer(
+                                  const CreditCardStatementsScreen(),
+                                  reloadOnReturn: true,
+                                );
+                              },
+                            ),
+                          ],
                         ),
-                        title: const Text('Aboneliklerim'),
-                        onTap: () async {
-                          await _openFromDrawer(
-                            const SubscriptionsScreen(),
-                            reloadOnReturn: true,
-                          );
-                        },
-                      ),
-                      ListTile(
-                        leading:
-                            const Icon(Icons.category, color: AppColors.income),
-                        title: const Text('Gelir Kategorileri'),
-                        onTap: () async {
-                          await _openFromDrawer(const IncomeCategoryScreen());
-                        },
-                      ),
-                      ListTile(
-                        leading:
-                            const Icon(Icons.sell, color: AppColors.expense),
-                        title: const Text('Gider Kategorileri'),
-                        onTap: () async {
-                          await _openFromDrawer(const ExpenseCategoryScreen());
-                        },
-                      ),
-                    ],
-                  ),
-                  ExpansionTile(
-                    leading:
-                        const Icon(Icons.receipt_long, color: AppColors.info),
-                    title: const Text('İşlemler'),
-                    children: [
-                      ListTile(
-                        leading: const Icon(Icons.swap_vert_circle,
-                            color: AppColors.info),
-                        title: const Text('İşlem Geçmişi'),
-                        onTap: () async {
-                          await _openFromDrawer(
-                            const IncomeExpenseTransactionsScreen(),
-                            reloadOnReturn: true,
-                          );
-                        },
-                      ),
-                      ListTile(
-                        leading: const Icon(Icons.account_tree_outlined,
-                            color: Colors.indigo),
-                        title: const Text('Hesap Geçmişi'),
-                        onTap: () async {
-                          await _openFromDrawer(
-                            const AccountMovementsScreen(),
-                          );
-                        },
-                      ),
-                      ListTile(
-                        leading: const Icon(Icons.receipt_long_outlined,
-                            color: Colors.indigo),
-                        title: const Text('Kredi Kartı Ekstreleri'),
-                        onTap: () async {
-                          await _openFromDrawer(
-                            const CreditCardStatementsScreen(),
-                            reloadOnReturn: true,
-                          );
-                        },
-                      ),
-                    ],
-                  ),
-                  ExpansionTile(
-                    leading:
-                        const Icon(Icons.query_stats, color: AppColors.brand),
-                    title: const Text('Analiz'),
-                    children: [
-                      ListTile(
-                        leading: const Icon(Icons.query_stats,
-                            color: AppColors.brand),
-                        title: const Text('Finansal Analiz'),
-                        onTap: () async {
-                          await _openFromDrawer(
-                            const FinancialAnalysisScreen(),
-                          );
-                        },
-                      ),
-                      ListTile(
-                        leading: const Icon(Icons.analytics_outlined,
-                            color: Colors.teal),
-                        title: const Text('Yatırım Portföyü'),
-                        onTap: () async {
-                          await _openFromDrawer(
-                            const InvestmentTrackingScreen(),
-                          );
-                        },
-                      ),
-                      ListTile(
-                        leading: const Icon(Icons.inventory_2_outlined,
-                            color: Colors.teal),
-                        title: const Text('Finans Özet'),
-                        onTap: () async {
-                          await _openFromDrawer(
-                            const AssetStatusScreen(),
-                          );
-                        },
-                      ),
-                    ],
-                  ),
-                  ExpansionTile(
-                    leading: const Icon(Icons.people_alt_outlined,
-                        color: Colors.orange),
-                    title: const Text('Cari Kart İşlemleri'),
-                    children: [
-                      ListTile(
-                        leading:
-                            const Icon(Icons.badge, color: AppColors.brand),
-                        title: const Text('Cari Kart Tanım'),
-                        onTap: () async {
-                          await _openFromDrawer(const CariCardsScreen());
-                        },
-                      ),
-                      ListTile(
-                        leading: const Icon(Icons.circle,
-                            color: Colors.orange, size: 12),
-                        title: const Text('Cari Kart Özet (TL)'),
-                        onTap: () async {
-                          await _openFromDrawer(
-                            const CariCardSummaryScreen(),
-                            reloadOnReturn: true,
-                          );
-                        },
-                      ),
-                      ListTile(
-                        leading: const Icon(Icons.circle,
-                            color: Colors.deepOrange, size: 12),
-                        title: const Text('Cari Kart Özet (Yabancı Kaynak)'),
-                        onTap: () async {
-                          await _openFromDrawer(
-                            const CariCardSummaryForeignScreen(),
-                            reloadOnReturn: true,
-                          );
-                        },
-                      ),
-                      ListTile(
-                        leading: const Icon(Icons.swap_vert_circle,
-                            color: Colors.orange),
-                        title: const Text('Cari Kart İşlem Geçmişi'),
-                        onTap: () async {
-                          await _openFromDrawer(
-                            const CariTransactionsScreen(),
-                            reloadOnReturn: true,
-                          );
-                        },
-                      ),
-                    ],
-                  ),
-                  ExpansionTile(
-                    leading: const Icon(Icons.event_available,
-                        color: AppColors.planIncome),
-                    title: const Text('Planlamalar'),
-                    children: [
-                      ListTile(
-                        leading: const Icon(Icons.event_note,
-                            color: AppColors.income),
-                        title: const Text('Gelir Planlama'),
-                        onTap: () async {
-                          await _openFromDrawer(const IncomePlanningScreen());
-                        },
-                      ),
-                      ListTile(
-                        leading: const Icon(Icons.event_busy,
-                            color: AppColors.expense),
-                        title: const Text('Gider Planlama'),
-                        onTap: () async {
-                          await _openFromDrawer(const ExpensePlanningScreen());
-                        },
-                      ),
-                    ],
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.map_outlined,
-                        color: Colors.redAccent),
-                    title: const Text('Harcama Haritası'),
-                    onTap: () async {
-                      await _openFromDrawer(const ExpenseMapScreen());
-                    },
-                  ),
-                  ListTile(
-                    leading:
-                        const Icon(Icons.calendar_month, color: AppColors.info),
-                    title: const Text('Takvim'),
-                    onTap: () async {
-                      await _openFromDrawer(const CalendarTransactionsScreen());
-                    },
-                  ),
-                  ExpansionTile(
-                    leading:
-                        const Icon(Icons.currency_exchange, color: Colors.teal),
-                    title: const Text('Yatırımcı'),
-                    children: [
-                      ListTile(
-                        leading:
-                            const Icon(Icons.attach_money, color: Colors.teal),
-                        title: const Text('Döviz Takip'),
-                        onTap: () async {
-                          await _openFromDrawer(const CurrencyTrackingScreen());
-                        },
-                      ),
-                      ListTile(
-                        leading: const Icon(Icons.workspace_premium,
-                            color: Colors.amber),
-                        title: const Text('Kıymetli Maden Takip'),
-                        onTap: () async {
-                          await _openFromDrawer(
-                              const PreciousMetalTrackingScreen());
-                        },
-                      ),
-                      ListTile(
-                        leading:
-                            const Icon(Icons.show_chart, color: Colors.green),
-                        title: const Text('Borsa Takip'),
-                        onTap: () async {
-                          await _openFromDrawer(const StockTrackingScreen());
-                        },
-                      ),
-                      ListTile(
-                        leading: const Icon(Icons.currency_bitcoin,
-                            color: Colors.deepOrange),
-                        title: const Text('Kripto Para Takip'),
-                        onTap: () async {
-                          await _openFromDrawer(const CryptoTrackingScreen());
-                        },
-                      ),
-                    ],
+                        _dashboardSection(
+                          icon: Icons.query_stats,
+                          color: AppColors.brand,
+                          title: 'Analiz',
+                          children: [
+                            _dashboardMenuItem(
+                              icon: Icons.query_stats,
+                              color: AppColors.brand,
+                              title: 'Finansal Analiz',
+                              onTap: () async {
+                                await _openFromDrawer(
+                                  const FinancialAnalysisScreen(),
+                                );
+                              },
+                            ),
+                            _dashboardMenuItem(
+                              icon: Icons.analytics_outlined,
+                              color: Colors.teal,
+                              title: 'Yatırım Portföyü',
+                              onTap: () async {
+                                await _openFromDrawer(
+                                  const InvestmentTrackingScreen(),
+                                );
+                              },
+                            ),
+                            _dashboardMenuItem(
+                              icon: Icons.inventory_2_outlined,
+                              color: Colors.teal,
+                              title: 'Finans Özet',
+                              onTap: () async {
+                                await _openFromDrawer(
+                                  const AssetStatusScreen(),
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                        _dashboardSection(
+                          icon: Icons.people_alt_outlined,
+                          color: Colors.orange,
+                          title: 'Cari Kart İşlemleri',
+                          children: [
+                            _dashboardMenuItem(
+                              icon: Icons.badge,
+                              color: AppColors.brand,
+                              title: 'Cari Kart Tanım',
+                              onTap: () async {
+                                await _openFromDrawer(const CariCardsScreen());
+                              },
+                            ),
+                            _dashboardMenuItem(
+                              icon: Icons.circle,
+                              color: Colors.orange,
+                              title: 'Cari Kart Özet (TL)',
+                              onTap: () async {
+                                await _openFromDrawer(
+                                  const CariCardSummaryScreen(),
+                                  reloadOnReturn: true,
+                                );
+                              },
+                            ),
+                            _dashboardMenuItem(
+                              icon: Icons.circle,
+                              color: Colors.deepOrange,
+                              title: 'Cari Kart Özet (Yabancı Kaynak)',
+                              onTap: () async {
+                                await _openFromDrawer(
+                                  const CariCardSummaryForeignScreen(),
+                                  reloadOnReturn: true,
+                                );
+                              },
+                            ),
+                            _dashboardMenuItem(
+                              icon: Icons.swap_vert_circle,
+                              color: Colors.orange,
+                              title: 'Cari Kart İşlem Geçmişi',
+                              onTap: () async {
+                                await _openFromDrawer(
+                                  const CariTransactionsScreen(),
+                                  reloadOnReturn: true,
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                        _dashboardSection(
+                          icon: Icons.event_available,
+                          color: AppColors.planIncome,
+                          title: 'Planlamalar',
+                          children: [
+                            _dashboardMenuItem(
+                              icon: Icons.event_note,
+                              color: AppColors.income,
+                              title: 'Gelir Planlama',
+                              onTap: () async {
+                                await _openFromDrawer(
+                                  const IncomePlanningScreen(),
+                                );
+                              },
+                            ),
+                            _dashboardMenuItem(
+                              icon: Icons.event_busy,
+                              color: AppColors.expense,
+                              title: 'Gider Planlama',
+                              onTap: () async {
+                                await _openFromDrawer(
+                                  const ExpensePlanningScreen(),
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                        _dashboardStandaloneItem(
+                          icon: Icons.map_outlined,
+                          color: Colors.redAccent,
+                          title: 'Harcama Haritası',
+                          onTap: () async {
+                            await _openFromDrawer(const ExpenseMapScreen());
+                          },
+                        ),
+                        _dashboardStandaloneItem(
+                          icon: Icons.calendar_month,
+                          color: AppColors.info,
+                          title: 'Takvim',
+                          onTap: () async {
+                            await _openFromDrawer(
+                              const CalendarTransactionsScreen(),
+                            );
+                          },
+                        ),
+                        _dashboardSection(
+                          icon: Icons.currency_exchange,
+                          color: Colors.teal,
+                          title: 'Yatırımcı',
+                          children: [
+                            _dashboardMenuItem(
+                              icon: Icons.attach_money,
+                              color: Colors.teal,
+                              title: 'Döviz Takip',
+                              onTap: () async {
+                                await _openFromDrawer(
+                                  const CurrencyTrackingScreen(),
+                                  reloadOnReturn: true,
+                                );
+                              },
+                            ),
+                            _dashboardMenuItem(
+                              icon: Icons.workspace_premium,
+                              color: Colors.amber,
+                              title: 'Kıymetli Maden Takip',
+                              onTap: () async {
+                                await _openFromDrawer(
+                                  const PreciousMetalTrackingScreen(),
+                                  reloadOnReturn: true,
+                                );
+                              },
+                            ),
+                            _dashboardMenuItem(
+                              icon: Icons.show_chart,
+                              color: Colors.green,
+                              title: 'Borsa Takip',
+                              onTap: () async {
+                                await _openFromDrawer(
+                                  const StockTrackingScreen(),
+                                  reloadOnReturn: true,
+                                );
+                              },
+                            ),
+                            _dashboardMenuItem(
+                              icon: Icons.currency_bitcoin,
+                              color: Colors.deepOrange,
+                              title: 'Kripto Para Takip',
+                              onTap: () async {
+                                await _openFromDrawer(
+                                  const CryptoTrackingScreen(),
+                                  reloadOnReturn: true,
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
             ),
             const Divider(height: 1),
+            _buildHelpFooter(),
             _buildAboutFooter(),
           ],
         ),
@@ -1284,15 +1617,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
       bottomNavigationBar: SafeArea(
         top: false,
         child: Container(
-          height: 74,
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-          decoration: const BoxDecoration(
-            color: Colors.white,
+          height: 82,
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.96),
+            border: Border(
+              top: BorderSide(
+                color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.16),
+              ),
+            ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black12,
-                blurRadius: 8,
-                offset: Offset(0, -2),
+                color: Theme.of(context).colorScheme.shadow.withValues(alpha: 0.08),
+                blurRadius: 14,
+                offset: const Offset(0, -4),
               ),
             ],
           ),
@@ -1332,6 +1670,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
               Expanded(
                 child: _quickActionItem(
+                  icon: Icons.payments_outlined,
+                  label: 'Fatura',
+                  color: Colors.deepOrange,
+                  onTap: _openFixedPaymentEntry,
+                ),
+              ),
+              Expanded(
+                child: _quickActionItem(
                   icon: Icons.arrow_upward,
                   label: 'Gider',
                   color: AppColors.expense,
@@ -1343,7 +1689,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
       ),
       appBar: AppBar(
-        title: const Text('Finansal Özet'),
+        title: const Text('Finansal Durum'),
       ),
       body: Container(
         decoration: BoxDecoration(
@@ -1351,7 +1697,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              AppColors.brand.withValues(alpha: 0.08),
+              Theme.of(context).colorScheme.primary.withValues(alpha: 0.10),
+              Theme.of(context).scaffoldBackgroundColor,
               Colors.white,
             ],
           ),
@@ -1438,23 +1785,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildHeroSummaryCard() {
+    final colorScheme = Theme.of(context).colorScheme;
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(14),
-        gradient: const LinearGradient(
+        borderRadius: BorderRadius.circular(28),
+        gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            AppColors.brand,
-            Color(0xFF6D5AA8),
+            colorScheme.primary,
+            colorScheme.tertiary,
           ],
         ),
         boxShadow: [
           BoxShadow(
-            color: AppColors.brand.withValues(alpha: 0.22),
-            blurRadius: 12,
-            offset: const Offset(0, 5),
+            color: colorScheme.primary.withValues(alpha: 0.22),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
           ),
         ],
       ),
@@ -1465,31 +1813,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
             'Genel Durum',
             style: TextStyle(
               color: Colors.white70,
-              fontSize: 16,
+              fontSize: 15,
               fontWeight: FontWeight.w600,
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 8),
           Text(
             '${_fmtAmount(totalBalance)} TL',
             style: const TextStyle(
               color: Colors.white,
-              fontSize: 22,
+              fontSize: 30,
               fontWeight: FontWeight.w800,
             ),
           ),
-          const SizedBox(height: 8),
-          const Row(
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
             children: [
-              Icon(Icons.verified, color: Colors.white70, size: 14),
-              SizedBox(width: 6),
-              Text(
-                'Toplam bakiye ve hesap verileri güncel',
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: 11,
-                ),
+              _heroInfoChip(
+                icon: Icons.account_balance_wallet_outlined,
+                label: '$totalAccounts hesap',
               ),
+              _heroInfoChip(
+                icon: Icons.verified_outlined,
+                label: 'Veriler güncel',
+              ),
+              if (dueSubscriptionCount > 0)
+                _heroInfoChip(
+                  icon: Icons.payments_outlined,
+                  label: '$dueSubscriptionCount bugun odeme',
+                ),
             ],
           ),
           if (hasMissingInvestmentPrice) ...[
@@ -1502,6 +1856,35 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
             ),
           ],
+        ],
+      ),
+    );
+  }
+
+  Widget _heroInfoChip({
+    required IconData icon,
+    required String label,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: Colors.white),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 11.5,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
         ],
       ),
     );
@@ -1575,32 +1958,51 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _buildCariSummaryCard() {
     final netPositive = cariNetTotal >= 0;
+    final colorScheme = Theme.of(context).colorScheme;
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(22),
         onTap: () {
           setState(() {
             showCariPreview = !showCariPreview;
           });
         },
         child: Container(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(22),
             border: Border.all(
               color: showCariPreview
                   ? Colors.orange.withValues(alpha: 0.45)
-                  : Colors.black.withValues(alpha: 0.06),
+                  : colorScheme.outline.withValues(alpha: 0.22),
               width: showCariPreview ? 1.4 : 1,
             ),
+            boxShadow: [
+              BoxShadow(
+                color: colorScheme.shadow.withValues(alpha: 0.05),
+                blurRadius: 18,
+                offset: const Offset(0, 8),
+              ),
+            ],
           ),
           child: Row(
             children: [
-              const Icon(Icons.people_alt_outlined,
-                  color: Colors.orange, size: 18),
-              const SizedBox(width: 8),
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: Colors.orange.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.people_alt_outlined,
+                  color: Colors.orange,
+                  size: 18,
+                ),
+              ),
+              const SizedBox(width: 10),
               const Text(
                 'CARI HESAP BAKİYESİ',
                 style: TextStyle(fontWeight: FontWeight.w700),
@@ -1644,6 +2046,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 const SizedBox(height: 8),
                 _buildCariPreviewCard(),
               ],
+              if (dueSubscriptionCount > 0) ...[
+                const SizedBox(height: 8),
+                _buildSubscriptionPaymentCard(),
+                if (showSubscriptionPreview) ...[
+                  const SizedBox(height: 8),
+                  _buildSubscriptionPreviewCard(),
+                ],
+              ],
               if (hasTracked) ...[
                 const SizedBox(height: 8),
                 _buildTrackedSummaryCard(),
@@ -1663,6 +2073,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 const SizedBox(height: 8),
                 _buildCariPreviewCard(),
               ],
+              if (dueSubscriptionCount > 0) ...[
+                const SizedBox(height: 8),
+                _buildSubscriptionPaymentCard(),
+                if (showSubscriptionPreview) ...[
+                  const SizedBox(height: 8),
+                  _buildSubscriptionPreviewCard(),
+                ],
+              ],
             ],
           );
         }
@@ -1678,6 +2096,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   if (showCariPreview) ...[
                     const SizedBox(height: 8),
                     _buildCariPreviewCard(),
+                  ],
+                  if (dueSubscriptionCount > 0) ...[
+                    const SizedBox(height: 8),
+                    _buildSubscriptionPaymentCard(),
+                    if (showSubscriptionPreview) ...[
+                      const SizedBox(height: 8),
+                      _buildSubscriptionPreviewCard(),
+                    ],
                   ],
                 ],
               ),
@@ -1791,32 +2217,51 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _buildTrackedSummaryCard() {
     final count = trackedQuotes.length;
+    final colorScheme = Theme.of(context).colorScheme;
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(22),
         onTap: () {
           setState(() {
             showTrackedPreview = !showTrackedPreview;
           });
         },
         child: Container(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(22),
             border: Border.all(
               color: showTrackedPreview
                   ? AppColors.brand.withValues(alpha: 0.45)
-                  : Colors.black.withValues(alpha: 0.06),
+                  : colorScheme.outline.withValues(alpha: 0.22),
               width: showTrackedPreview ? 1.4 : 1,
             ),
+            boxShadow: [
+              BoxShadow(
+                color: colorScheme.shadow.withValues(alpha: 0.05),
+                blurRadius: 18,
+                offset: const Offset(0, 8),
+              ),
+            ],
           ),
           child: Row(
             children: [
-              const Icon(Icons.visibility_outlined,
-                  color: AppColors.brand, size: 18),
-              const SizedBox(width: 8),
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: AppColors.brand.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.visibility_outlined,
+                  color: AppColors.brand,
+                  size: 18,
+                ),
+              ),
+              const SizedBox(width: 10),
               const Text(
                 'Takip Ettiklerim',
                 style: TextStyle(fontWeight: FontWeight.w700),
@@ -1879,11 +2324,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
     ];
 
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.black.withValues(alpha: 0.06)),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(
+          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.22),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Theme.of(context).colorScheme.shadow.withValues(alpha: 0.05),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2107,43 +2561,59 @@ class _DashboardScreenState extends State<DashboardScreen> {
     VoidCallback? onTap,
     bool isSelected = false,
   }) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(22),
         onTap: onTap,
         child: Container(
-          padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
+          padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(22),
             border: Border.all(
               color: isSelected
-                  ? color.withValues(alpha: 0.5)
-                  : Colors.black.withValues(alpha: 0.06),
+                  ? color
+                  : colorScheme.outline.withValues(alpha: 0.22),
               width: isSelected ? 1.4 : 1,
             ),
+            boxShadow: [
+              BoxShadow(
+                color: colorScheme.shadow.withValues(alpha: 0.05),
+                blurRadius: 18,
+                offset: const Offset(0, 8),
+              ),
+            ],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(icon, size: 16, color: color),
-              const SizedBox(height: 6),
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(icon, size: 18, color: color),
+              ),
+              const SizedBox(height: 10),
               Text(
                 title,
                 style: const TextStyle(
                   fontSize: 12,
-                  color: Colors.black54,
+                  color: Colors.black45,
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              const SizedBox(height: 2),
+              const SizedBox(height: 6),
               Text(
                 '${_fmtAmount(value)} TL',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                  fontSize: 13,
+                  fontSize: 16,
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -2389,17 +2859,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _buildActionHintCard() {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8F8FE),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.brand.withValues(alpha: 0.16)),
+        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(
+          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.18),
+        ),
       ),
-      child: const Row(
+      child: Row(
         children: [
-          Icon(Icons.tips_and_updates_outlined, color: AppColors.brand),
-          SizedBox(width: 10),
-          Expanded(
+          Icon(
+            Icons.tips_and_updates_outlined,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+          const SizedBox(width: 10),
+          const Expanded(
             child: Text(
               'Alt çubuktan Gelir/Gider/Transfer işlemlerini hızlıca başlatabilirsin.',
               style: TextStyle(
@@ -2411,6 +2886,221 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ],
       ),
     );
+  }
+
+  Widget _buildSubscriptionPaymentCard() {
+    final hasDueSubscriptions = dueSubscriptionCount > 0;
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(22),
+        onTap: () {
+          setState(() {
+            showSubscriptionPreview = !showSubscriptionPreview;
+          });
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(
+              color: showSubscriptionPreview
+                  ? Colors.deepOrange.withValues(alpha: 0.45)
+                  : colorScheme.outline.withValues(alpha: 0.22),
+              width: showSubscriptionPreview ? 1.4 : 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: colorScheme.shadow.withValues(alpha: 0.05),
+                blurRadius: 18,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: Colors.deepOrange.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.payments_outlined,
+                  color: Colors.deepOrange,
+                  size: 18,
+                ),
+              ),
+              const SizedBox(width: 10),
+              const Text(
+                'SABIT ODEME',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+              const Spacer(),
+              Text(
+                '$dueSubscriptionCount bugun',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  color: hasDueSubscriptions ? Colors.deepOrange : Colors.black54,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSubscriptionPreviewCard() {
+    final previewItems = subscriptionPreviewRows;
+    final hasDueSubscriptions = dueSubscriptionCount > 0;
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: hasDueSubscriptions
+              ? Colors.deepOrange.withValues(alpha: 0.22)
+              : AppColors.brand.withValues(alpha: 0.16),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Bugun odenecek $dueSubscriptionCount sabit odeme var.',
+            style: TextStyle(
+              color: hasDueSubscriptions ? Colors.deepOrange : Colors.black54,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'Sadece bugun vadesi gelen sabit odemeler listeleniyor.',
+            style: TextStyle(
+              color: Colors.blueGrey.shade700,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          if (previewItems.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            ...previewItems.map(
+              (item) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      margin: const EdgeInsets.only(top: 5),
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: item.isDue ? Colors.deepOrange : AppColors.brand,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            item.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            item.caption,
+                            style: const TextStyle(
+                              color: Colors.black54,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      item.dateLabel,
+                      style: TextStyle(
+                        color: item.isDue ? Colors.deepOrange : AppColors.brand,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  _SubscriptionReminderRow _buildSubscriptionReminderRow(
+    SubscriptionDefinition item,
+    DateTime today,
+  ) {
+    final reminderDate = _subscriptionReminderDate(item, today);
+    final provider = item.providerName.trim();
+    final title = provider.isEmpty ? item.name : '${item.name} - $provider';
+    final caption = item.dueDay == null
+        ? 'Son odeme tarihi yok, ay sonunda sorulacak'
+        : item.duePeriod == 'yearly'
+            ? 'Yillik sabit son odeme tarihi'
+            : 'Aylik sabit son odeme tarihi';
+    final dateLabel = item.dueDay == null
+        ? 'Ay Sonu'
+        : item.duePeriod == 'yearly'
+            ? '${reminderDate.day}.${reminderDate.month}'
+            : '${reminderDate.day}. gun';
+
+    return _SubscriptionReminderRow(
+      title: title,
+      caption: caption,
+      dateLabel: dateLabel,
+      reminderDate: reminderDate,
+      isDue: !reminderDate.isAfter(today),
+    );
+  }
+
+  DateTime _subscriptionReminderDate(
+    SubscriptionDefinition item,
+    DateTime today,
+  ) {
+    if (item.dueDay == null) {
+      final lastDay = DateUtils.getDaysInMonth(today.year, today.month);
+      return DateTime(today.year, today.month, lastDay);
+    }
+    if (item.duePeriod == 'yearly' && item.dueMonth != null) {
+      final currentYearDate = DateTime(
+        today.year,
+        item.dueMonth!,
+        item.dueDay!.clamp(1, DateUtils.getDaysInMonth(today.year, item.dueMonth!)),
+      );
+      if (currentYearDate.month < today.month) {
+        return DateTime(
+          today.year + 1,
+          item.dueMonth!,
+          item.dueDay!.clamp(
+            1,
+            DateUtils.getDaysInMonth(today.year + 1, item.dueMonth!),
+          ),
+        );
+      }
+      return currentYearDate;
+    }
+    final lastDayOfMonth = DateUtils.getDaysInMonth(today.year, today.month);
+    final day = item.dueDay!.clamp(1, lastDayOfMonth);
+    return DateTime(today.year, today.month, day);
   }
 
   bool _isSameDay(DateTime a, DateTime b) {
@@ -2448,22 +3138,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
     required VoidCallback onTap,
   }) {
     return InkWell(
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(18),
       onTap: onTap,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, color: color, size: 22),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: TextStyle(
-              color: color,
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 2),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: color.withValues(alpha: 0.14)),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: color, size: 21),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                color: color,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -2540,5 +3238,21 @@ class _TodayPlanRow {
     required this.color,
     required this.statusLabel,
     required this.statusColor,
+  });
+}
+
+class _SubscriptionReminderRow {
+  final String title;
+  final String caption;
+  final String dateLabel;
+  final DateTime reminderDate;
+  final bool isDue;
+
+  const _SubscriptionReminderRow({
+    required this.title,
+    required this.caption,
+    required this.dateLabel,
+    required this.reminderDate,
+    required this.isDue,
   });
 }

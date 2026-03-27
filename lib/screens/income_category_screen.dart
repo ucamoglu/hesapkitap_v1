@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import '../services/income_category_service.dart';
 import '../models/income_category.dart';
+import '../theme/app_theme_helpers.dart';
 import '../utils/navigation_helpers.dart';
 import '../utils/turkish_upper_case_formatter.dart';
 
@@ -192,6 +193,9 @@ class _IncomeCategoryScreenState extends State<IncomeCategoryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    const accent = Colors.green;
+
     return Scaffold(
       drawer: buildAppMenuDrawer(),
       appBar: AppBar(
@@ -200,52 +204,82 @@ class _IncomeCategoryScreenState extends State<IncomeCategoryScreen> {
         actions: [buildHomeAction(context)],
       ),
       body: ListView.builder(
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 88),
         itemCount: categories.length,
         itemBuilder: (context, index) {
           final category = categories[index];
 
-          return ListTile(
-            title: Text(
-              category.name,
-              style: TextStyle(
-                decoration: category.isActive
-                    ? null
-                    : TextDecoration.lineThrough,
-              ),
+          return Container(
+            margin: const EdgeInsets.only(bottom: 10),
+            decoration: context.surfaceDecoration(
+              accent: accent,
+              fillColor: category.isActive
+                  ? context.softAccent(accent, 0.06)
+                  : Colors.white,
             ),
-            trailing: PopupMenuButton<String>(
-              onSelected: (value) async {
-                if (value == "edit") {
-                  _editCategory(category);
-                } else if (value == "delete") {
-                  await _deleteCategory(category);
-                } else if (value == "toggle") {
-                  await _toggleActive(category);
-                }
-              },
-              itemBuilder: (context) => [
-                if (!category.isSystemGenerated)
-                  const PopupMenuItem(
-                    value: "edit",
-                    child: Text("Düzenle"),
-                  ),
-                if (!category.isSystemGenerated)
-                  if (category.isActive)
+            child: ListTile(
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 10,
+              ),
+              leading: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: context.softAccent(accent),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Icon(Icons.category, color: accent, size: 20),
+              ),
+              title: Text(
+                category.name,
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  decoration:
+                      category.isActive ? null : TextDecoration.lineThrough,
+                ),
+              ),
+              subtitle: Text(
+                category.isSystemGenerated
+                    ? 'Sistem kategorisi'
+                    : (category.isActive ? 'Aktif' : 'Pasif'),
+                style: TextStyle(color: colorScheme.onSurfaceVariant),
+              ),
+              trailing: PopupMenuButton<String>(
+                icon: const Icon(Icons.more_horiz, color: accent),
+                onSelected: (value) async {
+                  if (value == "edit") {
+                    _editCategory(category);
+                  } else if (value == "delete") {
+                    await _deleteCategory(category);
+                  } else if (value == "toggle") {
+                    await _toggleActive(category);
+                  }
+                },
+                itemBuilder: (context) => [
+                  if (!category.isSystemGenerated)
                     const PopupMenuItem(
-                      value: "toggle",
-                      child: Text("Pasif Yap"),
-                    )
-                  else
-                    const PopupMenuItem(
-                      value: "toggle",
-                      child: Text("Aktif Yap"),
+                      value: "edit",
+                      child: Text("Düzenle"),
                     ),
-                if (!category.isSystemGenerated)
-                  const PopupMenuItem(
-                    value: "delete",
-                    child: Text("Sil"),
-                  ),
-              ],
+                  if (!category.isSystemGenerated)
+                    if (category.isActive)
+                      const PopupMenuItem(
+                        value: "toggle",
+                        child: Text("Pasif Yap"),
+                      )
+                    else
+                      const PopupMenuItem(
+                        value: "toggle",
+                        child: Text("Aktif Yap"),
+                      ),
+                  if (!category.isSystemGenerated)
+                    const PopupMenuItem(
+                      value: "delete",
+                      child: Text("Sil"),
+                    ),
+                ],
+              ),
             ),
           );
         },

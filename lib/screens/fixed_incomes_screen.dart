@@ -8,6 +8,7 @@ import '../models/income_plan.dart';
 import '../services/account_service.dart';
 import '../services/income_category_service.dart';
 import '../services/income_plan_service.dart';
+import '../theme/app_theme_helpers.dart';
 import '../utils/navigation_helpers.dart';
 import '../utils/turkish_money_input_formatter.dart';
 import '../utils/turkish_upper_case_formatter.dart';
@@ -391,6 +392,8 @@ class _FixedIncomesScreenState extends State<FixedIncomesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Scaffold(
       drawer: buildAppMenuDrawer(),
       appBar: AppBar(
@@ -413,10 +416,14 @@ class _FixedIncomesScreenState extends State<FixedIncomesScreen> {
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _plans.isEmpty
-              ? const Center(
+              ? Center(
                   child: Text(
                     'Henüz sabit gelir tanımlanmadı',
-                    style: TextStyle(fontSize: 16),
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: colorScheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 )
               : ListView.builder(
@@ -424,8 +431,16 @@ class _FixedIncomesScreenState extends State<FixedIncomesScreen> {
                   itemCount: _plans.length,
                   itemBuilder: (context, index) {
                     final plan = _plans[index];
+                    const accent = Colors.green;
                     return Card(
                       margin: const EdgeInsets.only(bottom: 10),
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(24),
+                        side: BorderSide(
+                          color: colorScheme.outline.withValues(alpha: 0.22),
+                        ),
+                      ),
                       child: ListTile(
                         contentPadding: const EdgeInsets.all(14),
                         leading: CircleAvatar(
@@ -438,8 +453,14 @@ class _FixedIncomesScreenState extends State<FixedIncomesScreen> {
                                 : plan.periodType == 'once'
                                     ? Icons.payments_outlined
                                     : Icons.account_balance_wallet_outlined,
-                            color: plan.isActive ? Colors.green : Colors.grey,
+                            color: plan.isActive ? accent : Colors.grey,
                           ),
+                        ),
+                        tileColor: plan.isActive
+                            ? context.softAccent(accent, 0.06)
+                            : Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(24),
                         ),
                         title: Text(
                           (plan.description ?? 'Sabit Gelir').trim(),
@@ -462,6 +483,10 @@ class _FixedIncomesScreenState extends State<FixedIncomesScreen> {
                               ),
                               Text(
                                 'Sonraki Tahsil: ${_formatDate(plan.nextDueDate)}',
+                                style: TextStyle(
+                                  color: colorScheme.primary,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
                               if (plan.endDate != null)
                                 Text('Bitiş: ${_formatDate(plan.endDate!)}'),
@@ -470,6 +495,7 @@ class _FixedIncomesScreenState extends State<FixedIncomesScreen> {
                           ),
                         ),
                         trailing: PopupMenuButton<String>(
+                          icon: const Icon(Icons.more_horiz, color: accent),
                           onSelected: (value) async {
                             if (value == 'edit') {
                               await _openDialog(edit: plan);

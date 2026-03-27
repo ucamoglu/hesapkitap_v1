@@ -32,28 +32,38 @@ const UserProfileSchema = CollectionSchema(
       name: r'email',
       type: IsarType.string,
     ),
-    r'firstName': PropertySchema(
+    r'fanTeamKey': PropertySchema(
       id: 3,
+      name: r'fanTeamKey',
+      type: IsarType.string,
+    ),
+    r'firstName': PropertySchema(
+      id: 4,
       name: r'firstName',
       type: IsarType.string,
     ),
     r'lastName': PropertySchema(
-      id: 4,
+      id: 5,
       name: r'lastName',
       type: IsarType.string,
     ),
     r'phone': PropertySchema(
-      id: 5,
+      id: 6,
       name: r'phone',
       type: IsarType.string,
     ),
     r'photoBytes': PropertySchema(
-      id: 6,
+      id: 7,
       name: r'photoBytes',
       type: IsarType.longList,
     ),
+    r'themeKey': PropertySchema(
+      id: 8,
+      name: r'themeKey',
+      type: IsarType.string,
+    ),
     r'updatedAt': PropertySchema(
-      id: 7,
+      id: 9,
       name: r'updatedAt',
       type: IsarType.dateTime,
     )
@@ -84,6 +94,7 @@ int _userProfileEstimateSize(
       bytesCount += 3 + value.length * 3;
     }
   }
+  bytesCount += 3 + object.fanTeamKey.length * 3;
   bytesCount += 3 + object.firstName.length * 3;
   bytesCount += 3 + object.lastName.length * 3;
   {
@@ -98,6 +109,7 @@ int _userProfileEstimateSize(
       bytesCount += 3 + value.length * 8;
     }
   }
+  bytesCount += 3 + object.themeKey.length * 3;
   return bytesCount;
 }
 
@@ -110,11 +122,13 @@ void _userProfileSerialize(
   writer.writeDateTime(offsets[0], object.birthDate);
   writer.writeDateTime(offsets[1], object.createdAt);
   writer.writeString(offsets[2], object.email);
-  writer.writeString(offsets[3], object.firstName);
-  writer.writeString(offsets[4], object.lastName);
-  writer.writeString(offsets[5], object.phone);
-  writer.writeLongList(offsets[6], object.photoBytes);
-  writer.writeDateTime(offsets[7], object.updatedAt);
+  writer.writeString(offsets[3], object.fanTeamKey);
+  writer.writeString(offsets[4], object.firstName);
+  writer.writeString(offsets[5], object.lastName);
+  writer.writeString(offsets[6], object.phone);
+  writer.writeLongList(offsets[7], object.photoBytes);
+  writer.writeString(offsets[8], object.themeKey);
+  writer.writeDateTime(offsets[9], object.updatedAt);
 }
 
 UserProfile _userProfileDeserialize(
@@ -127,12 +141,14 @@ UserProfile _userProfileDeserialize(
   object.birthDate = reader.readDateTimeOrNull(offsets[0]);
   object.createdAt = reader.readDateTime(offsets[1]);
   object.email = reader.readStringOrNull(offsets[2]);
-  object.firstName = reader.readString(offsets[3]);
+  object.fanTeamKey = reader.readString(offsets[3]);
+  object.firstName = reader.readString(offsets[4]);
   object.id = id;
-  object.lastName = reader.readString(offsets[4]);
-  object.phone = reader.readStringOrNull(offsets[5]);
-  object.photoBytes = reader.readLongList(offsets[6]);
-  object.updatedAt = reader.readDateTimeOrNull(offsets[7]);
+  object.lastName = reader.readString(offsets[5]);
+  object.phone = reader.readStringOrNull(offsets[6]);
+  object.photoBytes = reader.readLongList(offsets[7]);
+  object.themeKey = reader.readString(offsets[8]);
+  object.updatedAt = reader.readDateTimeOrNull(offsets[9]);
   return object;
 }
 
@@ -154,10 +170,14 @@ P _userProfileDeserializeProp<P>(
     case 4:
       return (reader.readString(offset)) as P;
     case 5:
-      return (reader.readStringOrNull(offset)) as P;
+      return (reader.readString(offset)) as P;
     case 6:
-      return (reader.readLongList(offset)) as P;
+      return (reader.readStringOrNull(offset)) as P;
     case 7:
+      return (reader.readLongList(offset)) as P;
+    case 8:
+      return (reader.readString(offset)) as P;
+    case 9:
       return (reader.readDateTimeOrNull(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -531,6 +551,142 @@ extension UserProfileQueryFilter
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.greaterThan(
         property: r'email',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<UserProfile, UserProfile, QAfterFilterCondition>
+      fanTeamKeyEqualTo(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'fanTeamKey',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UserProfile, UserProfile, QAfterFilterCondition>
+      fanTeamKeyGreaterThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'fanTeamKey',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UserProfile, UserProfile, QAfterFilterCondition>
+      fanTeamKeyLessThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'fanTeamKey',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UserProfile, UserProfile, QAfterFilterCondition>
+      fanTeamKeyBetween(
+    String lower,
+    String upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'fanTeamKey',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UserProfile, UserProfile, QAfterFilterCondition>
+      fanTeamKeyStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'fanTeamKey',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UserProfile, UserProfile, QAfterFilterCondition>
+      fanTeamKeyEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'fanTeamKey',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UserProfile, UserProfile, QAfterFilterCondition>
+      fanTeamKeyContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'fanTeamKey',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UserProfile, UserProfile, QAfterFilterCondition>
+      fanTeamKeyMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'fanTeamKey',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UserProfile, UserProfile, QAfterFilterCondition>
+      fanTeamKeyIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'fanTeamKey',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<UserProfile, UserProfile, QAfterFilterCondition>
+      fanTeamKeyIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'fanTeamKey',
         value: '',
       ));
     });
@@ -1172,6 +1328,141 @@ extension UserProfileQueryFilter
     });
   }
 
+  QueryBuilder<UserProfile, UserProfile, QAfterFilterCondition> themeKeyEqualTo(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'themeKey',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UserProfile, UserProfile, QAfterFilterCondition>
+      themeKeyGreaterThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'themeKey',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UserProfile, UserProfile, QAfterFilterCondition>
+      themeKeyLessThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'themeKey',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UserProfile, UserProfile, QAfterFilterCondition> themeKeyBetween(
+    String lower,
+    String upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'themeKey',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UserProfile, UserProfile, QAfterFilterCondition>
+      themeKeyStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'themeKey',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UserProfile, UserProfile, QAfterFilterCondition>
+      themeKeyEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'themeKey',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UserProfile, UserProfile, QAfterFilterCondition>
+      themeKeyContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'themeKey',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UserProfile, UserProfile, QAfterFilterCondition> themeKeyMatches(
+      String pattern,
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'themeKey',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UserProfile, UserProfile, QAfterFilterCondition>
+      themeKeyIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'themeKey',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<UserProfile, UserProfile, QAfterFilterCondition>
+      themeKeyIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'themeKey',
+        value: '',
+      ));
+    });
+  }
+
   QueryBuilder<UserProfile, UserProfile, QAfterFilterCondition>
       updatedAtIsNull() {
     return QueryBuilder.apply(this, (query) {
@@ -1291,6 +1582,18 @@ extension UserProfileQuerySortBy
     });
   }
 
+  QueryBuilder<UserProfile, UserProfile, QAfterSortBy> sortByFanTeamKey() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'fanTeamKey', Sort.asc);
+    });
+  }
+
+  QueryBuilder<UserProfile, UserProfile, QAfterSortBy> sortByFanTeamKeyDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'fanTeamKey', Sort.desc);
+    });
+  }
+
   QueryBuilder<UserProfile, UserProfile, QAfterSortBy> sortByFirstName() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'firstName', Sort.asc);
@@ -1324,6 +1627,18 @@ extension UserProfileQuerySortBy
   QueryBuilder<UserProfile, UserProfile, QAfterSortBy> sortByPhoneDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'phone', Sort.desc);
+    });
+  }
+
+  QueryBuilder<UserProfile, UserProfile, QAfterSortBy> sortByThemeKey() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'themeKey', Sort.asc);
+    });
+  }
+
+  QueryBuilder<UserProfile, UserProfile, QAfterSortBy> sortByThemeKeyDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'themeKey', Sort.desc);
     });
   }
 
@@ -1378,6 +1693,18 @@ extension UserProfileQuerySortThenBy
     });
   }
 
+  QueryBuilder<UserProfile, UserProfile, QAfterSortBy> thenByFanTeamKey() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'fanTeamKey', Sort.asc);
+    });
+  }
+
+  QueryBuilder<UserProfile, UserProfile, QAfterSortBy> thenByFanTeamKeyDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'fanTeamKey', Sort.desc);
+    });
+  }
+
   QueryBuilder<UserProfile, UserProfile, QAfterSortBy> thenByFirstName() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'firstName', Sort.asc);
@@ -1426,6 +1753,18 @@ extension UserProfileQuerySortThenBy
     });
   }
 
+  QueryBuilder<UserProfile, UserProfile, QAfterSortBy> thenByThemeKey() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'themeKey', Sort.asc);
+    });
+  }
+
+  QueryBuilder<UserProfile, UserProfile, QAfterSortBy> thenByThemeKeyDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'themeKey', Sort.desc);
+    });
+  }
+
   QueryBuilder<UserProfile, UserProfile, QAfterSortBy> thenByUpdatedAt() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'updatedAt', Sort.asc);
@@ -1460,6 +1799,13 @@ extension UserProfileQueryWhereDistinct
     });
   }
 
+  QueryBuilder<UserProfile, UserProfile, QDistinct> distinctByFanTeamKey(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'fanTeamKey', caseSensitive: caseSensitive);
+    });
+  }
+
   QueryBuilder<UserProfile, UserProfile, QDistinct> distinctByFirstName(
       {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
@@ -1484,6 +1830,13 @@ extension UserProfileQueryWhereDistinct
   QueryBuilder<UserProfile, UserProfile, QDistinct> distinctByPhotoBytes() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'photoBytes');
+    });
+  }
+
+  QueryBuilder<UserProfile, UserProfile, QDistinct> distinctByThemeKey(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'themeKey', caseSensitive: caseSensitive);
     });
   }
 
@@ -1520,6 +1873,12 @@ extension UserProfileQueryProperty
     });
   }
 
+  QueryBuilder<UserProfile, String, QQueryOperations> fanTeamKeyProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'fanTeamKey');
+    });
+  }
+
   QueryBuilder<UserProfile, String, QQueryOperations> firstNameProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'firstName');
@@ -1541,6 +1900,12 @@ extension UserProfileQueryProperty
   QueryBuilder<UserProfile, List<int>?, QQueryOperations> photoBytesProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'photoBytes');
+    });
+  }
+
+  QueryBuilder<UserProfile, String, QQueryOperations> themeKeyProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'themeKey');
     });
   }
 

@@ -7,6 +7,7 @@ import '../services/account_service.dart';
 import '../services/income_category_service.dart';
 import '../services/income_plan_service.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_theme_helpers.dart';
 import '../utils/navigation_helpers.dart';
 import '../utils/planning_standard.dart';
 import '../utils/turkish_money_input_formatter.dart';
@@ -526,6 +527,7 @@ class _IncomePlanningScreenState extends State<IncomePlanningScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return PopScope(
         canPop: !_hasUnsavedDraft(),
         onPopInvokedWithResult: (didPop, result) async {
@@ -554,19 +556,26 @@ class _IncomePlanningScreenState extends State<IncomePlanningScreen> {
           body: _loading
               ? const Center(child: CircularProgressIndicator())
               : (_accounts.isEmpty || _categories.isEmpty)
-                  ? const Center(
+                  ? Center(
                       child: Padding(
-                        padding: EdgeInsets.all(16),
+                        padding: const EdgeInsets.all(16),
                         child: Text(
                           'Planlama için en az bir aktif hesap ve aktif gelir tipi gerekli.',
                           textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: colorScheme.onSurfaceVariant,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
                     )
                   : ListView(
                       padding: const EdgeInsets.all(12),
                       children: [
-                        Card(
+                        Container(
+                          decoration: context.surfaceDecoration(
+                            accent: AppColors.income,
+                          ),
                           child: Column(
                             children: [
                               ListTile(
@@ -890,10 +899,6 @@ class _IncomePlanningScreenState extends State<IncomePlanningScreen> {
                                         SizedBox(
                                           width: double.infinity,
                                           child: ElevatedButton(
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: AppColors.income,
-                                              foregroundColor: Colors.white,
-                                            ),
                                             onPressed:
                                                 _saving ? null : _savePlan,
                                             child: Text(_saving
@@ -908,13 +913,21 @@ class _IncomePlanningScreenState extends State<IncomePlanningScreen> {
                             ],
                           ),
                         ),
-                        const Text(
+                        Text(
                           'Aktif Gelir Planları',
-                          style: TextStyle(fontWeight: FontWeight.w700),
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            color: colorScheme.primary,
+                          ),
                         ),
                         const SizedBox(height: 6),
                         ..._plans.where((p) => p.isActive).map((p) {
-                          return Card(
+                          return Container(
+                            decoration: context.surfaceDecoration(
+                              accent: AppColors.income,
+                              fillColor:
+                                  context.softAccent(AppColors.income, 0.05),
+                            ),
                             child: Padding(
                               padding: const EdgeInsets.all(12),
                               child: Column(
@@ -987,10 +1000,18 @@ class _IncomePlanningScreenState extends State<IncomePlanningScreen> {
                           );
                         }),
                         if (_plans.where((p) => p.isActive).isEmpty)
-                          const Card(
+                          Container(
+                            decoration: context.surfaceDecoration(
+                              accent: AppColors.income,
+                            ),
                             child: Padding(
-                              padding: EdgeInsets.all(16),
-                              child: Text('Aktif gelir planı yok.'),
+                              padding: const EdgeInsets.all(16),
+                              child: Text(
+                                'Aktif gelir planı yok.',
+                                style: TextStyle(
+                                  color: colorScheme.onSurfaceVariant,
+                                ),
+                              ),
                             ),
                           ),
                       ],

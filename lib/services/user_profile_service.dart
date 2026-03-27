@@ -1,5 +1,6 @@
 import 'package:isar/isar.dart';
 
+import '../theme/app_theme.dart';
 import '../database/isar_service.dart';
 import '../models/user_profile.dart';
 
@@ -10,7 +11,10 @@ class UserProfileService {
       final isar = IsarService.isar;
       final profiles = await isar.userProfiles.where().findAll();
       if (profiles.isEmpty) return null;
-      return profiles.first;
+      final profile = profiles.first;
+      profile.themeKey = _normalizeThemeKey(profile.themeKey);
+      profile.fanTeamKey = _normalizeFanTeamKey(profile.fanTeamKey);
+      return profile;
     } on IsarError catch (e) {
       // Recover from schema mismatch after hot-reload/update.
       if (e.message.contains('MissingTypeSchema')) {
@@ -18,7 +22,10 @@ class UserProfileService {
         final isar = IsarService.isar;
         final profiles = await isar.userProfiles.where().findAll();
         if (profiles.isEmpty) return null;
-        return profiles.first;
+        final profile = profiles.first;
+        profile.themeKey = _normalizeThemeKey(profile.themeKey);
+        profile.fanTeamKey = _normalizeFanTeamKey(profile.fanTeamKey);
+        return profile;
       }
       rethrow;
     }
@@ -51,8 +58,18 @@ class UserProfileService {
         profile.createdAt = DateTime.now();
       }
 
+      profile.themeKey = _normalizeThemeKey(profile.themeKey);
+      profile.fanTeamKey = _normalizeFanTeamKey(profile.fanTeamKey);
       profile.updatedAt = DateTime.now();
       await isar.userProfiles.put(profile);
     });
+  }
+
+  static String _normalizeThemeKey(String? themeKey) {
+    return AppTheme.normalizeKey(themeKey);
+  }
+
+  static String _normalizeFanTeamKey(String? fanTeamKey) {
+    return AppTheme.normalizeFanTeamKey(fanTeamKey);
   }
 }

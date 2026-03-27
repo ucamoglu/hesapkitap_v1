@@ -91,6 +91,7 @@ class TrackedStockService {
     'KRDMD': 'Kardemir (D)',
     'LOGO': 'Logo Yazilim',
     'MAVI': 'Mavi Giyim',
+    'MEYSU': 'Meysu Gida',
     'MGROS': 'Migros',
     'MPARK': 'MLP Saglik',
     'ODAS': 'Odas Elektrik',

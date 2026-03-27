@@ -9,6 +9,7 @@ import '../services/tracked_crypto_service.dart';
 import '../services/tracked_currency_service.dart';
 import '../services/tracked_metal_service.dart';
 import '../services/tracked_stock_service.dart';
+import '../theme/app_theme_helpers.dart';
 import '../utils/navigation_helpers.dart';
 import '../utils/turkish_upper_case_formatter.dart';
 
@@ -443,6 +444,8 @@ class _CariCardsScreenState extends State<CariCardsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    const accent = Colors.orange;
     return Scaffold(
       drawer: buildAppMenuDrawer(),
       appBar: AppBar(
@@ -451,44 +454,70 @@ class _CariCardsScreenState extends State<CariCardsScreen> {
         actions: [buildHomeAction(context)],
       ),
       body: cards.isEmpty
-          ? const Center(child: Text('Cari kart bulunamadı.'))
+          ? Center(
+              child: Text(
+                'Cari kart bulunamadı.',
+                style: TextStyle(
+                  color: colorScheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            )
           : ListView.builder(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 88),
               itemCount: cards.length,
               itemBuilder: (context, index) {
                 final c = cards[index];
-                return ListTile(
-                  leading: CircleAvatar(
-                    backgroundImage:
-                        c.photoBytes != null ? MemoryImage(Uint8List.fromList(c.photoBytes!)) : null,
-                    child: c.photoBytes == null ? Icon(_icon(c.type)) : null,
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  decoration: context.surfaceDecoration(
+                    accent: accent,
+                    fillColor: c.isActive
+                        ? context.softAccent(accent, 0.06)
+                        : Colors.white,
                   ),
-                  title: Text(
-                    _label(c),
-                    style: TextStyle(
-                      decoration: c.isActive ? null : TextDecoration.lineThrough,
+                  child: ListTile(
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
                     ),
-                  ),
-                  subtitle: Text(
-                    '${c.type == 'company' ? 'Firma' : 'Kişi'} • ${_currencySummary(c)}',
-                  ),
-                  trailing: PopupMenuButton<String>(
-                    onSelected: (value) async {
-                      if (value == 'edit') {
-                        _openDialog(edit: c);
-                      } else if (value == 'toggle') {
-                        await _toggle(c);
-                      }
-                    },
-                    itemBuilder: (_) => [
-                      const PopupMenuItem(
-                        value: 'edit',
-                        child: Text('Düzenle'),
+                    leading: CircleAvatar(
+                      backgroundColor: context.softAccent(accent),
+                      backgroundImage:
+                          c.photoBytes != null ? MemoryImage(Uint8List.fromList(c.photoBytes!)) : null,
+                      child: c.photoBytes == null ? Icon(_icon(c.type), color: accent) : null,
+                    ),
+                    title: Text(
+                      _label(c),
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        decoration: c.isActive ? null : TextDecoration.lineThrough,
                       ),
-                      PopupMenuItem(
-                        value: 'toggle',
-                        child: Text(c.isActive ? 'Pasif Yap' : 'Aktif Yap'),
-                      ),
-                    ],
+                    ),
+                    subtitle: Text(
+                      '${c.type == 'company' ? 'Firma' : 'Kişi'} • ${_currencySummary(c)}',
+                      style: TextStyle(color: colorScheme.onSurfaceVariant),
+                    ),
+                    trailing: PopupMenuButton<String>(
+                      icon: const Icon(Icons.more_horiz, color: accent),
+                      onSelected: (value) async {
+                        if (value == 'edit') {
+                          _openDialog(edit: c);
+                        } else if (value == 'toggle') {
+                          await _toggle(c);
+                        }
+                      },
+                      itemBuilder: (_) => [
+                        const PopupMenuItem(
+                          value: 'edit',
+                          child: Text('Düzenle'),
+                        ),
+                        PopupMenuItem(
+                          value: 'toggle',
+                          child: Text(c.isActive ? 'Pasif Yap' : 'Aktif Yap'),
+                        ),
+                      ],
+                    ),
                   ),
                 );
               },

@@ -59,6 +59,8 @@ class InstrumentTrackingScreen extends StatefulWidget {
   final Future<TrackingLinkStatus> Function(String code) linkStatusByCode;
   final Widget Function(MarketRateItem? rate) trailingBuilder;
   final Duration refreshInterval;
+  final MarketRateItem? Function(String rawQuery)? manualCandidateBuilder;
+  final String? manualCandidateLabel;
 
   const InstrumentTrackingScreen({
     required this.title,
@@ -80,6 +82,8 @@ class InstrumentTrackingScreen extends StatefulWidget {
     required this.linkStatusByCode,
     required this.trailingBuilder,
     this.refreshInterval = const Duration(hours: 1),
+    this.manualCandidateBuilder,
+    this.manualCandidateLabel,
     super.key,
   });
 
@@ -167,6 +171,13 @@ class _InstrumentTrackingScreenState extends State<InstrumentTrackingScreen> {
             if (q.isEmpty) return true;
             return e.code.toLowerCase().contains(q) || e.name.toLowerCase().contains(q);
           }).toList();
+          final manualCandidate = widget.manualCandidateBuilder?.call(query);
+          final canAddManualCandidate =
+              manualCandidate != null &&
+              !trackedCodes.contains(manualCandidate.code) &&
+              !candidates.any(
+                (item) => item.code.toUpperCase() == manualCandidate.code.toUpperCase(),
+              );
 
           return SafeArea(
             child: SizedBox(
@@ -194,6 +205,17 @@ class _InstrumentTrackingScreenState extends State<InstrumentTrackingScreen> {
                     ),
                   ),
                   const Divider(height: 1),
+                  if (canAddManualCandidate)
+                    ListTile(
+                      leading: const Icon(Icons.add_circle_outline),
+                      title: Text(
+                        '${widget.manualCandidateLabel ?? 'Kodu ekle'}: '
+                        '${manualCandidate.code}',
+                      ),
+                      subtitle: Text(manualCandidate.name),
+                      onTap: () => Navigator.pop(ctx, manualCandidate),
+                    ),
+                  if (canAddManualCandidate) const Divider(height: 1),
                   Expanded(
                     child: ListView.separated(
                       itemCount: filtered.length,

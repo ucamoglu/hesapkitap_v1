@@ -7,6 +7,7 @@ import '../services/account_service.dart';
 import '../services/category_service.dart';
 import '../services/expense_plan_service.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_theme_helpers.dart';
 import '../utils/navigation_helpers.dart';
 import '../utils/planning_standard.dart';
 import '../utils/turkish_money_input_formatter.dart';
@@ -526,6 +527,7 @@ class _ExpensePlanningScreenState extends State<ExpensePlanningScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return PopScope(
         canPop: !_hasUnsavedDraft(),
         onPopInvokedWithResult: (didPop, result) async {
@@ -554,19 +556,26 @@ class _ExpensePlanningScreenState extends State<ExpensePlanningScreen> {
           body: _loading
               ? const Center(child: CircularProgressIndicator())
               : (_accounts.isEmpty || _categories.isEmpty)
-                  ? const Center(
+                  ? Center(
                       child: Padding(
-                        padding: EdgeInsets.all(16),
+                        padding: const EdgeInsets.all(16),
                         child: Text(
                           'Planlama için en az bir aktif hesap ve aktif gider tipi gerekli.',
                           textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: colorScheme.onSurfaceVariant,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
                     )
                   : ListView(
                       padding: const EdgeInsets.all(12),
                       children: [
-                        Card(
+                        Container(
+                          decoration: context.surfaceDecoration(
+                            accent: AppColors.expense,
+                          ),
                           child: Column(
                             children: [
                               ListTile(
@@ -890,11 +899,6 @@ class _ExpensePlanningScreenState extends State<ExpensePlanningScreen> {
                                         SizedBox(
                                           width: double.infinity,
                                           child: ElevatedButton(
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor:
-                                                  AppColors.expense,
-                                              foregroundColor: Colors.white,
-                                            ),
                                             onPressed:
                                                 _saving ? null : _savePlan,
                                             child: Text(_saving
@@ -910,13 +914,21 @@ class _ExpensePlanningScreenState extends State<ExpensePlanningScreen> {
                           ),
                         ),
                         const SizedBox(height: 6),
-                        const Text(
+                        Text(
                           'Aktif Gider Planları',
-                          style: TextStyle(fontWeight: FontWeight.w700),
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            color: colorScheme.primary,
+                          ),
                         ),
                         const SizedBox(height: 6),
                         ..._plans.where((p) => p.isActive).map((p) {
-                          return Card(
+                          return Container(
+                            decoration: context.surfaceDecoration(
+                              accent: AppColors.expense,
+                              fillColor:
+                                  context.softAccent(AppColors.expense, 0.05),
+                            ),
                             child: Padding(
                               padding: const EdgeInsets.all(12),
                               child: Column(
@@ -989,10 +1001,18 @@ class _ExpensePlanningScreenState extends State<ExpensePlanningScreen> {
                           );
                         }),
                         if (_plans.where((p) => p.isActive).isEmpty)
-                          const Card(
+                          Container(
+                            decoration: context.surfaceDecoration(
+                              accent: AppColors.expense,
+                            ),
                             child: Padding(
-                              padding: EdgeInsets.all(16),
-                              child: Text('Aktif gider planı yok.'),
+                              padding: const EdgeInsets.all(16),
+                              child: Text(
+                                'Aktif gider planı yok.',
+                                style: TextStyle(
+                                  color: colorScheme.onSurfaceVariant,
+                                ),
+                              ),
                             ),
                           ),
                       ],

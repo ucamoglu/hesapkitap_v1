@@ -15,6 +15,20 @@ class StockTrackingScreen extends StatefulWidget {
 }
 
 class _StockTrackingScreenState extends State<StockTrackingScreen> {
+  MarketRateItem? _manualStockCandidate(String rawQuery) {
+    final code = rawQuery.trim().toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '');
+    if (code.length < 3 || code.length > 6) {
+      return null;
+    }
+
+    return MarketRateItem(
+      code: code,
+      name: TrackedStockService.canonicalName(code, code),
+      buy: 0,
+      sell: 0,
+    );
+  }
+
   // Hisse fiyatlarini ekranda okunur bicimde gosterir.
   String _fmt(double value, {int decimals = 2}) {
     final fixed = value.toStringAsFixed(decimals);
@@ -118,6 +132,8 @@ class _StockTrackingScreenState extends State<StockTrackingScreen> {
         );
       },
       refreshInterval: const Duration(minutes: 3),
+      manualCandidateBuilder: _manualStockCandidate,
+      manualCandidateLabel: 'BIST kodunu ekle',
     );
   }
 }

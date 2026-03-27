@@ -23,58 +23,78 @@ const SubscriptionDefinitionSchema = CollectionSchema(
       name: r'createdAt',
       type: IsarType.dateTime,
     ),
-    r'defaultExpenseCategoryId': PropertySchema(
+    r'defaultAmount': PropertySchema(
       id: 1,
+      name: r'defaultAmount',
+      type: IsarType.double,
+    ),
+    r'defaultExpenseCategoryId': PropertySchema(
+      id: 2,
       name: r'defaultExpenseCategoryId',
       type: IsarType.long,
     ),
     r'dueDay': PropertySchema(
-      id: 2,
+      id: 3,
       name: r'dueDay',
       type: IsarType.long,
     ),
+    r'dueMonth': PropertySchema(
+      id: 4,
+      name: r'dueMonth',
+      type: IsarType.long,
+    ),
+    r'duePeriod': PropertySchema(
+      id: 5,
+      name: r'duePeriod',
+      type: IsarType.string,
+    ),
     r'isActive': PropertySchema(
-      id: 3,
+      id: 6,
       name: r'isActive',
       type: IsarType.bool,
     ),
     r'isAutoPay': PropertySchema(
-      id: 4,
+      id: 7,
       name: r'isAutoPay',
       type: IsarType.bool,
     ),
     r'name': PropertySchema(
-      id: 5,
+      id: 8,
       name: r'name',
       type: IsarType.string,
     ),
     r'note': PropertySchema(
-      id: 6,
+      id: 9,
       name: r'note',
       type: IsarType.string,
     ),
     r'paymentAccountId': PropertySchema(
-      id: 7,
+      id: 10,
       name: r'paymentAccountId',
       type: IsarType.long,
     ),
+    r'paymentType': PropertySchema(
+      id: 11,
+      name: r'paymentType',
+      type: IsarType.string,
+    ),
     r'providerName': PropertySchema(
-      id: 8,
+      id: 12,
       name: r'providerName',
       type: IsarType.string,
     ),
     r'subscriberNumber': PropertySchema(
-      id: 9,
+      id: 13,
       name: r'subscriberNumber',
       type: IsarType.string,
     ),
     r'type': PropertySchema(
-      id: 10,
+      id: 14,
       name: r'type',
       type: IsarType.string,
     ),
     r'updatedAt': PropertySchema(
-      id: 11,
+      id: 15,
       name: r'updatedAt',
       type: IsarType.dateTime,
     )
@@ -99,6 +119,7 @@ int _subscriptionDefinitionEstimateSize(
   Map<Type, List<int>> allOffsets,
 ) {
   var bytesCount = offsets.last;
+  bytesCount += 3 + object.duePeriod.length * 3;
   bytesCount += 3 + object.name.length * 3;
   {
     final value = object.note;
@@ -106,6 +127,7 @@ int _subscriptionDefinitionEstimateSize(
       bytesCount += 3 + value.length * 3;
     }
   }
+  bytesCount += 3 + object.paymentType.length * 3;
   bytesCount += 3 + object.providerName.length * 3;
   {
     final value = object.subscriberNumber;
@@ -124,17 +146,21 @@ void _subscriptionDefinitionSerialize(
   Map<Type, List<int>> allOffsets,
 ) {
   writer.writeDateTime(offsets[0], object.createdAt);
-  writer.writeLong(offsets[1], object.defaultExpenseCategoryId);
-  writer.writeLong(offsets[2], object.dueDay);
-  writer.writeBool(offsets[3], object.isActive);
-  writer.writeBool(offsets[4], object.isAutoPay);
-  writer.writeString(offsets[5], object.name);
-  writer.writeString(offsets[6], object.note);
-  writer.writeLong(offsets[7], object.paymentAccountId);
-  writer.writeString(offsets[8], object.providerName);
-  writer.writeString(offsets[9], object.subscriberNumber);
-  writer.writeString(offsets[10], object.type);
-  writer.writeDateTime(offsets[11], object.updatedAt);
+  writer.writeDouble(offsets[1], object.defaultAmount);
+  writer.writeLong(offsets[2], object.defaultExpenseCategoryId);
+  writer.writeLong(offsets[3], object.dueDay);
+  writer.writeLong(offsets[4], object.dueMonth);
+  writer.writeString(offsets[5], object.duePeriod);
+  writer.writeBool(offsets[6], object.isActive);
+  writer.writeBool(offsets[7], object.isAutoPay);
+  writer.writeString(offsets[8], object.name);
+  writer.writeString(offsets[9], object.note);
+  writer.writeLong(offsets[10], object.paymentAccountId);
+  writer.writeString(offsets[11], object.paymentType);
+  writer.writeString(offsets[12], object.providerName);
+  writer.writeString(offsets[13], object.subscriberNumber);
+  writer.writeString(offsets[14], object.type);
+  writer.writeDateTime(offsets[15], object.updatedAt);
 }
 
 SubscriptionDefinition _subscriptionDefinitionDeserialize(
@@ -145,18 +171,22 @@ SubscriptionDefinition _subscriptionDefinitionDeserialize(
 ) {
   final object = SubscriptionDefinition();
   object.createdAt = reader.readDateTime(offsets[0]);
-  object.defaultExpenseCategoryId = reader.readLongOrNull(offsets[1]);
-  object.dueDay = reader.readLongOrNull(offsets[2]);
+  object.defaultAmount = reader.readDoubleOrNull(offsets[1]);
+  object.defaultExpenseCategoryId = reader.readLongOrNull(offsets[2]);
+  object.dueDay = reader.readLongOrNull(offsets[3]);
+  object.dueMonth = reader.readLongOrNull(offsets[4]);
+  object.duePeriod = reader.readString(offsets[5]);
   object.id = id;
-  object.isActive = reader.readBool(offsets[3]);
-  object.isAutoPay = reader.readBool(offsets[4]);
-  object.name = reader.readString(offsets[5]);
-  object.note = reader.readStringOrNull(offsets[6]);
-  object.paymentAccountId = reader.readLongOrNull(offsets[7]);
-  object.providerName = reader.readString(offsets[8]);
-  object.subscriberNumber = reader.readStringOrNull(offsets[9]);
-  object.type = reader.readString(offsets[10]);
-  object.updatedAt = reader.readDateTimeOrNull(offsets[11]);
+  object.isActive = reader.readBool(offsets[6]);
+  object.isAutoPay = reader.readBool(offsets[7]);
+  object.name = reader.readString(offsets[8]);
+  object.note = reader.readStringOrNull(offsets[9]);
+  object.paymentAccountId = reader.readLongOrNull(offsets[10]);
+  object.paymentType = reader.readString(offsets[11]);
+  object.providerName = reader.readString(offsets[12]);
+  object.subscriberNumber = reader.readStringOrNull(offsets[13]);
+  object.type = reader.readString(offsets[14]);
+  object.updatedAt = reader.readDateTimeOrNull(offsets[15]);
   return object;
 }
 
@@ -170,26 +200,34 @@ P _subscriptionDefinitionDeserializeProp<P>(
     case 0:
       return (reader.readDateTime(offset)) as P;
     case 1:
-      return (reader.readLongOrNull(offset)) as P;
+      return (reader.readDoubleOrNull(offset)) as P;
     case 2:
       return (reader.readLongOrNull(offset)) as P;
     case 3:
-      return (reader.readBool(offset)) as P;
+      return (reader.readLongOrNull(offset)) as P;
     case 4:
-      return (reader.readBool(offset)) as P;
+      return (reader.readLongOrNull(offset)) as P;
     case 5:
       return (reader.readString(offset)) as P;
     case 6:
-      return (reader.readStringOrNull(offset)) as P;
+      return (reader.readBool(offset)) as P;
     case 7:
-      return (reader.readLongOrNull(offset)) as P;
+      return (reader.readBool(offset)) as P;
     case 8:
       return (reader.readString(offset)) as P;
     case 9:
       return (reader.readStringOrNull(offset)) as P;
     case 10:
-      return (reader.readString(offset)) as P;
+      return (reader.readLongOrNull(offset)) as P;
     case 11:
+      return (reader.readString(offset)) as P;
+    case 12:
+      return (reader.readString(offset)) as P;
+    case 13:
+      return (reader.readStringOrNull(offset)) as P;
+    case 14:
+      return (reader.readString(offset)) as P;
+    case 15:
       return (reader.readDateTimeOrNull(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -350,6 +388,90 @@ extension SubscriptionDefinitionQueryFilter on QueryBuilder<
   }
 
   QueryBuilder<SubscriptionDefinition, SubscriptionDefinition,
+      QAfterFilterCondition> defaultAmountIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'defaultAmount',
+      ));
+    });
+  }
+
+  QueryBuilder<SubscriptionDefinition, SubscriptionDefinition,
+      QAfterFilterCondition> defaultAmountIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'defaultAmount',
+      ));
+    });
+  }
+
+  QueryBuilder<SubscriptionDefinition, SubscriptionDefinition,
+      QAfterFilterCondition> defaultAmountEqualTo(
+    double? value, {
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'defaultAmount',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<SubscriptionDefinition, SubscriptionDefinition,
+      QAfterFilterCondition> defaultAmountGreaterThan(
+    double? value, {
+    bool include = false,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'defaultAmount',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<SubscriptionDefinition, SubscriptionDefinition,
+      QAfterFilterCondition> defaultAmountLessThan(
+    double? value, {
+    bool include = false,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'defaultAmount',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<SubscriptionDefinition, SubscriptionDefinition,
+      QAfterFilterCondition> defaultAmountBetween(
+    double? lower,
+    double? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'defaultAmount',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<SubscriptionDefinition, SubscriptionDefinition,
       QAfterFilterCondition> defaultExpenseCategoryIdIsNull() {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(const FilterCondition.isNull(
@@ -493,6 +615,218 @@ extension SubscriptionDefinitionQueryFilter on QueryBuilder<
         includeLower: includeLower,
         upper: upper,
         includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<SubscriptionDefinition, SubscriptionDefinition,
+      QAfterFilterCondition> dueMonthIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'dueMonth',
+      ));
+    });
+  }
+
+  QueryBuilder<SubscriptionDefinition, SubscriptionDefinition,
+      QAfterFilterCondition> dueMonthIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'dueMonth',
+      ));
+    });
+  }
+
+  QueryBuilder<SubscriptionDefinition, SubscriptionDefinition,
+      QAfterFilterCondition> dueMonthEqualTo(int? value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'dueMonth',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<SubscriptionDefinition, SubscriptionDefinition,
+      QAfterFilterCondition> dueMonthGreaterThan(
+    int? value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'dueMonth',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<SubscriptionDefinition, SubscriptionDefinition,
+      QAfterFilterCondition> dueMonthLessThan(
+    int? value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'dueMonth',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<SubscriptionDefinition, SubscriptionDefinition,
+      QAfterFilterCondition> dueMonthBetween(
+    int? lower,
+    int? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'dueMonth',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<SubscriptionDefinition, SubscriptionDefinition,
+      QAfterFilterCondition> duePeriodEqualTo(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'duePeriod',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SubscriptionDefinition, SubscriptionDefinition,
+      QAfterFilterCondition> duePeriodGreaterThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'duePeriod',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SubscriptionDefinition, SubscriptionDefinition,
+      QAfterFilterCondition> duePeriodLessThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'duePeriod',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SubscriptionDefinition, SubscriptionDefinition,
+      QAfterFilterCondition> duePeriodBetween(
+    String lower,
+    String upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'duePeriod',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SubscriptionDefinition, SubscriptionDefinition,
+      QAfterFilterCondition> duePeriodStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'duePeriod',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SubscriptionDefinition, SubscriptionDefinition,
+      QAfterFilterCondition> duePeriodEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'duePeriod',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SubscriptionDefinition, SubscriptionDefinition,
+          QAfterFilterCondition>
+      duePeriodContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'duePeriod',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SubscriptionDefinition, SubscriptionDefinition,
+          QAfterFilterCondition>
+      duePeriodMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'duePeriod',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SubscriptionDefinition, SubscriptionDefinition,
+      QAfterFilterCondition> duePeriodIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'duePeriod',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<SubscriptionDefinition, SubscriptionDefinition,
+      QAfterFilterCondition> duePeriodIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'duePeriod',
+        value: '',
       ));
     });
   }
@@ -937,6 +1271,144 @@ extension SubscriptionDefinitionQueryFilter on QueryBuilder<
         includeLower: includeLower,
         upper: upper,
         includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<SubscriptionDefinition, SubscriptionDefinition,
+      QAfterFilterCondition> paymentTypeEqualTo(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'paymentType',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SubscriptionDefinition, SubscriptionDefinition,
+      QAfterFilterCondition> paymentTypeGreaterThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'paymentType',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SubscriptionDefinition, SubscriptionDefinition,
+      QAfterFilterCondition> paymentTypeLessThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'paymentType',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SubscriptionDefinition, SubscriptionDefinition,
+      QAfterFilterCondition> paymentTypeBetween(
+    String lower,
+    String upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'paymentType',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SubscriptionDefinition, SubscriptionDefinition,
+      QAfterFilterCondition> paymentTypeStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'paymentType',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SubscriptionDefinition, SubscriptionDefinition,
+      QAfterFilterCondition> paymentTypeEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'paymentType',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SubscriptionDefinition, SubscriptionDefinition,
+          QAfterFilterCondition>
+      paymentTypeContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'paymentType',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SubscriptionDefinition, SubscriptionDefinition,
+          QAfterFilterCondition>
+      paymentTypeMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'paymentType',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<SubscriptionDefinition, SubscriptionDefinition,
+      QAfterFilterCondition> paymentTypeIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'paymentType',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<SubscriptionDefinition, SubscriptionDefinition,
+      QAfterFilterCondition> paymentTypeIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'paymentType',
+        value: '',
       ));
     });
   }
@@ -1471,6 +1943,20 @@ extension SubscriptionDefinitionQuerySortBy
   }
 
   QueryBuilder<SubscriptionDefinition, SubscriptionDefinition, QAfterSortBy>
+      sortByDefaultAmount() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'defaultAmount', Sort.asc);
+    });
+  }
+
+  QueryBuilder<SubscriptionDefinition, SubscriptionDefinition, QAfterSortBy>
+      sortByDefaultAmountDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'defaultAmount', Sort.desc);
+    });
+  }
+
+  QueryBuilder<SubscriptionDefinition, SubscriptionDefinition, QAfterSortBy>
       sortByDefaultExpenseCategoryId() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'defaultExpenseCategoryId', Sort.asc);
@@ -1495,6 +1981,34 @@ extension SubscriptionDefinitionQuerySortBy
       sortByDueDayDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'dueDay', Sort.desc);
+    });
+  }
+
+  QueryBuilder<SubscriptionDefinition, SubscriptionDefinition, QAfterSortBy>
+      sortByDueMonth() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'dueMonth', Sort.asc);
+    });
+  }
+
+  QueryBuilder<SubscriptionDefinition, SubscriptionDefinition, QAfterSortBy>
+      sortByDueMonthDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'dueMonth', Sort.desc);
+    });
+  }
+
+  QueryBuilder<SubscriptionDefinition, SubscriptionDefinition, QAfterSortBy>
+      sortByDuePeriod() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'duePeriod', Sort.asc);
+    });
+  }
+
+  QueryBuilder<SubscriptionDefinition, SubscriptionDefinition, QAfterSortBy>
+      sortByDuePeriodDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'duePeriod', Sort.desc);
     });
   }
 
@@ -1565,6 +2079,20 @@ extension SubscriptionDefinitionQuerySortBy
       sortByPaymentAccountIdDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'paymentAccountId', Sort.desc);
+    });
+  }
+
+  QueryBuilder<SubscriptionDefinition, SubscriptionDefinition, QAfterSortBy>
+      sortByPaymentType() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'paymentType', Sort.asc);
+    });
+  }
+
+  QueryBuilder<SubscriptionDefinition, SubscriptionDefinition, QAfterSortBy>
+      sortByPaymentTypeDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'paymentType', Sort.desc);
     });
   }
 
@@ -1642,6 +2170,20 @@ extension SubscriptionDefinitionQuerySortThenBy on QueryBuilder<
   }
 
   QueryBuilder<SubscriptionDefinition, SubscriptionDefinition, QAfterSortBy>
+      thenByDefaultAmount() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'defaultAmount', Sort.asc);
+    });
+  }
+
+  QueryBuilder<SubscriptionDefinition, SubscriptionDefinition, QAfterSortBy>
+      thenByDefaultAmountDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'defaultAmount', Sort.desc);
+    });
+  }
+
+  QueryBuilder<SubscriptionDefinition, SubscriptionDefinition, QAfterSortBy>
       thenByDefaultExpenseCategoryId() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'defaultExpenseCategoryId', Sort.asc);
@@ -1666,6 +2208,34 @@ extension SubscriptionDefinitionQuerySortThenBy on QueryBuilder<
       thenByDueDayDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'dueDay', Sort.desc);
+    });
+  }
+
+  QueryBuilder<SubscriptionDefinition, SubscriptionDefinition, QAfterSortBy>
+      thenByDueMonth() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'dueMonth', Sort.asc);
+    });
+  }
+
+  QueryBuilder<SubscriptionDefinition, SubscriptionDefinition, QAfterSortBy>
+      thenByDueMonthDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'dueMonth', Sort.desc);
+    });
+  }
+
+  QueryBuilder<SubscriptionDefinition, SubscriptionDefinition, QAfterSortBy>
+      thenByDuePeriod() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'duePeriod', Sort.asc);
+    });
+  }
+
+  QueryBuilder<SubscriptionDefinition, SubscriptionDefinition, QAfterSortBy>
+      thenByDuePeriodDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'duePeriod', Sort.desc);
     });
   }
 
@@ -1754,6 +2324,20 @@ extension SubscriptionDefinitionQuerySortThenBy on QueryBuilder<
   }
 
   QueryBuilder<SubscriptionDefinition, SubscriptionDefinition, QAfterSortBy>
+      thenByPaymentType() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'paymentType', Sort.asc);
+    });
+  }
+
+  QueryBuilder<SubscriptionDefinition, SubscriptionDefinition, QAfterSortBy>
+      thenByPaymentTypeDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'paymentType', Sort.desc);
+    });
+  }
+
+  QueryBuilder<SubscriptionDefinition, SubscriptionDefinition, QAfterSortBy>
       thenByProviderName() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'providerName', Sort.asc);
@@ -1820,6 +2404,13 @@ extension SubscriptionDefinitionQueryWhereDistinct
   }
 
   QueryBuilder<SubscriptionDefinition, SubscriptionDefinition, QDistinct>
+      distinctByDefaultAmount() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'defaultAmount');
+    });
+  }
+
+  QueryBuilder<SubscriptionDefinition, SubscriptionDefinition, QDistinct>
       distinctByDefaultExpenseCategoryId() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'defaultExpenseCategoryId');
@@ -1830,6 +2421,20 @@ extension SubscriptionDefinitionQueryWhereDistinct
       distinctByDueDay() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'dueDay');
+    });
+  }
+
+  QueryBuilder<SubscriptionDefinition, SubscriptionDefinition, QDistinct>
+      distinctByDueMonth() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'dueMonth');
+    });
+  }
+
+  QueryBuilder<SubscriptionDefinition, SubscriptionDefinition, QDistinct>
+      distinctByDuePeriod({bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'duePeriod', caseSensitive: caseSensitive);
     });
   }
 
@@ -1865,6 +2470,13 @@ extension SubscriptionDefinitionQueryWhereDistinct
       distinctByPaymentAccountId() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'paymentAccountId');
+    });
+  }
+
+  QueryBuilder<SubscriptionDefinition, SubscriptionDefinition, QDistinct>
+      distinctByPaymentType({bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'paymentType', caseSensitive: caseSensitive);
     });
   }
 
@@ -1913,6 +2525,13 @@ extension SubscriptionDefinitionQueryProperty on QueryBuilder<
     });
   }
 
+  QueryBuilder<SubscriptionDefinition, double?, QQueryOperations>
+      defaultAmountProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'defaultAmount');
+    });
+  }
+
   QueryBuilder<SubscriptionDefinition, int?, QQueryOperations>
       defaultExpenseCategoryIdProperty() {
     return QueryBuilder.apply(this, (query) {
@@ -1924,6 +2543,20 @@ extension SubscriptionDefinitionQueryProperty on QueryBuilder<
       dueDayProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'dueDay');
+    });
+  }
+
+  QueryBuilder<SubscriptionDefinition, int?, QQueryOperations>
+      dueMonthProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'dueMonth');
+    });
+  }
+
+  QueryBuilder<SubscriptionDefinition, String, QQueryOperations>
+      duePeriodProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'duePeriod');
     });
   }
 
@@ -1959,6 +2592,13 @@ extension SubscriptionDefinitionQueryProperty on QueryBuilder<
       paymentAccountIdProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'paymentAccountId');
+    });
+  }
+
+  QueryBuilder<SubscriptionDefinition, String, QQueryOperations>
+      paymentTypeProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'paymentType');
     });
   }
 

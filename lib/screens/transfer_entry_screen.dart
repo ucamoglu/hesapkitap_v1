@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/account.dart';
 import '../services/account_service.dart';
 import '../services/transfer_transaction_service.dart';
+import '../theme/app_theme_helpers.dart';
 import '../utils/app_feedback.dart';
 import '../utils/navigation_helpers.dart';
 import '../utils/turkish_money_input_formatter.dart';
@@ -143,7 +144,7 @@ class _TransferEntryScreenState extends State<TransferEntryScreen> {
     if (fromAccount.id == toAccount.id) {
       return 'Gönderen ve alan hesap aynı olamaz.';
     }
-    if (fromAccount.balance + 1e-9 < amount) {
+    if (!fromAccount.canWithdraw(amount)) {
       return 'Gönderen hesap bakiyesi bu transfer için yetersiz.';
     }
     return null;
@@ -167,12 +168,11 @@ class _TransferEntryScreenState extends State<TransferEntryScreen> {
 
     return Container(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: hasWarning ? const Color(0xFFFFF4E5) : const Color(0xFFF4F8FF),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: hasWarning ? const Color(0xFFE09F3E) : Colors.black12,
-        ),
+      decoration: context.surfaceDecoration(
+        accent: hasWarning ? Colors.orange : Theme.of(context).colorScheme.primary,
+        fillColor: hasWarning
+            ? Colors.orange.withValues(alpha: 0.12)
+            : Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -187,6 +187,10 @@ class _TransferEntryScreenState extends State<TransferEntryScreen> {
             'Gönderen: ${_fmtAmount(fromAccount.balance)} TL '
             '→ ${_fmtAmount(projectedFromBalance)} TL',
           ),
+          if (fromAccount.effectiveOverdraftLimit > 0)
+            Text(
+              'Gönderen ek hesap limiti: ${_fmtAmount(fromAccount.effectiveOverdraftLimit)} TL',
+            ),
           Text(
             'Alan: ${_fmtAmount(toAccount.balance)} TL '
             '→ ${_fmtAmount(projectedToBalance)} TL',

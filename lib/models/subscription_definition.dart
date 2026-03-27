@@ -8,12 +8,16 @@ class SubscriptionDefinition {
 
   late String name;
   late String type;
+  String paymentType = 'variable';
+  String duePeriod = 'monthly';
   late String providerName;
 
   String? subscriberNumber;
   int? paymentAccountId;
   int? defaultExpenseCategoryId;
+  double? defaultAmount;
   int? dueDay;
+  int? dueMonth;
   String? note;
 
   bool isAutoPay = false;

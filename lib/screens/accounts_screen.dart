@@ -10,6 +10,7 @@ import '../services/tracked_crypto_service.dart';
 import '../services/tracked_currency_service.dart';
 import '../services/tracked_metal_service.dart';
 import '../services/tracked_stock_service.dart';
+import '../utils/turkish_money_input_formatter.dart';
 import '../utils/navigation_helpers.dart';
 import '../utils/turkish_upper_case_formatter.dart';
 
@@ -23,6 +24,25 @@ class AccountsScreen extends StatefulWidget {
 class _AccountsScreenState extends State<AccountsScreen> {
   List<Account> accounts = [];
   Map<String, double> _livePriceBySymbol = {};
+
+  Color _accountAccentColor(BuildContext context, Account account) {
+    final colorScheme = Theme.of(context).colorScheme;
+    if (account.isCreditCard) return Colors.deepOrange;
+    switch (account.type) {
+      case 'cash':
+        return Colors.blue;
+      case 'bank':
+        return colorScheme.primary;
+      case 'investment':
+        return Colors.teal;
+      default:
+        return colorScheme.primary;
+    }
+  }
+
+  Color _accountSoftColor(BuildContext context, Account account) {
+    return _accountAccentColor(context, account).withValues(alpha: 0.10);
+  }
 
   // Ekranda kullanilan kisa bilgi mesajlarini tek yerden gosterir.
   void _showSnack(String message) {
@@ -81,8 +101,11 @@ class _AccountsScreenState extends State<AccountsScreen> {
             'Kesim: $statementDay. gün • Son Ödeme: $paymentDueDay. gün\n'
             'Kart Borcu: ${_fmtAmount(acc.balance.abs())} TL';
       }
-      final label = 'Banka Hesabı';
-      return '$label\nBakiye: ${_fmtAmount(acc.balance)} TL';
+      final label = 'Mevduat Hesabı';
+      final overdraftText = acc.effectiveOverdraftLimit > 0
+          ? '\nEk Hesap: ${_fmtAmount(acc.effectiveOverdraftLimit)} TL'
+          : '';
+      return '$label\nBakiye: ${_fmtAmount(acc.balance)} TL$overdraftText';
     }
 
     final symbol = (acc.investmentSymbol ?? '-').toUpperCase();
@@ -236,6 +259,8 @@ class _AccountsScreenState extends State<AccountsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Scaffold(
       drawer: buildAppMenuDrawer(),
       appBar: AppBar(
@@ -244,24 +269,41 @@ class _AccountsScreenState extends State<AccountsScreen> {
         actions: [buildHomeAction(context)],
       ),
       body: accounts.isEmpty
-          ? const Center(
+          ? Center(
               child: Text(
                 "Henüz hesap tanımlanmadı",
-                style: TextStyle(fontSize: 16),
+                style: TextStyle(
+                  fontSize: 16,
+                  color: colorScheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             )
           : ListView.builder(
               itemCount: accounts.length,
               itemBuilder: (context, index) {
                 final acc = accounts[index];
+                final accentColor = _accountAccentColor(context, acc);
+                final softColor = _accountSoftColor(context, acc);
 
                 return Card(
                   margin:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(24),
+                    side: BorderSide(
+                      color: colorScheme.outline.withValues(alpha: 0.22),
+                    ),
+                  ),
                   child: ListTile(
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
                     leading: Icon(
                       _getIcon(acc),
-                      color: Colors.deepPurple,
+                      color: accentColor,
                     ),
                     title: Text(
                       acc.name,
@@ -273,9 +315,20 @@ class _AccountsScreenState extends State<AccountsScreen> {
                     ),
                     subtitle: Text(
                       _accountSubtitle(acc),
+                      style: TextStyle(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
                     ),
                     isThreeLine: true,
                     trailing: PopupMenuButton<String>(
+                      icon: Icon(
+                        Icons.more_horiz,
+                        color: accentColor,
+                      ),
+                      color: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(18),
+                      ),
                       onSelected: (value) => _handleMenuAction(acc, value),
                       itemBuilder: (context) => [
                         const PopupMenuItem(
@@ -291,6 +344,10 @@ class _AccountsScreenState extends State<AccountsScreen> {
                           child: Text("Sil"),
                         ),
                       ],
+                    ),
+                    tileColor: softColor,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(24),
                     ),
                   ),
                 );
@@ -338,6 +395,11 @@ class _AccountsScreenState extends State<AccountsScreen> {
     );
     final paymentDueDayController = TextEditingController(
       text: initialAccount?.paymentDueDay?.toString() ?? '',
+    );
+    final overdraftLimitController = TextEditingController(
+      text: initialAccount == null || initialAccount.effectiveOverdraftLimit <= 0
+          ? ''
+          : _fmtAmount(initialAccount.effectiveOverdraftLimit),
     );
     String selectedType = initialAccount?.type ?? "cash";
     String? selectedBankSubtype =
@@ -430,7 +492,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
                         items: const [
                           DropdownMenuItem(
                             value: 'bank_account',
-                            child: Text('Banka Hesabı'),
+                            child: Text('Mevduat Hesabı'),
                           ),
                           DropdownMenuItem(
                             value: 'credit_card',
@@ -453,6 +515,22 @@ class _AccountsScreenState extends State<AccountsScreen> {
                         },
                         decoration: const InputDecoration(
                           labelText: "Hesap Alt Türü",
+                        ),
+                      ),
+                    ],
+                    if (selectedType == "bank" &&
+                        selectedBankSubtype ==
+                            AccountService.bankSubtypeBankAccount) ...[
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: overdraftLimitController,
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        inputFormatters: const [TurkishMoneyInputFormatter()],
+                        decoration: const InputDecoration(
+                          labelText: "Ek Hesap Tutarı",
+                          hintText: "Opsiyonel",
                         ),
                       ),
                     ],
@@ -512,7 +590,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
                         const Padding(
                           padding: EdgeInsets.only(top: 8),
                           child: Text(
-                            'Önce banka türünde ve alt türü banka hesabı olan aktif bir hesap ekleyiniz.',
+                            'Önce banka türünde ve alt türü mevduat hesabı olan aktif bir hesap ekleyiniz.',
                             style: TextStyle(color: Colors.red),
                           ),
                         ),
@@ -708,13 +786,24 @@ class _AccountsScreenState extends State<AccountsScreen> {
                         AccountService.bankSubtypeCreditCard &&
                     parentBankAccounts.isEmpty) {
                   _showSnack(
-                    "Önce aktif bir banka hesabı tanımlayınız.",
+                    "Önce aktif bir mevduat hesabı tanımlayınız.",
                   );
                   return;
                 }
                 final statementDay = int.tryParse(statementDayController.text);
                 final paymentDueDay =
                     int.tryParse(paymentDueDayController.text);
+                final overdraftLimit = TurkishMoneyInputFormatter.parse(
+                      overdraftLimitController.text,
+                    ) ??
+                    0;
+                if (selectedType == "bank" &&
+                    selectedBankSubtype ==
+                        AccountService.bankSubtypeBankAccount &&
+                    overdraftLimit < 0) {
+                  _showSnack("Ek hesap tutarı negatif olamaz.");
+                  return;
+                }
                 if (selectedType == "bank" &&
                     selectedBankSubtype ==
                         AccountService.bankSubtypeCreditCard &&
@@ -771,6 +860,11 @@ class _AccountsScreenState extends State<AccountsScreen> {
                   ..type = selectedType
                   ..bankSubtype =
                       selectedType == 'bank' ? selectedBankSubtype : null
+                  ..overdraftLimit = selectedType == 'bank' &&
+                          selectedBankSubtype ==
+                              AccountService.bankSubtypeBankAccount
+                      ? overdraftLimit
+                      : 0
                   ..linkedBankAccountId = selectedType == 'bank' &&
                           selectedBankSubtype ==
                               AccountService.bankSubtypeCreditCard
@@ -832,6 +926,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
     nameController.dispose();
     statementDayController.dispose();
     paymentDueDayController.dispose();
+    overdraftLimitController.dispose();
   }
 
   void _showEditAccountDialog(Account account) {

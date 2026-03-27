@@ -13,6 +13,7 @@ import '../services/location_consent_service.dart';
 import '../services/transaction_location_service.dart';
 import '../services/transaction_attachment_service.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_theme_helpers.dart';
 import '../utils/app_feedback.dart';
 import '../utils/camera_support.dart';
 import '../utils/navigation_helpers.dart';
@@ -340,10 +341,9 @@ class _IncomeEntryScreenState extends State<IncomeEntryScreen> {
     final projectedBalance = account.balance + amount;
     return Container(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.incomeSoft,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.income.withValues(alpha: 0.22)),
+      decoration: context.surfaceDecoration(
+        accent: AppColors.income,
+        fillColor: context.softAccent(AppColors.income, 0.10),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

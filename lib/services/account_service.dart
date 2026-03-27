@@ -31,6 +31,7 @@ class AccountService {
     if (type == 'cash') {
       account
         ..bankSubtype = null
+        ..overdraftLimit = 0
         ..linkedBankAccountId = null
         ..statementDay = null
         ..paymentDueDay = null
@@ -56,12 +57,17 @@ class AccountService {
         ..investmentSymbol = null;
 
       if (normalizedSubtype == bankSubtypeBankAccount) {
+        if (account.overdraftLimit < 0) {
+          throw Exception('Ek hesap tutarı negatif olamaz.');
+        }
         account
           ..linkedBankAccountId = null
           ..statementDay = null
           ..paymentDueDay = null;
         return;
       }
+
+      account.overdraftLimit = 0;
 
       final linkedBankAccountId = account.linkedBankAccountId;
       if (linkedBankAccountId == null) {
@@ -95,6 +101,7 @@ class AccountService {
 
     account
       ..bankSubtype = null
+      ..overdraftLimit = 0
       ..linkedBankAccountId = null
       ..statementDay = null
       ..paymentDueDay = null;

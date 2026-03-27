@@ -40,7 +40,7 @@ class TransferTransactionService {
       }
       _validateTransferAccount(from);
       _validateTransferAccount(to);
-      if (from.balance + 1e-9 < amount) {
+      if (!from.canWithdraw(amount)) {
         throw Exception('Gönderen hesap bakiyesi transfer için yetersiz.');
       }
 
