@@ -553,10 +553,10 @@ class _AccountDefinitionPreview extends StatelessWidget {
               _SampleAccountTile(
                 icon: Icons.show_chart,
                 color: Colors.teal,
-                title: 'HISSE SENEDI MEYSU',
+                title: 'HISSE SENEDI XXX',
                 lines: [
-                  'Yatirim • Borsa • MEYSU',
-                  'Depo: 1.500 MEYSU',
+                  'Yatirim • Borsa • XXX',
+                  'Depo: 1.500 XXX',
                   'Degeri: 19.905,00 TL',
                 ],
               ),
