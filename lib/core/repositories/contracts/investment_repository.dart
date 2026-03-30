@@ -14,6 +14,7 @@ abstract class InvestmentRepository {
     required double unitPrice,
     required double total,
     required DateTime date,
+    bool syncCreditCardStatement = true,
   });
   // Yatirim hareketini gunceller.
   Future<void> updateTransaction({

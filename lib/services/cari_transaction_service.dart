@@ -53,6 +53,21 @@ class CariTransactionService {
     return items;
   }
 
+  /// Belirli tarih araligindaki cari hareketleri yeni->eski sirada dondurur.
+  static Future<List<CariTransaction>> getByDateRange({
+    required DateTime start,
+    required DateTime end,
+  }) async {
+    final isar = IsarService.isar;
+    final items = await isar.cariTransactions
+        .where()
+        .filter()
+        .dateBetween(start, end)
+        .findAll();
+    items.sort((a, b) => b.date.compareTo(a.date));
+    return items;
+  }
+
   /// Cari borc kaydi olusturmak icin kolay sarmalayici metottur.
   static Future<void> addDebt({
     required int cariCardId,

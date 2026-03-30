@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../core/runtime/app_runtime.dart';
 import '../models/account.dart';
 import '../models/category.dart';
 import '../models/subscription_definition.dart';
@@ -78,7 +79,7 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
 
   Future<void> _load() async {
     final results = await Future.wait([
-      SubscriptionDefinitionService.getAll(),
+      AppRuntime.dataLayer.subscriptions.getAll(),
       AccountService.getActiveExpenseAccounts(),
       CategoryService.getActiveManualExpenseCategories(),
     ]);
@@ -532,9 +533,9 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
 
                 try {
                   if (edit == null) {
-                    await SubscriptionDefinitionService.add(item);
+                    await AppRuntime.dataLayer.subscriptions.add(item);
                   } else {
-                    await SubscriptionDefinitionService.update(item);
+                    await AppRuntime.dataLayer.subscriptions.update(item);
                   }
                   if (!context.mounted) return;
                   Navigator.pop(context);
@@ -575,7 +576,7 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
     if (confirmed != true) return;
 
     try {
-      await SubscriptionDefinitionService.delete(item.id);
+      await AppRuntime.dataLayer.subscriptions.delete(item.id);
       await _load();
       _showSnack('Sabit odeme silindi.');
     } catch (e) {
@@ -716,7 +717,7 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                         if (value == 'edit') {
                           await _openDialog(edit: item);
                         } else if (value == 'toggle') {
-                          await SubscriptionDefinitionService.setActive(
+                          await AppRuntime.dataLayer.subscriptions.setActive(
                             item.id,
                             !item.isActive,
                           );

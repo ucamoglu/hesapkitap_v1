@@ -80,6 +80,12 @@ class TrackedMetalService {
         .toList();
   }
 
+  /// Sadece aktif maden takip kayitlarini dondurur.
+  static Future<List<TrackedMetalItem>> getActive() async {
+    final items = await getAll();
+    return items.where((item) => item.isActive).toList(growable: false);
+  }
+
   /// Takip kaydini ekler/gunceller ve state kaydini aktif hale getirir.
   static Future<void> addOrUpdate(MarketRateItem item) async {
     final isar = IsarService.isar;

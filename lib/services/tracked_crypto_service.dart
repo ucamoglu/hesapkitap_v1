@@ -106,6 +106,12 @@ class TrackedCryptoService {
         .toList();
   }
 
+  /// Sadece aktif kripto takip kayitlarini dondurur.
+  static Future<List<TrackedCryptoItem>> getActive() async {
+    final items = await getAll();
+    return items.where((item) => item.isActive).toList(growable: false);
+  }
+
   /// Takip kaydini ekler veya adini gunceller; state kaydini da aktif yapar.
   static Future<void> addOrUpdate(MarketRateItem item) async {
     final isar = IsarService.isar;

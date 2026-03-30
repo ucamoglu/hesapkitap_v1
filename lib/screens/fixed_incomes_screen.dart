@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
+import '../core/runtime/app_runtime.dart';
 import '../models/account.dart';
 import '../models/income_category.dart';
 import '../models/income_plan.dart';
 import '../services/account_service.dart';
 import '../services/income_category_service.dart';
-import '../services/income_plan_service.dart';
 import '../theme/app_theme_helpers.dart';
 import '../utils/navigation_helpers.dart';
 import '../utils/turkish_money_input_formatter.dart';
@@ -51,7 +51,7 @@ class _FixedIncomesScreenState extends State<FixedIncomesScreen> {
     setState(() => _loading = true);
     await IncomeCategoryService.seedDefaultsIfEmpty();
     final results = await Future.wait([
-      IncomePlanService.getAll(),
+      AppRuntime.dataLayer.incomePlans.getAll(),
       AccountService.getActiveCashflowAccounts(),
       IncomeCategoryService.getActiveManual(),
     ]);
@@ -342,7 +342,7 @@ class _FixedIncomesScreenState extends State<FixedIncomesScreen> {
                   ..createdAt = previousCreatedAt ?? DateTime.now();
 
                 try {
-                  await IncomePlanService.save(item);
+                  await AppRuntime.dataLayer.incomePlans.save(item);
                   if (!context.mounted) return;
                   Navigator.pop(context);
                   await _load();
@@ -382,7 +382,7 @@ class _FixedIncomesScreenState extends State<FixedIncomesScreen> {
     if (confirmed != true) return;
 
     try {
-      await IncomePlanService.delete(plan.id);
+      await AppRuntime.dataLayer.incomePlans.delete(plan.id);
       await _load();
       _showSnack('Sabit gelir silindi.');
     } catch (e) {
@@ -501,7 +501,7 @@ class _FixedIncomesScreenState extends State<FixedIncomesScreen> {
                               await _openDialog(edit: plan);
                             } else if (value == 'toggle') {
                               plan.isActive = !plan.isActive;
-                              await IncomePlanService.save(plan);
+                              await AppRuntime.dataLayer.incomePlans.save(plan);
                               await _load();
                               _showSnack(plan.isActive
                                   ? 'Sabit gelir aktif yapıldı.'

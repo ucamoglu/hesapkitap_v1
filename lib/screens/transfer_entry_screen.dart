@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../core/runtime/app_runtime.dart';
 import '../models/account.dart';
 import '../services/account_service.dart';
-import '../services/transfer_transaction_service.dart';
 import '../theme/app_theme_helpers.dart';
 import '../utils/app_feedback.dart';
 import '../utils/navigation_helpers.dart';
@@ -285,7 +285,7 @@ class _TransferEntryScreenState extends State<TransferEntryScreen> {
     });
 
     try {
-      await TransferTransactionService.addTransfer(
+      await AppRuntime.dataLayer.transfers.addTransfer(
         fromAccountId: _fromAccountId!,
         toAccountId: _toAccountId!,
         amount: amount,

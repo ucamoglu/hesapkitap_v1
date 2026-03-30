@@ -157,6 +157,11 @@ class SubscriptionDefinitionService {
     return items;
   }
 
+  static Future<List<SubscriptionDefinition>> getActive() async {
+    final items = await getAll();
+    return items.where((item) => item.isActive).toList(growable: false);
+  }
+
   static Future<void> add(SubscriptionDefinition item) async {
     final isar = IsarService.isar;
     normalizeLegacyFields(item);

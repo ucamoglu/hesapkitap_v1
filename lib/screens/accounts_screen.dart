@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../core/runtime/app_runtime.dart';
 import '../models/account.dart';
 import '../models/market_rate_item.dart';
 import '../services/account_service.dart';
@@ -921,9 +922,9 @@ class _AccountsScreenState extends State<AccountsScreen> {
 
                 try {
                   if (initialAccount == null) {
-                    await AccountService.addAccount(account);
+                    await AppRuntime.dataLayer.accounts.add(account);
                   } else {
-                    await AccountService.updateAccount(account);
+                    await AppRuntime.dataLayer.accounts.update(account);
                   }
                   if (selectedType == 'investment' &&
                       selectedSymbol != null &&
@@ -973,7 +974,8 @@ class _AccountsScreenState extends State<AccountsScreen> {
           ElevatedButton(
             onPressed: () async {
               try {
-                final deleted = await AccountService.deleteAccount(account.id);
+                final deleted =
+                    await AppRuntime.dataLayer.accounts.delete(account.id);
                 if (!mounted) return;
                 Navigator.pop(context, deleted ? "deleted" : "passived");
               } catch (_) {
@@ -990,7 +992,10 @@ class _AccountsScreenState extends State<AccountsScreen> {
 
   Future<void> _toggleActive(Account account) async {
     try {
-      await AccountService.setActive(account.id, !account.isActive);
+      await AppRuntime.dataLayer.accounts.setActive(
+        account.id,
+        !account.isActive,
+      );
       await loadAccounts();
     } catch (_) {
       if (!mounted) return;

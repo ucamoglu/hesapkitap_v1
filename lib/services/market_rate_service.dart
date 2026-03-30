@@ -25,6 +25,9 @@ class MetalRateListResult {
 
 class MarketRateService {
   static const _tcmbCurrencyUrl = 'https://www.tcmb.gov.tr/kurlar/today.xml';
+  static const Duration _listCacheTtl = Duration(minutes: 2);
+  static const Duration _symbolCacheTtl = Duration(minutes: 1);
+  static const int _maxSymbolCacheEntries = 24;
 
   static const _currencyUrls = <String>[
     _tcmbCurrencyUrl,
@@ -64,6 +67,13 @@ class MarketRateService {
     'T': 'Tam Altın',
   };
 
+  static CurrencyRateListResult? _currencyCache;
+  static MetalRateListResult? _metalCache;
+  static final Map<String, _TimedCacheEntry<List<MarketRateItem>>> _stockCache =
+      <String, _TimedCacheEntry<List<MarketRateItem>>>{};
+  static final Map<String, _TimedCacheEntry<List<MarketRateItem>>> _cryptoCache =
+      <String, _TimedCacheEntry<List<MarketRateItem>>>{};
+
   /// Hisse sembolleri icin sirali fallback mantigiyla canli fiyat toplar.
   static Future<List<MarketRateItem>> fetchStocksByCodes(
     List<String> codes,
@@ -74,6 +84,13 @@ class MarketRateService {
         .toSet()
         .toList();
     if (normalized.isEmpty) return const [];
+    normalized.sort();
+
+    final cacheKey = normalized.join(',');
+    final cached = _stockCache[cacheKey];
+    if (cached != null && !_isExpired(cached.fetchedAt, _symbolCacheTtl)) {
+      return cached.value;
+    }
 
     // stooq endpoint is free and does not require an API key.
     // BIST symbols are usually served with ".ti". Keep ".tr" as fallback.
@@ -100,7 +117,9 @@ class MarketRateService {
       for (final i in yahoo) i.code.toUpperCase(): i,
       for (final i in google) i.code.toUpperCase(): i,
     };
-    return merged.values.toList();
+    final items = merged.values.toList();
+    _storeSymbolCache(_stockCache, cacheKey, items);
+    return items;
   }
 
   /// Kripto sembolleri icin once Binance, sonra fallback servislerden fiyat dener.
@@ -113,6 +132,13 @@ class MarketRateService {
         .toSet()
         .toList();
     if (normalized.isEmpty) return const [];
+    normalized.sort();
+
+    final cacheKey = normalized.join(',');
+    final cached = _cryptoCache[cacheKey];
+    if (cached != null && !_isExpired(cached.fetchedAt, _symbolCacheTtl)) {
+      return cached.value;
+    }
 
     // Binance expects JSON array format for symbols param:
     // symbols=["BTCUSDT","ETHUSDT"] (URL encoded)
@@ -125,7 +151,10 @@ class MarketRateService {
       final decoded = jsonDecode(body);
       if (decoded is List) {
         final items = _buildCryptosFromBinanceList(decoded);
-        if (items.isNotEmpty) return items;
+        if (items.isNotEmpty) {
+          _storeSymbolCache(_cryptoCache, cacheKey, items);
+          return items;
+        }
       }
     } catch (_) {}
 
@@ -150,6 +179,7 @@ class MarketRateService {
           ),
         );
       }
+      _storeSymbolCache(_cryptoCache, cacheKey, items);
       return items;
     } catch (_) {
       return const [];
@@ -158,16 +188,28 @@ class MarketRateService {
 
   /// Tum doviz kurlarini TCMB XML kaynagindan ceker.
   static Future<CurrencyRateListResult> fetchAllCurrencies() async {
+    final cached = _currencyCache;
+    if (cached != null && !_isExpired(cached.fetchedAt, _listCacheTtl)) {
+      return cached;
+    }
+
     final currencyXml = await _fetchStringFromAny(_currencyUrls);
     final items = _buildAllCurrenciesFromXml(currencyXml, _currencyNameMap);
-    return CurrencyRateListResult(
+    final result = CurrencyRateListResult(
       items: items,
       fetchedAt: DateTime.now(),
     );
+    _currencyCache = result;
+    return result;
   }
 
   /// Tum maden fiyatlarini ana kaynak ve fallback kaynaklar ile toplar.
   static Future<MetalRateListResult> fetchAllMetals() async {
+    final cached = _metalCache;
+    if (cached != null && !_isExpired(cached.fetchedAt, _listCacheTtl)) {
+      return cached;
+    }
+
     final metalXml = await _fetchStringFromAny(_metalXmlUrls);
     var items = _buildMetalsFromXml(metalXml, _metalNameMap);
 
@@ -177,8 +219,34 @@ class MarketRateService {
       items = _buildAllRatesFromJson(fallbackJson, _metalFallbackNameMap);
     }
 
-    return MetalRateListResult(
+    final result = MetalRateListResult(
       items: items,
+      fetchedAt: DateTime.now(),
+    );
+    _metalCache = result;
+    return result;
+  }
+
+  static bool _isExpired(DateTime fetchedAt, Duration ttl) {
+    return DateTime.now().difference(fetchedAt) > ttl;
+  }
+
+  static void _storeSymbolCache(
+    Map<String, _TimedCacheEntry<List<MarketRateItem>>> cache,
+    String key,
+    List<MarketRateItem> value,
+  ) {
+    cache.removeWhere((entryKey, entryValue) {
+      return _isExpired(entryValue.fetchedAt, _symbolCacheTtl);
+    });
+    if (cache.length >= _maxSymbolCacheEntries) {
+      final oldestKey = cache.entries
+          .reduce((a, b) => a.value.fetchedAt.isBefore(b.value.fetchedAt) ? a : b)
+          .key;
+      cache.remove(oldestKey);
+    }
+    cache[key] = _TimedCacheEntry(
+      value: value,
       fetchedAt: DateTime.now(),
     );
   }
@@ -658,4 +726,14 @@ class MarketRateService {
     }
     return items;
   }
+}
+
+class _TimedCacheEntry<T> {
+  final T value;
+  final DateTime fetchedAt;
+
+  const _TimedCacheEntry({
+    required this.value,
+    required this.fetchedAt,
+  });
 }

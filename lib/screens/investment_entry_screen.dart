@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../core/runtime/app_runtime.dart';
 import '../models/account.dart';
 import '../models/credit_card_statement.dart';
 import '../models/investment_transaction.dart';
@@ -615,7 +616,7 @@ class _InvestmentEntryScreenState extends State<InvestmentEntryScreen> {
 
     try {
       if (_isEditMode) {
-        await InvestmentTransactionService.updateTransaction(
+        await AppRuntime.dataLayer.investments.updateTransaction(
           transactionId: widget.initialTransaction!.id,
           investmentAccountId: account.id,
           cashAccountId: cashAccountId,
@@ -627,7 +628,7 @@ class _InvestmentEntryScreenState extends State<InvestmentEntryScreen> {
           date: _selectedDate,
         );
       } else {
-        final createdId = await InvestmentTransactionService.addAndGetId(
+        final createdId = await AppRuntime.dataLayer.investments.addAndGetId(
           investmentAccountId: account.id,
           cashAccountId: cashAccountId,
           symbol: (account.investmentSymbol ?? '').toUpperCase(),
@@ -689,7 +690,7 @@ class _InvestmentEntryScreenState extends State<InvestmentEntryScreen> {
       _saving = true;
     });
     try {
-      await InvestmentTransactionService.deleteAndReturn(
+      await AppRuntime.dataLayer.investments.deleteAndReturn(
           widget.initialTransaction!.id);
       if (!mounted) return;
       AppFeedback.deleted();

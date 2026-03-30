@@ -40,6 +40,21 @@ class InvestmentTransactionService {
     return items;
   }
 
+  /// Belirli tarih araligindaki yatirim hareketlerini yeni->eski sirada getirir.
+  static Future<List<InvestmentTransaction>> getByDateRange({
+    required DateTime start,
+    required DateTime end,
+  }) async {
+    final isar = IsarService.isar;
+    final items = await isar.investmentTransactions
+        .where()
+        .filter()
+        .dateBetween(start, end)
+        .findAll();
+    items.sort((a, b) => b.date.compareTo(a.date));
+    return items;
+  }
+
   /// Alis/satis hareketini ekler; nakit ve yatirim hesap bakiyelerini ayni anda gunceller.
   static Future<int> addAndGetId({
     required int investmentAccountId,

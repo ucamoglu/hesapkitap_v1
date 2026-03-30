@@ -6,10 +6,15 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
+import '../core/runtime/app_runtime.dart';
+import '../models/account.dart';
+import '../models/cari_card.dart';
+import '../models/category.dart';
 import '../models/cari_transaction.dart';
 import '../models/credit_card_payment.dart';
 import '../models/credit_card_statement.dart';
 import '../models/finance_transaction.dart';
+import '../models/income_category.dart';
 import '../models/investment_transaction.dart';
 import 'cari_account_screen.dart';
 import 'expense_entry_screen.dart';
@@ -138,26 +143,61 @@ class _IncomeExpenseTransactionsScreenState
 
   // Liste, ozet kartlari ve filtreler icin gereken tum hareket verisini yukler.
   Future<void> _load() async {
+    final range = _resolveDateRange(_datePreset);
+
     setState(() {
       _loading = true;
       _error = null;
     });
 
     try {
-      final tx = await FinanceTransactionService.getAll();
-      final cariTx = await CariTransactionService.getAll();
-      final investmentTx = await InvestmentTransactionService.getAll();
-      final accounts = await AccountService.getAllAccounts();
-      final incomeCategories = await IncomeCategoryService.getAll();
-      final expenseCategories = await CategoryService.getAllExpenseCategories();
-      final manualIncomeCategories = await IncomeCategoryService.getAllManual();
-      final manualExpenseCategories =
-          await CategoryService.getAllManualExpenseCategories();
-      final cariCards = await CariCardService.getAll();
-      final creditCardPayments = await CreditCardPaymentService.getAll();
-      final creditCardStatements = await CreditCardStatementService.getAll();
-      final attachmentCountMap =
-          await TransactionAttachmentService.getCountMap();
+      final results = await Future.wait([
+        range == null
+            ? FinanceTransactionService.getAll()
+            : FinanceTransactionService.getByDateRange(
+                start: range.$1,
+                end: range.$2,
+              ),
+        range == null
+            ? CariTransactionService.getAll()
+            : CariTransactionService.getByDateRange(
+                start: range.$1,
+                end: range.$2,
+              ),
+        range == null
+            ? InvestmentTransactionService.getAll()
+            : InvestmentTransactionService.getByDateRange(
+                start: range.$1,
+                end: range.$2,
+              ),
+        AccountService.getAllAccounts(),
+        IncomeCategoryService.getAll(),
+        CategoryService.getAllExpenseCategories(),
+        IncomeCategoryService.getAllManual(),
+        CategoryService.getAllManualExpenseCategories(),
+        CariCardService.getAll(),
+        range == null
+            ? CreditCardPaymentService.getAll()
+            : CreditCardPaymentService.getByPaymentDateRange(
+                start: range.$1,
+                end: range.$2,
+              ),
+        CreditCardStatementService.getAll(),
+        TransactionAttachmentService.getCountMap(),
+      ]);
+
+      final tx = results[0] as List<FinanceTransaction>;
+      final cariTx = results[1] as List<CariTransaction>;
+      final investmentTx = results[2] as List<InvestmentTransaction>;
+      final accounts = results[3] as List<Account>;
+      final incomeCategories = results[4] as List<IncomeCategory>;
+      final expenseCategories = results[5] as List<Category>;
+      final manualIncomeCategories = results[6] as List<IncomeCategory>;
+      final manualExpenseCategories = results[7] as List<Category>;
+      final cariCards = results[8] as List<CariCard>;
+      final creditCardPayments = results[9] as List<CreditCardPayment>;
+      final creditCardStatements = results[10] as List<CreditCardStatement>;
+      final attachmentCountMap = results[11] as Map<String, int>;
 
       if (!mounted) return;
 
@@ -446,6 +486,7 @@ class _IncomeExpenseTransactionsScreenState
         _customEnd ??= DateTime.now();
       }
     });
+    _load();
   }
 
   List<_GroupedBucket> _grouped(List<FinanceTransaction> data) {
@@ -760,6 +801,7 @@ class _IncomeExpenseTransactionsScreenState
         _customEnd = picked;
       }
     });
+    await _load();
   }
 
   // Hafta/ay bazli filtrelerde referans gunu degistirir.
@@ -774,6 +816,7 @@ class _IncomeExpenseTransactionsScreenState
     setState(() {
       _periodReferenceDate = picked;
     });
+    await _load();
   }
 
   @override
@@ -1814,11 +1857,11 @@ class _IncomeExpenseTransactionsScreenState
     try {
       if (_isCariTx(tx)) {
         final cariId = -tx.id - 1;
-        await CariTransactionService.deleteAndReturn(cariId);
+        await AppRuntime.dataLayer.cariTransactions.deleteAndReturn(cariId);
       } else if (_creditCardPaymentBySyntheticId.containsKey(tx.id)) {
         throw Exception('Kredi kartı ödemeleri bu listeden silinemez.');
       } else {
-        await FinanceTransactionService.deleteAndReturn(tx.id);
+        await AppRuntime.dataLayer.finance.deleteAndReturn(tx.id);
       }
       if (!mounted) return;
       await _load();

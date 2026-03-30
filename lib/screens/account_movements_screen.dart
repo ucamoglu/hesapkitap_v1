@@ -6,6 +6,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
+import '../core/runtime/app_runtime.dart';
 import '../models/account.dart';
 import '../models/cari_card.dart';
 import '../models/cari_transaction.dart';
@@ -741,15 +742,19 @@ class _AccountMovementsScreenState extends State<AccountMovementsScreen> {
 
     try {
       if (movement.sourceType == _MovementSourceType.finance) {
-        await FinanceTransactionService.deleteAndReturn(movement.sourceId);
+        await AppRuntime.dataLayer.finance.deleteAndReturn(movement.sourceId);
       } else if (movement.sourceType == _MovementSourceType.cari) {
-        await CariTransactionService.deleteAndReturn(movement.sourceId);
+        await AppRuntime.dataLayer.cariTransactions.deleteAndReturn(
+          movement.sourceId,
+        );
       } else if (movement.sourceType == _MovementSourceType.transfer) {
-        await TransferTransactionService.deleteAndReturn(movement.sourceId);
+        await AppRuntime.dataLayer.transfers.deleteAndReturn(movement.sourceId);
       } else if (movement.sourceType == _MovementSourceType.creditCardPayment) {
         throw Exception('Kredi kartı ödeme silme bu aşamada desteklenmiyor.');
       } else {
-        await InvestmentTransactionService.deleteAndReturn(movement.sourceId);
+        await AppRuntime.dataLayer.investments.deleteAndReturn(
+          movement.sourceId,
+        );
       }
       if (!mounted) return;
       await _load();

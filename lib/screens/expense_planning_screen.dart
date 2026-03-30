@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../core/runtime/app_runtime.dart';
 import '../models/account.dart';
 import '../models/category.dart';
 import '../models/expense_plan.dart';
 import '../services/account_service.dart';
 import '../services/category_service.dart';
-import '../services/expense_plan_service.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_theme_helpers.dart';
 import '../utils/navigation_helpers.dart';
@@ -88,7 +88,7 @@ class _ExpensePlanningScreenState extends State<ExpensePlanningScreen> {
 
     final accounts = await AccountService.getActiveCashflowAccounts();
     final categories = await CategoryService.getActiveManualExpenseCategories();
-    final plans = await ExpensePlanService.getAll();
+    final plans = await AppRuntime.dataLayer.expensePlans.getAll();
 
     if (!mounted) return;
     setState(() {
@@ -162,7 +162,8 @@ class _ExpensePlanningScreenState extends State<ExpensePlanningScreen> {
   Future<void> _checkDuePlans() async {
     if (_askingDue) return;
 
-    final due = await ExpensePlanService.getDuePlans(DateTime.now());
+    final due =
+        await AppRuntime.dataLayer.expensePlans.getDuePlans(DateTime.now());
     if (!mounted || due.isEmpty) return;
 
     _askingDue = true;
@@ -202,14 +203,14 @@ class _ExpensePlanningScreenState extends State<ExpensePlanningScreen> {
                   lastDate: DateTime(2100),
                 );
                 if (picked == null) return;
-                await ExpensePlanService.postpone(plan, picked);
+                await AppRuntime.dataLayer.expensePlans.postpone(plan, picked);
                 if (ctx.mounted) Navigator.pop(ctx);
               },
               child: const Text('Şu tarihe ertele'),
             ),
             TextButton(
               onPressed: () async {
-                await ExpensePlanService.cancel(plan);
+                await AppRuntime.dataLayer.expensePlans.cancel(plan);
                 if (ctx.mounted) Navigator.pop(ctx);
               },
               child: const Text('İptal Et'),
@@ -220,7 +221,7 @@ class _ExpensePlanningScreenState extends State<ExpensePlanningScreen> {
                 foregroundColor: Colors.white,
               ),
               onPressed: () async {
-                await ExpensePlanService.markCompleted(plan);
+                await AppRuntime.dataLayer.expensePlans.markCompleted(plan);
                 if (ctx.mounted) Navigator.pop(ctx);
               },
               child: const Text('Evet, Gerçekleşti'),
@@ -464,7 +465,7 @@ class _ExpensePlanningScreenState extends State<ExpensePlanningScreen> {
           ..isActive = true
           ..createdAt = DateTime.now();
 
-        await ExpensePlanService.save(plan);
+        await AppRuntime.dataLayer.expensePlans.save(plan);
       }
       if (!mounted) return;
 
@@ -918,7 +919,7 @@ class _ExpensePlanningScreenState extends State<ExpensePlanningScreen> {
                                     trailing: PopupMenuButton<String>(
                                       onSelected: (v) async {
                                         if (v == 'done') {
-                                          await ExpensePlanService
+                                          await AppRuntime.dataLayer.expensePlans
                                               .markCompleted(p);
                                         } else if (v == 'postpone') {
                                           final picked = await showDatePicker(
@@ -929,15 +930,15 @@ class _ExpensePlanningScreenState extends State<ExpensePlanningScreen> {
                                             lastDate: DateTime(2100),
                                           );
                                           if (picked != null) {
-                                            await ExpensePlanService.postpone(
+                                            await AppRuntime.dataLayer.expensePlans.postpone(
                                               p,
                                               picked,
                                             );
                                           }
                                         } else if (v == 'cancel') {
-                                          await ExpensePlanService.cancel(p);
+                                          await AppRuntime.dataLayer.expensePlans.cancel(p);
                                         } else if (v == 'delete') {
-                                          await ExpensePlanService.delete(p.id);
+                                          await AppRuntime.dataLayer.expensePlans.delete(p.id);
                                         }
 
                                         if (!mounted) return;

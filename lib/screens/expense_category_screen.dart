@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../core/runtime/app_runtime.dart';
 import '../models/category.dart';
 import '../services/category_service.dart';
 import '../theme/app_theme_helpers.dart';
@@ -90,7 +91,7 @@ class _ExpenseCategoryScreenState extends State<ExpenseCategoryScreen> {
               }
 
               try {
-                await CategoryService.addExpenseCategory(name);
+                await AppRuntime.dataLayer.expenseCategories.add(name);
                 await loadCategories();
                 if (!mounted) return;
                 Navigator.pop(context);
@@ -112,7 +113,10 @@ class _ExpenseCategoryScreenState extends State<ExpenseCategoryScreen> {
       return;
     }
     try {
-      await CategoryService.setActive(category.id, !category.isActive);
+      await AppRuntime.dataLayer.expenseCategories.setActive(
+        category.id,
+        !category.isActive,
+      );
       await loadCategories();
     } catch (e) {
       _showSnack('İşlem hatası: $e');
@@ -151,7 +155,7 @@ class _ExpenseCategoryScreenState extends State<ExpenseCategoryScreen> {
 
               category.name = name;
               try {
-                await CategoryService.updateExpenseCategory(category);
+                await AppRuntime.dataLayer.expenseCategories.update(category);
                 await loadCategories();
                 if (!mounted) return;
                 Navigator.pop(context);
@@ -173,12 +177,14 @@ class _ExpenseCategoryScreenState extends State<ExpenseCategoryScreen> {
       return;
     }
     try {
-      final isUsed = await CategoryService.isExpenseCategoryUsed(category.id);
+      final isUsed = await AppRuntime.dataLayer.expenseCategories.isUsed(
+        category.id,
+      );
       if (isUsed) {
-        await CategoryService.setActive(category.id, false);
+        await AppRuntime.dataLayer.expenseCategories.setActive(category.id, false);
         _showSnack("Bu kategori işlemde kullanılmış. Silinmedi, pasife alındı.");
       } else {
-        await CategoryService.deleteExpenseCategory(category.id);
+        await AppRuntime.dataLayer.expenseCategories.delete(category.id);
         _showSnack("Kategori silindi.");
       }
       await loadCategories();

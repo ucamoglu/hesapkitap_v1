@@ -1,6 +1,7 @@
 
 
 import 'package:flutter/material.dart';
+import '../core/runtime/app_runtime.dart';
 import '../services/income_category_service.dart';
 import '../models/income_category.dart';
 import '../theme/app_theme_helpers.dart';
@@ -93,7 +94,7 @@ class _IncomeCategoryScreenState extends State<IncomeCategoryScreen> {
               }
 
               try {
-                await IncomeCategoryService.add(name);
+                await AppRuntime.dataLayer.incomeCategories.add(name);
                 await loadCategories();
                 if (!mounted) return;
                 Navigator.pop(context);
@@ -115,7 +116,10 @@ class _IncomeCategoryScreenState extends State<IncomeCategoryScreen> {
       return;
     }
     try {
-      await IncomeCategoryService.setActive(category.id, !category.isActive);
+      await AppRuntime.dataLayer.incomeCategories.setActive(
+        category.id,
+        !category.isActive,
+      );
       await loadCategories();
     } catch (e) {
       _showSnack('İşlem hatası: $e');
@@ -155,7 +159,7 @@ class _IncomeCategoryScreenState extends State<IncomeCategoryScreen> {
 
               category.name = name;
               try {
-                await IncomeCategoryService.update(category);
+                await AppRuntime.dataLayer.incomeCategories.update(category);
                 await loadCategories();
                 if (!mounted) return;
                 Navigator.pop(context);
@@ -177,12 +181,14 @@ class _IncomeCategoryScreenState extends State<IncomeCategoryScreen> {
       return;
     }
     try {
-      final isUsed = await IncomeCategoryService.isCategoryUsed(category.id);
+      final isUsed = await AppRuntime.dataLayer.incomeCategories.isUsed(
+        category.id,
+      );
       if (isUsed) {
-        await IncomeCategoryService.setActive(category.id, false);
+        await AppRuntime.dataLayer.incomeCategories.setActive(category.id, false);
         _showSnack("Bu kategori işlemde kullanılmış. Silinmedi, pasife alındı.");
       } else {
-        await IncomeCategoryService.delete(category.id);
+        await AppRuntime.dataLayer.incomeCategories.delete(category.id);
         _showSnack("Kategori silindi.");
       }
       await loadCategories();

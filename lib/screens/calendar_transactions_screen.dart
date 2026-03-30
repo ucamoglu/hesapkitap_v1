@@ -3,6 +3,7 @@ import 'dart:collection';
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
 
+import '../core/runtime/app_runtime.dart';
 import '../models/cari_transaction.dart';
 import '../models/expense_plan.dart';
 import '../models/finance_transaction.dart';
@@ -38,6 +39,7 @@ class CalendarTransactionsScreen extends StatefulWidget {
 
 class _CalendarTransactionsScreenState
     extends State<CalendarTransactionsScreen> {
+  static const int _transactionMonthCacheRadius = 2;
   bool _loading = true;
   String? _error;
 
@@ -78,6 +80,8 @@ class _CalendarTransactionsScreenState
   Map<int, CariTransaction> _cariTxBySyntheticId = {};
   Map<int, InvestmentTransaction> _investmentById = {};
   Map<int, _InvestmentCalendarMeta> _investmentMetaByTxId = {};
+  DateTime? _loadedTransactionStart;
+  DateTime? _loadedTransactionEnd;
 
   @override
   void initState() {
@@ -86,25 +90,49 @@ class _CalendarTransactionsScreenState
   }
 
   // Takvim gunleri icin hareket ve plan sayilarini hesaplayip ekrana hazirlar.
-  Future<void> _load() async {
-    setState(() {
-      _loading = true;
+  Future<void> _load({
+    DateTime? focusedDay,
+    bool showLoader = true,
+  }) async {
+    final targetFocusedDay = focusedDay ?? _focusedDay;
+    final txStart = _transactionWindowStart(targetFocusedDay);
+    final txEnd = _transactionWindowEnd(targetFocusedDay);
+
+    if (showLoader) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    } else {
       _error = null;
-    });
+    }
 
     try {
-      final tx = (await FinanceTransactionService.getAll())
+      final results = await Future.wait([
+        FinanceTransactionService.getByDateRange(start: txStart, end: txEnd),
+        CariTransactionService.getByDateRange(start: txStart, end: txEnd),
+        AccountService.getAllAccounts(),
+        IncomeCategoryService.getAll(),
+        CategoryService.getAllExpenseCategories(),
+        CariCardService.getAll(),
+        InvestmentTransactionService.getByDateRange(start: txStart, end: txEnd),
+        IncomePlanService.getAll(),
+        ExpensePlanService.getAll(),
+        SubscriptionDefinitionService.getAll(),
+      ]);
+
+      final tx = (results[0] as List<FinanceTransaction>)
           .where((e) => !_isSyntheticInvestmentPnlTx(e))
           .toList();
-      final cariTx = await CariTransactionService.getAll();
-      final accounts = await AccountService.getAllAccounts();
-      final incomeCategories = await IncomeCategoryService.getAll();
-      final expenseCategories = await CategoryService.getAllExpenseCategories();
-      final cariCards = await CariCardService.getAll();
-      final investmentTx = await InvestmentTransactionService.getAll();
-      final plans = await IncomePlanService.getAll();
-      final expensePlans = await ExpensePlanService.getAll();
-      final subscriptions = await SubscriptionDefinitionService.getAll();
+      final cariTx = results[1] as List<CariTransaction>;
+      final accounts = results[2] as List<dynamic>;
+      final incomeCategories = results[3] as List<dynamic>;
+      final expenseCategories = results[4] as List<dynamic>;
+      final cariCards = results[5] as List<dynamic>;
+      final investmentTx = results[6] as List<InvestmentTransaction>;
+      final plans = results[7] as List<IncomePlan>;
+      final expensePlans = results[8] as List<ExpensePlan>;
+      final subscriptions = results[9] as List<SubscriptionDefinition>;
 
       if (!mounted) return;
 
@@ -129,24 +157,25 @@ class _CalendarTransactionsScreenState
       final activeExpensePlans = expensePlans.where((e) => e.isActive).toList();
 
       setState(() {
+        _focusedDay = targetFocusedDay;
         _all = merged;
         _plans = activePlans;
         _expensePlans = activeExpensePlans;
         _subscriptions = activeSubscriptions;
-        _incomePlanOccurrences = _buildIncomePlanOccurrences(_focusedDay);
-        _expensePlanOccurrences = _buildExpensePlanOccurrences(_focusedDay);
+        _incomePlanOccurrences = _buildIncomePlanOccurrences(targetFocusedDay);
+        _expensePlanOccurrences = _buildExpensePlanOccurrences(targetFocusedDay);
         _txCountByDay
           ..clear()
           ..addAll(txCounts);
         _planCountByDay
           ..clear()
-          ..addAll(_buildIncomePlanCounts(_focusedDay));
+          ..addAll(_buildIncomePlanCounts(targetFocusedDay));
         _expensePlanCountByDay
           ..clear()
-          ..addAll(_buildExpensePlanCounts(_focusedDay));
+          ..addAll(_buildExpensePlanCounts(targetFocusedDay));
         _subscriptionCountByDay
           ..clear()
-          ..addAll(_buildSubscriptionCounts(_focusedDay));
+          ..addAll(_buildSubscriptionCounts(targetFocusedDay));
         _accountNames = {for (final a in accounts) a.id: a.name};
         _incomeCategoryNames = {for (final c in incomeCategories) c.id: c.name};
         _expenseCategoryNames = {
@@ -169,6 +198,8 @@ class _CalendarTransactionsScreenState
         };
         _investmentById = {for (final it in investmentTx) it.id: it};
         _investmentMetaByTxId = mappedInvestment.$2;
+        _loadedTransactionStart = txStart;
+        _loadedTransactionEnd = txEnd;
         _loading = false;
       });
     } catch (e) {
@@ -182,6 +213,43 @@ class _CalendarTransactionsScreenState
 
   static int _getHashCode(DateTime key) =>
       key.day * 1000000 + key.month * 10000 + key.year;
+
+  DateTime _transactionWindowStart(DateTime focusedDay) {
+    return DateTime(
+      focusedDay.year,
+      focusedDay.month - _transactionMonthCacheRadius,
+      1,
+    );
+  }
+
+  DateTime _transactionWindowEnd(DateTime focusedDay) {
+    return DateTime(
+      focusedDay.year,
+      focusedDay.month + _transactionMonthCacheRadius + 1,
+      0,
+      23,
+      59,
+      59,
+      999,
+    );
+  }
+
+  bool _needsTransactionReload(DateTime focusedDay) {
+    final loadedStart = _loadedTransactionStart;
+    final loadedEnd = _loadedTransactionEnd;
+    if (loadedStart == null || loadedEnd == null) return true;
+    final monthStart = DateTime(focusedDay.year, focusedDay.month, 1);
+    final monthEnd = DateTime(
+      focusedDay.year,
+      focusedDay.month + 1,
+      0,
+      23,
+      59,
+      59,
+      999,
+    );
+    return monthStart.isBefore(loadedStart) || monthEnd.isAfter(loadedEnd);
+  }
 
   bool _isCariTx(FinanceTransaction tx) =>
       _cariRawTypeByTxId.containsKey(tx.id);
@@ -665,14 +733,14 @@ class _CalendarTransactionsScreenState
     try {
       final invMeta = _investmentMetaByTxId[tx.id];
       if (invMeta != null) {
-        await InvestmentTransactionService.deleteAndReturn(
+        await AppRuntime.dataLayer.investments.deleteAndReturn(
           invMeta.investmentTransactionId,
         );
       } else if (_isCariTx(tx)) {
         final cariId = -tx.id - 1;
-        await CariTransactionService.deleteAndReturn(cariId);
+        await AppRuntime.dataLayer.cariTransactions.deleteAndReturn(cariId);
       } else {
-        await FinanceTransactionService.deleteAndReturn(tx.id);
+        await AppRuntime.dataLayer.finance.deleteAndReturn(tx.id);
       }
       if (!mounted) return;
       await _load();
@@ -996,6 +1064,12 @@ class _CalendarTransactionsScreenState
                                   ..clear()
                                   ..addAll(_buildSubscriptionCounts(focusedDay));
                               });
+                              if (_needsTransactionReload(focusedDay)) {
+                                _load(
+                                  focusedDay: focusedDay,
+                                  showLoader: false,
+                                );
+                              }
                             },
                           ),
                         ),

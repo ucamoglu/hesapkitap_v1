@@ -3,12 +3,12 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../core/runtime/app_runtime.dart';
 import '../models/account.dart';
 import '../models/cari_card.dart';
 import '../models/cari_transaction.dart';
 import '../services/account_service.dart';
 import '../services/cari_card_service.dart';
-import '../services/cari_transaction_service.dart';
 import '../services/transaction_attachment_service.dart';
 import '../theme/app_theme_helpers.dart';
 import '../utils/app_feedback.dart';
@@ -534,7 +534,7 @@ class _CariAccountScreenState extends State<CariAccountScreen> {
     try {
       if (_isEditMode) {
         final tx = widget.initialTransaction!;
-        await CariTransactionService.updateTransaction(
+        await AppRuntime.dataLayer.cariTransactions.updateTransaction(
           transactionId: tx.id,
           cariCardId: _selectedCardId!,
           accountId: _selectedAccountId!,
@@ -556,7 +556,7 @@ class _CariAccountScreenState extends State<CariAccountScreen> {
       } else {
         int txId;
         if (_isDebt) {
-          txId = await CariTransactionService.addDebtAndGetId(
+          txId = await AppRuntime.dataLayer.cariTransactions.addDebtAndGetId(
             cariCardId: _selectedCardId!,
             accountId: _selectedAccountId!,
             amount: parsed,
@@ -566,7 +566,8 @@ class _CariAccountScreenState extends State<CariAccountScreen> {
             description: _noteController.text,
           );
         } else {
-          txId = await CariTransactionService.addCollectionAndGetId(
+          txId = await AppRuntime.dataLayer.cariTransactions
+              .addCollectionAndGetId(
             cariCardId: _selectedCardId!,
             accountId: _selectedAccountId!,
             amount: parsed,
@@ -623,7 +624,7 @@ class _CariAccountScreenState extends State<CariAccountScreen> {
       _saving = true;
     });
     try {
-      await CariTransactionService.deleteAndReturn(
+      await AppRuntime.dataLayer.cariTransactions.deleteAndReturn(
           widget.initialTransaction!.id);
       if (!mounted) return;
       AppFeedback.deleted();

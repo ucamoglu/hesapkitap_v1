@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../core/runtime/app_runtime.dart';
 import '../models/account.dart';
 import '../models/category.dart';
 import '../models/finance_transaction.dart';
@@ -279,7 +280,7 @@ class _FixedPaymentEntryScreenState extends State<FixedPaymentEntryScreen> {
     });
 
     try {
-      await FinanceTransactionService.addExpenseAndGetId(
+      await AppRuntime.dataLayer.finance.addExpenseAndGetId(
         accountId: _selectedAccountId!,
         categoryId: payment.defaultExpenseCategoryId!,
         amount: amount,

@@ -4,32 +4,17 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'core/dashboard/dashboard_loader.dart';
+import 'core/dashboard/dashboard_view_data.dart';
 import 'core/runtime/app_messenger.dart';
 import 'core/runtime/app_runtime.dart';
 import 'database/isar_service.dart';
 import 'screens/cari_account_screen.dart';
-import 'models/cari_card.dart';
-import 'models/cari_transaction.dart';
-import 'models/market_rate_item.dart';
-import 'services/account_service.dart';
-import 'services/cari_card_service.dart';
-import 'services/cari_transaction_service.dart';
-import 'services/investment_transaction_service.dart';
-import 'services/market_rate_service.dart';
-import 'services/tracked_currency_service.dart';
-import 'services/tracked_metal_service.dart';
-import 'services/tracked_stock_service.dart';
-import 'services/tracked_crypto_service.dart';
-import 'services/income_plan_service.dart';
-import 'services/expense_plan_service.dart';
-import 'services/finance_transaction_service.dart';
 import 'screens/expense_entry_screen.dart';
 import 'screens/fixed_payment_entry_screen.dart';
 import 'screens/income_entry_screen.dart';
 import 'screens/onboarding_welcome_screen.dart';
-import 'models/subscription_definition.dart';
 import 'services/local_notification_service.dart';
-import 'services/subscription_definition_service.dart';
 import 'services/user_profile_service.dart';
 import 'theme/app_colors.dart';
 import 'theme/app_theme.dart';
@@ -165,36 +150,40 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   static const double _zeroEpsilon = 1e-9;
-  int totalAccounts = 0;
-  int cashBankAccounts = 0;
-  int investmentAccounts = 0;
-  double totalBalance = 0;
-  double cashTotal = 0;
-  double bankTotal = 0;
-  double investmentCurrentTotal = 0;
-  bool hasMissingInvestmentPrice = false;
-  double cariReceivableTotal = 0;
-  double cariDebtTotal = 0;
-  double cariNetTotal = 0;
-  List<_TrackedQuoteRow> trackedQuotes = [];
-  double plannedIncomeTotal = 0;
-  double plannedExpenseTotal = 0;
-  List<_TodayPlanRow> todayPlans = [];
-  List<_AccountPreviewRow> cashPreviewRows = [];
-  List<_AccountPreviewRow> bankPreviewRows = [];
-  List<_AccountPreviewRow> investmentPreviewRows = [];
-  int activeSubscriptionCount = 0;
-  int dueSubscriptionCount = 0;
-  List<_SubscriptionReminderRow> subscriptionPreviewRows = [];
+  DashboardViewData _dashboardData = DashboardViewData.initial();
   String? selectedAccountTypePreview;
   bool showAssetBreakdown = false;
-  List<_CariPreviewRow> cariPreviewRows = [];
   bool showCariPreview = false;
   bool showSubscriptionPreview = false;
   bool showTrackedPreview = false;
   final Set<String> expandedTrackedMarkets = <String>{};
-  String profileName = 'Kullanıcı Profili';
-  Uint8List? profilePhoto;
+
+  int get totalAccounts => _dashboardData.totalAccounts;
+  int get cashBankAccounts => _dashboardData.cashBankAccounts;
+  int get investmentAccounts => _dashboardData.investmentAccounts;
+  double get totalBalance => _dashboardData.totalBalance;
+  double get cashTotal => _dashboardData.cashTotal;
+  double get bankTotal => _dashboardData.bankTotal;
+  double get investmentCurrentTotal => _dashboardData.investmentCurrentTotal;
+  bool get hasMissingInvestmentPrice => _dashboardData.hasMissingInvestmentPrice;
+  double get cariReceivableTotal => _dashboardData.cariReceivableTotal;
+  double get cariDebtTotal => _dashboardData.cariDebtTotal;
+  double get cariNetTotal => _dashboardData.cariNetTotal;
+  List<TrackedQuoteRow> get trackedQuotes => _dashboardData.trackedQuotes;
+  double get plannedIncomeTotal => _dashboardData.plannedIncomeTotal;
+  double get plannedExpenseTotal => _dashboardData.plannedExpenseTotal;
+  List<TodayPlanRow> get todayPlans => _dashboardData.todayPlans;
+  List<AccountPreviewRow> get cashPreviewRows => _dashboardData.cashPreviewRows;
+  List<AccountPreviewRow> get bankPreviewRows => _dashboardData.bankPreviewRows;
+  List<AccountPreviewRow> get investmentPreviewRows =>
+      _dashboardData.investmentPreviewRows;
+  int get activeSubscriptionCount => _dashboardData.activeSubscriptionCount;
+  int get dueSubscriptionCount => _dashboardData.dueSubscriptionCount;
+  List<SubscriptionReminderRow> get subscriptionPreviewRows =>
+      _dashboardData.subscriptionPreviewRows;
+  List<CariPreviewRow> get cariPreviewRows => _dashboardData.cariPreviewRows;
+  String get profileName => _dashboardData.profileName;
+  Uint8List? get profilePhoto => _dashboardData.profilePhoto;
 
   @override
   void initState() {
@@ -209,558 +198,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> loadDashboard() async {
-    final accounts = await AccountService.getAllAccounts();
-    final cariCards = await CariCardService.getAll();
-    final cariTx = await CariTransactionService.getAll();
-    final investmentTx = await InvestmentTransactionService.getAll();
-    final profile = await UserProfileService.getProfile();
-    final trackedCurrencies = await TrackedCurrencyService.getAll();
-    final trackedMetals = await TrackedMetalService.getAll();
-    final trackedStocks = await TrackedStockService.getAll();
-    final trackedCryptos = await TrackedCryptoService.getAll();
-    final dueIncomePlans = await IncomePlanService.getDuePlans(DateTime.now());
-    final dueExpensePlans =
-        await ExpensePlanService.getDuePlans(DateTime.now());
-    final allIncomePlans = await IncomePlanService.getAll();
-    final allExpensePlans = await ExpensePlanService.getAll();
-    final allFinanceTx = await FinanceTransactionService.getAll();
-    final subscriptions = await SubscriptionDefinitionService.getAll();
-
-    final ratesByCode = <String, double>{};
-    try {
-      final rateResults = await Future.wait([
-        MarketRateService.fetchAllCurrencies(),
-        MarketRateService.fetchAllMetals(),
-      ]);
-      final currencyRates = (rateResults[0] as CurrencyRateListResult).items;
-      final metalRates = (rateResults[1] as MetalRateListResult).items;
-      final allRates = <MarketRateItem>[...currencyRates, ...metalRates];
-      for (final rate in allRates) {
-        final fallbackPrice = rate.sell > 0 ? rate.sell : rate.buy;
-        ratesByCode[rate.code.toUpperCase()] = fallbackPrice;
-      }
-    } catch (_) {}
-
-    final stockSymbolsForRates = <String>{};
-    final cryptoSymbolsForRates = <String>{};
-    for (final c in cariCards) {
-      if ((c.currencyType).trim().toLowerCase() != 'foreign') continue;
-      final code = (c.foreignCode ?? '').trim().toUpperCase();
-      if (code.isEmpty) continue;
-      final marketType = (c.foreignMarketType ?? '').trim().toLowerCase();
-      if (marketType == 'stock') {
-        stockSymbolsForRates.add(code);
-      } else if (marketType == 'crypto') {
-        cryptoSymbolsForRates.add(code);
-      }
-    }
-    for (final a in accounts) {
-      if (a.type != 'investment' || !a.isActive) continue;
-      final subtype = (a.investmentSubtype ?? '').trim().toLowerCase();
-      if (subtype != 'stock') continue;
-      final symbol = (a.investmentSymbol ?? '').trim().toUpperCase();
-      if (symbol.isNotEmpty) stockSymbolsForRates.add(symbol);
-    }
-    for (final s in trackedStocks.where((e) => e.isActive)) {
-      final code = s.code.trim().toUpperCase();
-      if (code.isNotEmpty) stockSymbolsForRates.add(code);
-    }
-    if (stockSymbolsForRates.isNotEmpty) {
-      try {
-        final stockRates = await MarketRateService.fetchStocksByCodes(
-            stockSymbolsForRates.toList());
-        for (final r in stockRates) {
-          final fallbackPrice = r.sell > 0 ? r.sell : r.buy;
-          if (fallbackPrice > 0) {
-            ratesByCode[r.code.toUpperCase()] = fallbackPrice;
-          }
-        }
-      } catch (_) {}
-    }
-    for (final a in accounts) {
-      if (a.type != 'investment' || !a.isActive) continue;
-      final subtype = (a.investmentSubtype ?? '').trim().toLowerCase();
-      if (subtype != 'crypto') continue;
-      final symbol = (a.investmentSymbol ?? '').trim().toUpperCase();
-      if (symbol.isNotEmpty) cryptoSymbolsForRates.add(symbol);
-    }
-    for (final c in trackedCryptos.where((e) => e.isActive)) {
-      final code = c.code.trim().toUpperCase();
-      if (code.isNotEmpty) cryptoSymbolsForRates.add(code);
-    }
-    if (cryptoSymbolsForRates.isNotEmpty) {
-      try {
-        final cryptoRates = await MarketRateService.fetchCryptosByCodes(
-            cryptoSymbolsForRates.toList());
-        for (final r in cryptoRates) {
-          final fallbackPrice = r.sell > 0 ? r.sell : r.buy;
-          if (fallbackPrice > 0) {
-            ratesByCode[r.code.toUpperCase()] = fallbackPrice;
-          }
-        }
-      } catch (_) {}
-    }
-
-    final latestUnitPriceBySymbol = <String, double>{};
-    for (final tx in investmentTx) {
-      final symbol = tx.symbol.trim().toUpperCase();
-      if (symbol.isEmpty) continue;
-      latestUnitPriceBySymbol.putIfAbsent(symbol, () => tx.unitPrice);
-    }
-
-    double cash = 0;
-    double bank = 0;
-    double investmentCurrent = 0;
-    double cariReceivable = 0;
-    double cariDebt = 0;
-    final cashRows = <_AccountPreviewRow>[];
-    final bankRows = <_AccountPreviewRow>[];
-    final investmentRows = <_AccountPreviewRow>[];
-    final cariRows = <_CariPreviewRow>[];
-    bool missingInvestmentPrice = false;
-    for (final a in accounts) {
-      final type = a.type;
-      if (type == 'cash') {
-        cash += a.balance;
-        cashRows.add(
-          _AccountPreviewRow(
-            name: a.name,
-            valueText: '${_fmtAmount(a.balance)} TL',
-            color: Colors.blue,
-          ),
-        );
-      } else if (type == 'bank') {
-        bank += a.balance;
-        bankRows.add(
-          _AccountPreviewRow(
-            name: a.name,
-            valueText: '${_fmtAmount(a.balance)} TL',
-            color: Colors.indigo,
-          ),
-        );
-      } else if (type == 'investment') {
-        final symbol = (a.investmentSymbol ?? '').trim().toUpperCase();
-        final price = ratesByCode[symbol];
-        if (symbol.isNotEmpty && price != null) {
-          final currentValue = (a.balance * price);
-          investmentCurrent += currentValue;
-          investmentRows.add(
-            _AccountPreviewRow(
-              name: a.name,
-              valueText: '${_fmtAmount(currentValue)} TL',
-              subtitle: '${_fmtAmount(a.balance)} $symbol',
-              color: Colors.teal,
-            ),
-          );
-        } else {
-          missingInvestmentPrice = true;
-          investmentRows.add(
-            _AccountPreviewRow(
-              name: a.name,
-              valueText: 'Kur yok',
-              subtitle: symbol.isEmpty
-                  ? '${_fmtAmount(a.balance)} birim'
-                  : '${_fmtAmount(a.balance)} $symbol',
-              color: Colors.teal,
-            ),
-          );
-        }
-      }
-    }
-    cashRows.sort((a, b) => a.name.compareTo(b.name));
-    bankRows.sort((a, b) => a.name.compareTo(b.name));
-    investmentRows.sort((a, b) => a.name.compareTo(b.name));
-    for (final tx in cariTx) {
-      if (tx.type == 'collection') {
-        cariReceivable += tx.amount;
-      } else if (tx.type == 'debt') {
-        cariDebt += tx.amount;
-      }
-    }
-    final cariNetByCard = <int, double>{};
-    for (final tx in cariTx) {
-      final prev = cariNetByCard[tx.cariCardId] ?? 0;
-      final next = tx.type == 'debt' ? (prev + tx.amount) : (prev - tx.amount);
-      cariNetByCard[tx.cariCardId] = next;
-    }
-    final foreignCardsById = <int, CariCard>{
-      for (final c in cariCards)
-        if ((c.currencyType).trim().toLowerCase() == 'foreign') c.id: c,
-    };
-    final foreignNetQtyByCard = <int, double>{};
-    for (final tx in cariTx) {
-      final foreignCard = foreignCardsById[tx.cariCardId];
-      if (foreignCard == null) continue;
-      final qty = _cariTxQuantity(tx);
-      if (qty == null || qty <= 0) continue;
-      final prev = foreignNetQtyByCard[tx.cariCardId] ?? 0;
-      final next = tx.type == 'debt' ? (prev + qty) : (prev - qty);
-      foreignNetQtyByCard[tx.cariCardId] = next;
-    }
-    for (final entry in foreignNetQtyByCard.entries) {
-      final card = foreignCardsById[entry.key];
-      if (card == null) continue;
-      final code = (card.foreignCode ?? '').trim().toUpperCase();
-      if (code.isEmpty) continue;
-      final unitPrice = ratesByCode[code];
-      if (unitPrice == null || unitPrice <= 0) continue;
-      final signedValue = entry.value * unitPrice;
-      cariNetByCard[entry.key] = signedValue;
-    }
-    final cardNameById = <int, String>{};
-    final cardCurrencyById = <int, String>{};
-    for (final c in cariCards) {
-      final full = (c.fullName ?? '').trim();
-      final title = (c.title ?? '').trim();
-      final name =
-          full.isNotEmpty ? full : (title.isNotEmpty ? title : 'Cari #${c.id}');
-      final currency = _cariCurrencyLabel(c);
-      cardNameById[c.id] = name;
-      cardCurrencyById[c.id] = currency;
-    }
-    for (final e in cariNetByCard.entries) {
-      cariRows.add(
-        _CariPreviewRow(
-          ownerName: cardNameById[e.key] ?? 'Cari #${e.key}',
-          currencyLabel: cardCurrencyById[e.key] ?? 'TL',
-          net: e.value,
-        ),
-      );
-    }
-    final cariNetPreviewTotal =
-        cariRows.fold<double>(0, (sum, row) => sum + row.net);
-    cariRows.sort((a, b) {
-      if (a.currencyLabel == b.currencyLabel) {
-        return a.ownerName.compareTo(b.ownerName);
-      }
-      if (a.currencyLabel == 'TL') return -1;
-      if (b.currencyLabel == 'TL') return 1;
-      return a.currencyLabel.compareTo(b.currencyLabel);
-    });
-
-    final trackedRows = <_TrackedQuoteRow>[];
-    final duePlanRows = <_TodayPlanRow>[];
-    double dueIncomeTotal = 0;
-    double dueExpenseTotal = 0;
-    final now = DateTime.now();
-    final dayStart = DateTime(now.year, now.month, now.day);
-    final dayEnd = DateTime(now.year, now.month, now.day, 23, 59, 59, 999);
-    final completedIncomePlansToday = <int, DateTime>{};
-    final completedExpensePlansToday = <int, DateTime>{};
-    final completedIncomeAmountsToday = <int, double>{};
-    final completedExpenseAmountsToday = <int, double>{};
-    for (final c in trackedCurrencies) {
-      if (!c.isActive) continue;
-      final code = c.code.trim().toUpperCase();
-      if (code.isEmpty) continue;
-      trackedRows.add(
-        _TrackedQuoteRow(
-          market: 'Döviz',
-          code: code,
-          name: c.name,
-          sell: ratesByCode[code],
-        ),
-      );
-    }
-    for (final m in trackedMetals) {
-      if (!m.isActive) continue;
-      final code = m.code.trim().toUpperCase();
-      if (code.isEmpty) continue;
-      trackedRows.add(
-        _TrackedQuoteRow(
-          market: 'Kıymetli Maden',
-          code: code,
-          name: m.name,
-          sell: ratesByCode[code],
-        ),
-      );
-    }
-    final stockSymbols = <String>{};
-    final cryptoSymbols = <String>{};
-    for (final a in accounts) {
-      if (a.type != 'investment' || !a.isActive) continue;
-      final symbol = (a.investmentSymbol ?? '').trim().toUpperCase();
-      final subtype = (a.investmentSubtype ?? '').trim().toLowerCase();
-      if (symbol.isEmpty) continue;
-      if (subtype == 'stock') {
-        stockSymbols.add(symbol);
-      } else if (subtype == 'crypto') {
-        cryptoSymbols.add(symbol);
-      }
-    }
-    for (final s in trackedStocks.where((e) => e.isActive)) {
-      final code = s.code.toUpperCase();
-      if (code.isNotEmpty) stockSymbols.add(code);
-    }
-    for (final c in trackedCryptos.where((e) => e.isActive)) {
-      final code = c.code.toUpperCase();
-      if (code.isNotEmpty) cryptoSymbols.add(code);
-    }
-    final trackedStockNameByCode = <String, String>{
-      for (final s in trackedStocks.where((e) => e.isActive))
-        s.code.toUpperCase(): s.name,
-    };
-    final trackedCryptoNameByCode = <String, String>{
-      for (final c in trackedCryptos.where((e) => e.isActive))
-        c.code.toUpperCase(): c.name,
-    };
-    for (final code in stockSymbols) {
-      final live = ratesByCode[code];
-      final displayName = trackedStockNameByCode[code] ?? code;
-      trackedRows.add(
-        _TrackedQuoteRow(
-          market: 'Borsa',
-          code: code,
-          name: displayName,
-          sell: live ?? latestUnitPriceBySymbol[code],
-        ),
-      );
-    }
-    for (final code in cryptoSymbols) {
-      final live = ratesByCode[code];
-      final displayName = trackedCryptoNameByCode[code] ?? code;
-      trackedRows.add(
-        _TrackedQuoteRow(
-          market: 'Kripto',
-          code: code,
-          name: displayName,
-          sell: live ?? latestUnitPriceBySymbol[code],
-        ),
-      );
-    }
-    trackedRows.sort((a, b) {
-      final byMarket = a.market.compareTo(b.market);
-      if (byMarket != 0) return byMarket;
-      return a.code.compareTo(b.code);
-    });
-    for (final tx in allFinanceTx) {
-      final inToday = !tx.date.isBefore(dayStart) && !tx.date.isAfter(dayEnd);
-      if (!inToday) continue;
-      if (tx.incomePlanId != null) {
-        completedIncomePlansToday[tx.incomePlanId!] = tx.date;
-        completedIncomeAmountsToday[tx.incomePlanId!] = tx.amount;
-      }
-      if (tx.expensePlanId != null) {
-        completedExpensePlansToday[tx.expensePlanId!] = tx.date;
-        completedExpenseAmountsToday[tx.expensePlanId!] = tx.amount;
-      }
-    }
-
-    for (final p in dueIncomePlans) {
-      final desc = (p.description ?? '').trim();
-      dueIncomeTotal += p.amount;
-      duePlanRows.add(
-        _TodayPlanRow(
-          typeLabel: 'Gelir',
-          amount: p.amount,
-          dueDate: p.nextDueDate,
-          description: desc.isEmpty ? 'Planlı gelir' : desc,
-          color: AppColors.income,
-          statusLabel: 'Beklemede',
-          statusColor: Colors.orange,
-        ),
-      );
-    }
-    for (final p in dueExpensePlans) {
-      final desc = (p.description ?? '').trim();
-      dueExpenseTotal += p.amount;
-      duePlanRows.add(
-        _TodayPlanRow(
-          typeLabel: 'Gider',
-          amount: p.amount,
-          dueDate: p.nextDueDate,
-          description: desc.isEmpty ? 'Planlı gider' : desc,
-          color: AppColors.expense,
-          statusLabel: 'Beklemede',
-          statusColor: Colors.orange,
-        ),
-      );
-    }
-
-    for (final p in allIncomePlans) {
-      final completedAt = completedIncomePlansToday[p.id];
-      if (completedAt != null) {
-        final desc = (p.description ?? '').trim();
-        final amount = completedIncomeAmountsToday[p.id] ?? p.amount;
-        dueIncomeTotal += amount;
-        duePlanRows.add(
-          _TodayPlanRow(
-            typeLabel: 'Gelir',
-            amount: amount,
-            dueDate: completedAt,
-            description: desc.isEmpty ? 'Planlı gelir' : desc,
-            color: AppColors.income,
-            statusLabel: 'Gerçekleşti',
-            statusColor: Colors.green,
-          ),
-        );
-        continue;
-      }
-      if (!p.isActive && _isSameDay(p.nextDueDate, dayStart)) {
-        final desc = (p.description ?? '').trim();
-        duePlanRows.add(
-          _TodayPlanRow(
-            typeLabel: 'Gelir',
-            amount: p.amount,
-            dueDate: p.nextDueDate,
-            description: desc.isEmpty ? 'Planlı gelir' : desc,
-            color: AppColors.income,
-            statusLabel: 'İptal Edildi',
-            statusColor: Colors.red,
-          ),
-        );
-        continue;
-      }
-      if (p.isActive &&
-          p.nextDueDate.isAfter(dayEnd) &&
-          _isLikelyPostponedToday(
-            nextDue: p.nextDueDate,
-            periodType: p.periodType,
-            frequency: p.frequency,
-            today: dayStart,
-          )) {
-        final desc = (p.description ?? '').trim();
-        dueIncomeTotal += p.amount;
-        duePlanRows.add(
-          _TodayPlanRow(
-            typeLabel: 'Gelir',
-            amount: p.amount,
-            dueDate: p.nextDueDate,
-            description: desc.isEmpty ? 'Planlı gelir' : desc,
-            color: AppColors.income,
-            statusLabel: 'Ertelendi',
-            statusColor: Colors.deepOrange,
-          ),
-        );
-      }
-    }
-    for (final p in allExpensePlans) {
-      final completedAt = completedExpensePlansToday[p.id];
-      if (completedAt != null) {
-        final desc = (p.description ?? '').trim();
-        final amount = completedExpenseAmountsToday[p.id] ?? p.amount;
-        dueExpenseTotal += amount;
-        duePlanRows.add(
-          _TodayPlanRow(
-            typeLabel: 'Gider',
-            amount: amount,
-            dueDate: completedAt,
-            description: desc.isEmpty ? 'Planlı gider' : desc,
-            color: AppColors.expense,
-            statusLabel: 'Gerçekleşti',
-            statusColor: Colors.green,
-          ),
-        );
-        continue;
-      }
-      if (!p.isActive && _isSameDay(p.nextDueDate, dayStart)) {
-        final desc = (p.description ?? '').trim();
-        duePlanRows.add(
-          _TodayPlanRow(
-            typeLabel: 'Gider',
-            amount: p.amount,
-            dueDate: p.nextDueDate,
-            description: desc.isEmpty ? 'Planlı gider' : desc,
-            color: AppColors.expense,
-            statusLabel: 'İptal Edildi',
-            statusColor: Colors.red,
-          ),
-        );
-        continue;
-      }
-      if (p.isActive &&
-          p.nextDueDate.isAfter(dayEnd) &&
-          _isLikelyPostponedToday(
-            nextDue: p.nextDueDate,
-            periodType: p.periodType,
-            frequency: p.frequency,
-            today: dayStart,
-          )) {
-        final desc = (p.description ?? '').trim();
-        dueExpenseTotal += p.amount;
-        duePlanRows.add(
-          _TodayPlanRow(
-            typeLabel: 'Gider',
-            amount: p.amount,
-            dueDate: p.nextDueDate,
-            description: desc.isEmpty ? 'Planlı gider' : desc,
-            color: AppColors.expense,
-            statusLabel: 'Ertelendi',
-            statusColor: Colors.deepOrange,
-          ),
-        );
-      }
-    }
-
-    final uniquePlanKeys = <String>{};
-    duePlanRows.removeWhere((r) {
-      final key =
-          '${r.typeLabel}|${r.description}|${r.statusLabel}|${r.amount}|${r.dueDate.toIso8601String()}';
-      if (uniquePlanKeys.contains(key)) return true;
-      uniquePlanKeys.add(key);
-      return false;
-    });
-    duePlanRows.sort((a, b) => a.dueDate.compareTo(b.dueDate));
-
-    final today = DateTime(now.year, now.month, now.day);
-    final activeSubscriptions =
-        subscriptions.where((item) => item.isActive).toList(growable: false);
-    final subscriptionRows = activeSubscriptions
-        .map((item) => _buildSubscriptionReminderRow(item, today))
-        .where((item) => _isSameDay(item.reminderDate, today))
-        .toList()
-      ..sort((a, b) => a.title.compareTo(b.title));
-    final dueSubscriptions = subscriptionRows.length;
-
-    final displayName = profile == null
-        ? 'Kullanıcı Profili'
-        : '${profile.firstName} ${profile.lastName}'.trim();
-    final photoBytes = profile?.photoBytes;
-
+    final nextData = await DashboardLoader.load();
     setState(() {
-      totalAccounts = accounts.length;
-      cashBankAccounts =
-          accounts.where((a) => a.type == "cash" || a.type == "bank").length;
-      investmentAccounts = accounts.where((a) => a.type == "investment").length;
-      cashTotal = cash;
-      bankTotal = bank;
-      investmentCurrentTotal = investmentCurrent;
-      hasMissingInvestmentPrice = missingInvestmentPrice;
-      cariReceivableTotal = cariReceivable;
-      cariDebtTotal = cariDebt;
-      cariNetTotal = cariNetPreviewTotal;
-      trackedQuotes = trackedRows;
-      plannedIncomeTotal = dueIncomeTotal;
-      plannedExpenseTotal = dueExpenseTotal;
-      todayPlans = duePlanRows;
-      cashPreviewRows = cashRows;
-      bankPreviewRows = bankRows;
-      investmentPreviewRows = investmentRows;
-      activeSubscriptionCount = activeSubscriptions.length;
-      dueSubscriptionCount = dueSubscriptions;
-      subscriptionPreviewRows = subscriptionRows;
-      if (dueSubscriptions == 0) {
+      _dashboardData = nextData;
+      if (nextData.dueSubscriptionCount == 0) {
         showSubscriptionPreview = false;
       }
-      cariPreviewRows = cariRows;
-      totalBalance = cash + bank + investmentCurrent;
-      profileName = displayName;
-      profilePhoto = photoBytes == null ? null : Uint8List.fromList(photoBytes);
-      if (selectedAccountTypePreview == 'cash' && cash.abs() <= _zeroEpsilon) {
+      if (selectedAccountTypePreview == 'cash' &&
+          nextData.cashTotal.abs() <= _zeroEpsilon) {
         selectedAccountTypePreview = null;
       } else if (selectedAccountTypePreview == 'bank' &&
-          bank.abs() <= _zeroEpsilon) {
+          nextData.bankTotal.abs() <= _zeroEpsilon) {
         selectedAccountTypePreview = null;
       } else if (selectedAccountTypePreview == 'investment' &&
-          investmentCurrent.abs() <= _zeroEpsilon) {
+          nextData.investmentCurrentTotal.abs() <= _zeroEpsilon) {
         selectedAccountTypePreview = null;
       }
-      if (cash.abs() <= _zeroEpsilon &&
-          bank.abs() <= _zeroEpsilon &&
-          investmentCurrent.abs() <= _zeroEpsilon) {
+      if (nextData.cashTotal.abs() <= _zeroEpsilon &&
+          nextData.bankTotal.abs() <= _zeroEpsilon &&
+          nextData.investmentCurrentTotal.abs() <= _zeroEpsilon) {
         showAssetBreakdown = false;
       }
-      if (trackedRows.isEmpty) {
+      if (nextData.trackedQuotes.isEmpty) {
         showTrackedPreview = false;
       }
     });
@@ -1021,38 +480,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       if (fromRight > 1 && fromRight % 3 == 1) b.write('.');
     }
     return '${b.toString()},$decPart';
-  }
-
-  double? _cariTxQuantity(CariTransaction tx) {
-    final q = tx.quantity;
-    if (q != null && q > 0) return q;
-    final unitPrice = tx.unitPrice;
-    if (unitPrice != null && unitPrice > 0) {
-      final fallback = tx.amount / unitPrice;
-      if (fallback > 0) return fallback;
-    }
-    return null;
-  }
-
-  String _cariCurrencyLabel(CariCard c) {
-    if (c.currencyType != 'foreign') return 'TL';
-    final explicitName = (c.foreignName ?? '').trim();
-    if (explicitName.isNotEmpty) return explicitName;
-
-    final code = (c.foreignCode ?? '').trim().toUpperCase();
-    if (code.isEmpty) return 'Yabanci Para';
-    switch (code) {
-      case 'USD':
-        return 'Dolar';
-      case 'EUR':
-        return 'Euro';
-      case 'GBP':
-        return 'Sterlin';
-      case 'GA':
-        return 'Gram Altin';
-      default:
-        return code;
-    }
   }
 
   Widget _buildHeroSummaryCard() {
@@ -1473,7 +900,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildCariPreviewCard() {
-    final grouped = <String, List<_CariPreviewRow>>{};
+    final grouped = <String, List<CariPreviewRow>>{};
     for (final row in cariPreviewRows) {
       grouped.putIfAbsent(row.currencyLabel, () => []).add(row);
     }
@@ -1810,7 +1237,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     required String title,
     required IconData icon,
     required Color color,
-    required List<_TrackedQuoteRow> rows,
+    required List<TrackedQuoteRow> rows,
     required int limit,
     double? minHeight,
   }) {
@@ -1992,7 +1419,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     late final String title;
     late final Color color;
-    late final List<_AccountPreviewRow> rows;
+    late final List<AccountPreviewRow> rows;
     if (type == 'cash') {
       title = 'Kasa Hesap On Izleme';
       color = Colors.blue;
@@ -2376,92 +1803,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  _SubscriptionReminderRow _buildSubscriptionReminderRow(
-    SubscriptionDefinition item,
-    DateTime today,
-  ) {
-    final reminderDate = _subscriptionReminderDate(item, today);
-    final provider = item.providerName.trim();
-    final title = provider.isEmpty ? item.name : '${item.name} - $provider';
-    final caption = item.dueDay == null
-        ? 'Son odeme tarihi yok, ay sonunda sorulacak'
-        : item.duePeriod == 'yearly'
-            ? 'Yillik sabit son odeme tarihi'
-            : 'Aylik sabit son odeme tarihi';
-    final dateLabel = item.dueDay == null
-        ? 'Ay Sonu'
-        : item.duePeriod == 'yearly'
-            ? '${reminderDate.day}.${reminderDate.month}'
-            : '${reminderDate.day}. gun';
-
-    return _SubscriptionReminderRow(
-      title: title,
-      caption: caption,
-      dateLabel: dateLabel,
-      reminderDate: reminderDate,
-      isDue: !reminderDate.isAfter(today),
-    );
-  }
-
-  DateTime _subscriptionReminderDate(
-    SubscriptionDefinition item,
-    DateTime today,
-  ) {
-    if (item.dueDay == null) {
-      final lastDay = DateUtils.getDaysInMonth(today.year, today.month);
-      return DateTime(today.year, today.month, lastDay);
-    }
-    if (item.duePeriod == 'yearly' && item.dueMonth != null) {
-      final currentYearDate = DateTime(
-        today.year,
-        item.dueMonth!,
-        item.dueDay!.clamp(1, DateUtils.getDaysInMonth(today.year, item.dueMonth!)),
-      );
-      if (currentYearDate.month < today.month) {
-        return DateTime(
-          today.year + 1,
-          item.dueMonth!,
-          item.dueDay!.clamp(
-            1,
-            DateUtils.getDaysInMonth(today.year + 1, item.dueMonth!),
-          ),
-        );
-      }
-      return currentYearDate;
-    }
-    final lastDayOfMonth = DateUtils.getDaysInMonth(today.year, today.month);
-    final day = item.dueDay!.clamp(1, lastDayOfMonth);
-    return DateTime(today.year, today.month, day);
-  }
-
-  bool _isSameDay(DateTime a, DateTime b) {
-    return a.year == b.year && a.month == b.month && a.day == b.day;
-  }
-
-  bool _isLikelyPostponedToday({
-    required DateTime nextDue,
-    required String periodType,
-    required int frequency,
-    required DateTime today,
-  }) {
-    final prev = _previousByPlan(nextDue, periodType, frequency);
-    return _isSameDay(prev, today);
-  }
-
-  DateTime _previousByPlan(DateTime from, String periodType, int frequency) {
-    final f = frequency < 1 ? 1 : frequency;
-    if (periodType == 'daily') {
-      return DateTime(from.year, from.month, from.day - f);
-    }
-    if (periodType == 'weekly') {
-      return DateTime(from.year, from.month, from.day - (7 * f));
-    }
-    if (periodType == 'yearly') {
-      return DateTime(from.year - f, from.month, from.day);
-    }
-    return DateTime(from.year, from.month - f, from.day);
-  }
-
   Widget _quickActionItem({
     required IconData icon,
     required String label,
@@ -2602,92 +1943,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 }
 
-class _TrackedQuoteRow {
-  final String market;
-  final String code;
-  final String name;
-  final double? sell;
-
-  const _TrackedQuoteRow({
-    required this.market,
-    required this.code,
-    required this.name,
-    required this.sell,
-  });
-}
-
 class _TrackedMarketCardData {
   final String title;
   final IconData icon;
   final Color color;
-  final List<_TrackedQuoteRow> rows;
+  final List<TrackedQuoteRow> rows;
 
   const _TrackedMarketCardData({
     required this.title,
     required this.icon,
     required this.color,
     required this.rows,
-  });
-}
-
-class _AccountPreviewRow {
-  final String name;
-  final String valueText;
-  final String? subtitle;
-  final Color color;
-
-  const _AccountPreviewRow({
-    required this.name,
-    required this.valueText,
-    required this.color,
-    this.subtitle,
-  });
-}
-
-class _CariPreviewRow {
-  final String ownerName;
-  final String currencyLabel;
-  final double net;
-
-  const _CariPreviewRow({
-    required this.ownerName,
-    required this.currencyLabel,
-    required this.net,
-  });
-}
-
-class _TodayPlanRow {
-  final String typeLabel;
-  final double amount;
-  final DateTime dueDate;
-  final String description;
-  final Color color;
-  final String statusLabel;
-  final Color statusColor;
-
-  const _TodayPlanRow({
-    required this.typeLabel,
-    required this.amount,
-    required this.dueDate,
-    required this.description,
-    required this.color,
-    required this.statusLabel,
-    required this.statusColor,
-  });
-}
-
-class _SubscriptionReminderRow {
-  final String title;
-  final String caption;
-  final String dateLabel;
-  final DateTime reminderDate;
-  final bool isDue;
-
-  const _SubscriptionReminderRow({
-    required this.title,
-    required this.caption,
-    required this.dateLabel,
-    required this.reminderDate,
-    required this.isDue,
   });
 }

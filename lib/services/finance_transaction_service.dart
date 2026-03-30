@@ -71,6 +71,21 @@ class FinanceTransactionService {
     return items;
   }
 
+  /// Belirli tarih araligindaki gelir ve gider hareketlerini yeni->eski sirada dondurur.
+  static Future<List<FinanceTransaction>> getByDateRange({
+    required DateTime start,
+    required DateTime end,
+  }) async {
+    final isar = IsarService.isar;
+    final items = await isar.financeTransactions
+        .where()
+        .filter()
+        .dateBetween(start, end)
+        .findAll();
+    items.sort((a, b) => b.date.compareTo(a.date));
+    return items;
+  }
+
   /// Gelir ekleme icin ID donmeyen kolay sarmalayici metottur.
   static Future<void> addIncome({
     required int accountId,

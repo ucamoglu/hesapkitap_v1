@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../core/runtime/app_runtime.dart';
 import '../core/sync/cloud_data_state.dart';
 import '../core/sync/cloud_sync_migration_service.dart';
+import '../core/sync/cloud_safety_backup.dart';
 import '../core/sync/sync_bootstrap_choice.dart';
 import '../core/sync/sync_bootstrap_plan.dart';
 import '../core/sync/sync_conflict_policy.dart';
@@ -28,6 +29,8 @@ class _CloudSyncSetupScreenState extends State<CloudSyncSetupScreen> {
   SyncReadinessReport? _report;
   SyncBootstrapPlan? _plan;
   SyncBootstrapPreference? _preference;
+  CloudSafetyBackup? _latestBackup;
+  bool _hasPreparationDrift = false;
 
   @override
   void initState() {
@@ -39,6 +42,10 @@ class _CloudSyncSetupScreenState extends State<CloudSyncSetupScreen> {
   Future<void> _load() async {
     final report = await _service.inspectLocalData();
     final preference = await _service.loadPreference();
+    final latestBackup = await _service.loadLatestBackup();
+    final hasPreparationDrift = preference == null
+        ? false
+        : preference.localFingerprint != report.fingerprint;
     final choice = preference?.choice ?? SyncBootstrapChoice.uploadDeviceData;
     final policy =
         preference?.conflictPolicy ?? SyncBootstrapPlanner.defaultPolicyForChoice(choice);
@@ -52,6 +59,8 @@ class _CloudSyncSetupScreenState extends State<CloudSyncSetupScreen> {
     setState(() {
       _report = report;
       _preference = preference;
+      _latestBackup = latestBackup;
+      _hasPreparationDrift = hasPreparationDrift;
       _choice = choice;
       _conflictPolicy = policy;
       _plan = plan;
@@ -89,12 +98,14 @@ class _CloudSyncSetupScreenState extends State<CloudSyncSetupScreen> {
         _report = result.report;
         _plan = result.plan;
         _preference = result.preference;
+        _latestBackup = result.backup;
+        _hasPreparationDrift = false;
         _saving = false;
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Bulut esitleme hazırlığı kaydedildi. ${result.metadataRecordsCreated} kayıt için esitleme metaverisi oluşturuldu.',
+            'Bulut esitleme hazırlığı kaydedildi. ${result.metadataRecordsCreated} kayıt için esitleme metaverisi oluşturuldu ve güvenlik yedeği alındı.',
           ),
         ),
       );
@@ -154,6 +165,14 @@ class _CloudSyncSetupScreenState extends State<CloudSyncSetupScreen> {
                 _buildConflictCard(),
                 const SizedBox(height: 12),
                 _buildPlanCard(),
+                if (_hasPreparationDrift) ...[
+                  const SizedBox(height: 12),
+                  _buildDriftWarningCard(),
+                ],
+                if (_latestBackup != null) ...[
+                  const SizedBox(height: 12),
+                  _buildBackupCard(),
+                ],
                 if (_preference != null) ...[
                   const SizedBox(height: 12),
                   _buildPreferenceCard(),
@@ -409,6 +428,56 @@ class _CloudSyncSetupScreenState extends State<CloudSyncSetupScreen> {
     );
   }
 
+  Widget _buildDriftWarningCard() {
+    return Card(
+      color: Theme.of(context).colorScheme.errorContainer,
+      child: const Padding(
+        padding: EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Hazırlık Güncel Değil',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
+            SizedBox(height: 8),
+            Text(
+              'Son bulut hazırlığından sonra cihazdaki veriler değişmiş görünüyor. Cloud açılmadan önce bu cihazı yeniden hazırlamanız önerilir.',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBackupCard() {
+    final backup = _latestBackup;
+    if (backup == null) {
+      return const SizedBox.shrink();
+    }
+
+    final formatter = DateFormat('dd.MM.yyyy HH:mm');
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Güvenlik Yedeği',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 8),
+            Text('Son yedek: ${formatter.format(backup.createdAt)}'),
+            Text('Toplam kayıt: ${backup.totalRecords}'),
+            Text('Ek boyutu: ${_formatBytes(backup.attachmentBytes)}'),
+            Text('Yedek klasörü: ${backup.backupDirectoryPath}'),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildPreferenceCard() {
     final preference = _preference;
     if (preference == null) {
@@ -430,6 +499,11 @@ class _CloudSyncSetupScreenState extends State<CloudSyncSetupScreen> {
             Text('Seçim: ${_choiceLabel(preference.choice)}'),
             Text('Çakışma kuralı: ${_policyLabel(preference.conflictPolicy)}'),
             Text('Hazırlandı: ${formatter.format(preference.preparedAt)}'),
+            Text(
+              _hasPreparationDrift
+                  ? 'Durum: Hazırlık sonrası veri değişmiş'
+                  : 'Durum: Hazırlık güncel görünüyor',
+            ),
           ],
         ),
       ),

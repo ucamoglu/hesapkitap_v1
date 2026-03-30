@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 
+import '../core/runtime/app_runtime.dart';
 import '../models/cari_card.dart';
 import '../services/account_service.dart';
 import '../services/cari_card_service.dart';
@@ -496,9 +497,9 @@ class _CariCardsScreenState extends State<CariCardsScreen> {
 
                 try {
                   if (edit == null) {
-                    await CariCardService.add(card);
+                    await AppRuntime.dataLayer.cariCards.add(card);
                   } else {
-                    await CariCardService.update(card);
+                    await AppRuntime.dataLayer.cariCards.update(card);
                   }
 
                   if (!context.mounted) return;
@@ -518,7 +519,7 @@ class _CariCardsScreenState extends State<CariCardsScreen> {
 
   // Karti silmeden aktif/pasif hale getirir.
   Future<void> _toggle(CariCard card) async {
-    await CariCardService.setActive(card.id, !card.isActive);
+    await AppRuntime.dataLayer.cariCards.setActive(card.id, !card.isActive);
     await loadCards();
   }
 

@@ -12,6 +12,7 @@ import '../../../models/finance_transaction.dart';
 import '../../../models/income_category.dart';
 import '../../../models/income_plan.dart';
 import '../../../models/investment_transaction.dart';
+import '../../../models/subscription_definition.dart';
 import '../../../models/tracked_crypto.dart';
 import '../../../models/tracked_crypto_state.dart';
 import '../../../models/tracked_currency.dart';
@@ -48,6 +49,7 @@ List<SyncEntityMapper> buildDefaultSyncMappers() {
     _TrackedCryptoSyncMapper(),
     _TrackedCryptoStateSyncMapper(),
     _CariCardSyncMapper(),
+    _SubscriptionDefinitionSyncMapper(),
     _CariTransactionSyncMapper(),
     _TransactionAttachmentSyncMapper(),
   ];
@@ -278,6 +280,101 @@ class _IncomeCategorySyncMapper extends _ScalarMapper<IncomeCategory> {
       ..systemKey = remote.payload['systemKey'] as String?
       ..createdAt = _parseDate(remote.payload['createdAt']);
     final id = await isar.writeTxn(() => isar.incomeCategorys.put(item));
+    return SyncImportResult.applied(id);
+  }
+}
+
+class _SubscriptionDefinitionSyncMapper
+    extends _ScalarMapper<SubscriptionDefinition> {
+  @override
+  String get entityType => 'subscription_definition';
+
+  @override
+  Future<SubscriptionDefinition?> load(int localId) =>
+      isar.subscriptionDefinitions.get(localId);
+
+  @override
+  Future<Map<String, dynamic>> toPayload(
+    SubscriptionDefinition item,
+    SyncReferenceResolver resolver,
+  ) async {
+    return {
+      'name': item.name,
+      'type': item.type,
+      'paymentType': item.paymentType,
+      'duePeriod': item.duePeriod,
+      'providerName': item.providerName,
+      'subscriberNumber': item.subscriberNumber,
+      'paymentAccountRemoteId': item.paymentAccountId == null
+          ? null
+          : resolver.remoteIdFor('account', item.paymentAccountId!),
+      'defaultExpenseCategoryRemoteId': item.defaultExpenseCategoryId == null
+          ? null
+          : resolver.remoteIdFor('category', item.defaultExpenseCategoryId!),
+      'defaultAmount': item.defaultAmount,
+      'dueDay': item.dueDay,
+      'dueMonth': item.dueMonth,
+      'note': item.note,
+      'isAutoPay': item.isAutoPay,
+      'isActive': item.isActive,
+      'createdAt': item.createdAt.toUtc().toIso8601String(),
+      'updatedAt': item.updatedAt?.toUtc().toIso8601String(),
+    };
+  }
+
+  @override
+  Future<SyncImportResult> upsertFromRemote(
+    RemoteSyncRecord remote,
+    SyncReferenceResolver resolver,
+  ) async {
+    final paymentAccountRemoteId =
+        remote.payload['paymentAccountRemoteId'] as String?;
+    final paymentAccountId =
+        paymentAccountRemoteId == null || paymentAccountRemoteId.isEmpty
+            ? null
+            : resolver.localIdFor('account', paymentAccountRemoteId);
+    if (paymentAccountRemoteId != null && paymentAccountId == null) {
+      return SyncImportResult.conflict(
+        'Subscription payment account reference unresolved',
+      );
+    }
+
+    final defaultCategoryRemoteId =
+        remote.payload['defaultExpenseCategoryRemoteId'] as String?;
+    final defaultCategoryId =
+        defaultCategoryRemoteId == null || defaultCategoryRemoteId.isEmpty
+            ? null
+            : resolver.localIdFor('category', defaultCategoryRemoteId);
+    if (defaultCategoryRemoteId != null && defaultCategoryId == null) {
+      return SyncImportResult.conflict(
+        'Subscription category reference unresolved',
+      );
+    }
+
+    final localId = resolver.localIdFor(entityType, remote.remoteId);
+    final current = localId == null
+        ? null
+        : await isar.subscriptionDefinitions.get(localId);
+    final item = current ?? SubscriptionDefinition();
+    if (current != null) item.id = current.id;
+    item
+      ..name = remote.payload['name'] as String
+      ..type = remote.payload['type'] as String
+      ..paymentType = remote.payload['paymentType'] as String? ?? 'variable'
+      ..duePeriod = remote.payload['duePeriod'] as String? ?? 'monthly'
+      ..providerName = remote.payload['providerName'] as String
+      ..subscriberNumber = remote.payload['subscriberNumber'] as String?
+      ..paymentAccountId = paymentAccountId
+      ..defaultExpenseCategoryId = defaultCategoryId
+      ..defaultAmount = (remote.payload['defaultAmount'] as num?)?.toDouble()
+      ..dueDay = remote.payload['dueDay'] as int?
+      ..dueMonth = remote.payload['dueMonth'] as int?
+      ..note = remote.payload['note'] as String?
+      ..isAutoPay = remote.payload['isAutoPay'] as bool? ?? false
+      ..isActive = remote.payload['isActive'] as bool? ?? true
+      ..createdAt = _parseDate(remote.payload['createdAt'])
+      ..updatedAt = _parseDateOrNull(remote.payload['updatedAt']);
+    final id = await isar.writeTxn(() => isar.subscriptionDefinitions.put(item));
     return SyncImportResult.applied(id);
   }
 }

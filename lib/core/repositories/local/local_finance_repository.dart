@@ -1,9 +1,14 @@
 import '../../../models/finance_transaction.dart';
 import '../../../services/finance_transaction_service.dart';
+import '../../sync/sync_change_tracker.dart';
 import '../contracts/finance_repository.dart';
 
 class LocalFinanceRepository implements FinanceRepository {
-  const LocalFinanceRepository();
+  LocalFinanceRepository({
+    SyncChangeTracker? changeTracker,
+  }) : _changeTracker = changeTracker ?? SyncChangeTracker();
+
+  final SyncChangeTracker _changeTracker;
 
   @override
   Future<int> addExpenseAndGetId({
@@ -11,17 +16,28 @@ class LocalFinanceRepository implements FinanceRepository {
     required int categoryId,
     required double amount,
     required DateTime date,
+    double? latitude,
+    double? longitude,
     String? description,
     int? expensePlanId,
-  }) {
-    return FinanceTransactionService.addExpenseAndGetId(
+    bool syncCreditCardStatement = true,
+  }) async {
+    final id = await FinanceTransactionService.addExpenseAndGetId(
       accountId: accountId,
       categoryId: categoryId,
       amount: amount,
       date: date,
+      latitude: latitude,
+      longitude: longitude,
       description: description,
       expensePlanId: expensePlanId,
+      syncCreditCardStatement: syncCreditCardStatement,
     );
+    await _changeTracker.markUpsert(
+      entityType: 'finance_transaction',
+      localId: id,
+    );
+    return id;
   }
 
   @override
@@ -30,24 +46,38 @@ class LocalFinanceRepository implements FinanceRepository {
     required int categoryId,
     required double amount,
     required DateTime date,
+    double? latitude,
+    double? longitude,
     String? description,
     int? incomePlanId,
     int? expensePlanId,
-  }) {
-    return FinanceTransactionService.addIncomeAndGetId(
+  }) async {
+    final id = await FinanceTransactionService.addIncomeAndGetId(
       accountId: accountId,
       categoryId: categoryId,
       amount: amount,
       date: date,
+      latitude: latitude,
+      longitude: longitude,
       description: description,
       incomePlanId: incomePlanId,
       expensePlanId: expensePlanId,
     );
+    await _changeTracker.markUpsert(
+      entityType: 'finance_transaction',
+      localId: id,
+    );
+    return id;
   }
 
   @override
-  Future<FinanceTransaction> deleteAndReturn(int transactionId) {
-    return FinanceTransactionService.deleteAndReturn(transactionId);
+  Future<FinanceTransaction> deleteAndReturn(int transactionId) async {
+    final deleted = await FinanceTransactionService.deleteAndReturn(transactionId);
+    await _changeTracker.markDelete(
+      entityType: 'finance_transaction',
+      localId: transactionId,
+    );
+    return deleted;
   }
 
   @override
@@ -63,20 +93,28 @@ class LocalFinanceRepository implements FinanceRepository {
     required String type,
     required double amount,
     required DateTime date,
+    double? latitude,
+    double? longitude,
     String? description,
     int? incomePlanId,
     int? expensePlanId,
-  }) {
-    return FinanceTransactionService.updateTransaction(
+  }) async {
+    await FinanceTransactionService.updateTransaction(
       transactionId: transactionId,
       accountId: accountId,
       categoryId: categoryId,
       type: type,
       amount: amount,
       date: date,
+      latitude: latitude,
+      longitude: longitude,
       description: description,
       incomePlanId: incomePlanId,
       expensePlanId: expensePlanId,
+    );
+    await _changeTracker.markUpsert(
+      entityType: 'finance_transaction',
+      localId: transactionId,
     );
   }
 }

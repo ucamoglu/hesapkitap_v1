@@ -196,6 +196,12 @@ class TrackedStockService {
         .toList();
   }
 
+  /// Sadece aktif hisse takip kayitlarini dondurur.
+  static Future<List<TrackedStockItem>> getActive() async {
+    final items = await getAll();
+    return items.where((item) => item.isActive).toList(growable: false);
+  }
+
   /// Takip kaydini ekler veya gunceller; state tablosunu da aktifler.
   static Future<void> addOrUpdate(MarketRateItem item) async {
     final isar = IsarService.isar;

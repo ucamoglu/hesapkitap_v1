@@ -90,4 +90,18 @@ class CreditCardPaymentService {
     items.sort((a, b) => b.paymentDate.compareTo(a.paymentDate));
     return items;
   }
+
+  static Future<List<CreditCardPayment>> getByPaymentDateRange({
+    required DateTime start,
+    required DateTime end,
+  }) async {
+    final isar = IsarService.isar;
+    final items = await isar.creditCardPayments
+        .where()
+        .filter()
+        .paymentDateBetween(start, end)
+        .findAll();
+    items.sort((a, b) => b.paymentDate.compareTo(a.paymentDate));
+    return items;
+  }
 }

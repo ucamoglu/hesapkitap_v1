@@ -3,9 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
+import '../core/runtime/app_runtime.dart';
 import '../database/isar_service.dart';
 import '../models/user_profile.dart';
-import '../services/user_profile_service.dart';
 import '../theme/app_theme.dart';
 import '../theme/app_theme_controller.dart';
 import '../utils/camera_support.dart';
@@ -60,7 +60,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   // Profil verisini forma yerlestirir ve mevcut resmi bellekte hazirlar.
   Future<void> _loadProfile() async {
     try {
-      final profile = await UserProfileService.getProfile();
+      final profile = await AppRuntime.dataLayer.userProfile.getProfile();
       if (!mounted) return;
 
       if (profile != null) {
@@ -208,7 +208,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ..photoBytes = _photoBytes?.toList();
 
     try {
-      await UserProfileService.save(profile);
+      await AppRuntime.dataLayer.userProfile.save(profile);
       if (!mounted) return;
       final nextThemeKey = _themeKey;
       final nextFanTeamKey = _fanTeamKey;

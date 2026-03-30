@@ -9,6 +9,8 @@ abstract class FinanceRepository {
     required int categoryId,
     required double amount,
     required DateTime date,
+    double? latitude,
+    double? longitude,
     String? description,
     int? incomePlanId,
     int? expensePlanId,
@@ -19,8 +21,11 @@ abstract class FinanceRepository {
     required int categoryId,
     required double amount,
     required DateTime date,
+    double? latitude,
+    double? longitude,
     String? description,
     int? expensePlanId,
+    bool syncCreditCardStatement = true,
   });
   // Finans hareketini gunceller.
   Future<void> updateTransaction({
@@ -30,6 +35,8 @@ abstract class FinanceRepository {
     required String type,
     required double amount,
     required DateTime date,
+    double? latitude,
+    double? longitude,
     String? description,
     int? incomePlanId,
     int? expensePlanId,

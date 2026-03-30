@@ -46,8 +46,8 @@ class ExpensePlanService {
   }
 
   /// Plani gercek hareket olarak isler, sonraki tarihi hesaplar ve gerekirse pasife alir.
-  static Future<void> markCompleted(ExpensePlan plan) async {
-    await FinanceTransactionService.addExpense(
+  static Future<int> markCompleted(ExpensePlan plan) async {
+    final transactionId = await FinanceTransactionService.addExpenseAndGetId(
       accountId: plan.accountId,
       categoryId: plan.expenseCategoryId,
       amount: plan.amount,
@@ -69,6 +69,7 @@ class ExpensePlanService {
     }
 
     await save(plan);
+    return transactionId;
   }
 
   /// Planin bir sonraki tarihini kullanicinin sectigi gune tasir.

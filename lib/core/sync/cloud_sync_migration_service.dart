@@ -10,6 +10,7 @@ import '../../models/finance_transaction.dart';
 import '../../models/income_category.dart';
 import '../../models/income_plan.dart';
 import '../../models/investment_transaction.dart';
+import '../../models/subscription_definition.dart';
 import '../../models/tracked_crypto.dart';
 import '../../models/tracked_crypto_state.dart';
 import '../../models/tracked_currency.dart';
@@ -22,6 +23,8 @@ import '../../models/transaction_attachment.dart';
 import '../../models/transfer_transaction.dart';
 import '../../models/user_profile.dart';
 import 'cloud_data_state.dart';
+import 'cloud_safety_backup.dart';
+import 'cloud_safety_backup_service.dart';
 import 'sync_bootstrap_choice.dart';
 import 'sync_bootstrap_plan.dart';
 import 'sync_bootstrap_preference.dart';
@@ -36,21 +39,26 @@ class CloudSyncPreparationResult {
   final SyncBootstrapPlan plan;
   final int metadataRecordsCreated;
   final SyncBootstrapPreference preference;
+  final CloudSafetyBackup backup;
 
   const CloudSyncPreparationResult({
     required this.report,
     required this.plan,
     required this.metadataRecordsCreated,
     required this.preference,
+    required this.backup,
   });
 }
 
 class CloudSyncMigrationService {
   CloudSyncMigrationService({
     SyncMetadataStore? metadataStore,
-  }) : _metadataStore = metadataStore ?? SyncMetadataStore();
+    CloudSafetyBackupService? backupService,
+  })  : _metadataStore = metadataStore ?? SyncMetadataStore(),
+        _backupService = backupService ?? CloudSafetyBackupService();
 
   final SyncMetadataStore _metadataStore;
+  final CloudSafetyBackupService _backupService;
 
   /// Cihazdaki Isar verisini sayip ilk sync icin yerel bir envanter cikarir.
   Future<SyncReadinessReport> inspectLocalData() async {
@@ -79,6 +87,11 @@ class CloudSyncMigrationService {
       SyncCollectionSnapshot(
         entityType: 'cari_card',
         count: (await isar.cariCards.where().anyId().findAll()).length,
+      ),
+      SyncCollectionSnapshot(
+        entityType: 'subscription_definition',
+        count:
+            (await isar.subscriptionDefinitions.where().anyId().findAll()).length,
       ),
       SyncCollectionSnapshot(
         entityType: 'cari_transaction',
@@ -182,6 +195,7 @@ class CloudSyncMigrationService {
     // Ilk cloud gecisi oncesi local kayitlar icin metadata olusturur ve tercihi saklar.
     final report = await inspectLocalData();
     final now = DateTime.now();
+    final backup = await _backupService.createBackup(report: report);
     final created = await _metadataStore.ensureRecords(
       await _collectLocalRecords(now),
     );
@@ -203,11 +217,23 @@ class CloudSyncMigrationService {
       plan: plan,
       metadataRecordsCreated: created,
       preference: preference,
+      backup: backup,
     );
   }
 
   Future<SyncBootstrapPreference?> loadPreference() {
     return _metadataStore.loadPreference();
+  }
+
+  Future<CloudSafetyBackup?> loadLatestBackup() {
+    return _backupService.loadLatestBackup();
+  }
+
+  Future<bool> hasPreparationDrift() async {
+    final preference = await loadPreference();
+    if (preference == null) return false;
+    final report = await inspectLocalData();
+    return preference.localFingerprint != report.fingerprint;
   }
 
   Future<List<SyncRecord>> _collectLocalRecords(DateTime now) async {
@@ -242,6 +268,10 @@ class CloudSyncMigrationService {
       await isar.incomeCategorys.where().idProperty().findAll(),
     );
     await addIds('cari_card', await isar.cariCards.where().idProperty().findAll());
+    await addIds(
+      'subscription_definition',
+      await isar.subscriptionDefinitions.where().idProperty().findAll(),
+    );
     await addIds(
       'cari_transaction',
       await isar.cariTransactions.where().idProperty().findAll(),

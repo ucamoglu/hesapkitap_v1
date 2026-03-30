@@ -1,9 +1,14 @@
 import '../../../models/investment_transaction.dart';
 import '../../../services/investment_transaction_service.dart';
+import '../../sync/sync_change_tracker.dart';
 import '../contracts/investment_repository.dart';
 
 class LocalInvestmentRepository implements InvestmentRepository {
-  const LocalInvestmentRepository();
+  LocalInvestmentRepository({
+    SyncChangeTracker? changeTracker,
+  }) : _changeTracker = changeTracker ?? SyncChangeTracker();
+
+  final SyncChangeTracker _changeTracker;
 
   @override
   Future<int> addAndGetId({
@@ -15,8 +20,9 @@ class LocalInvestmentRepository implements InvestmentRepository {
     required double unitPrice,
     required double total,
     required DateTime date,
-  }) {
-    return InvestmentTransactionService.addAndGetId(
+    bool syncCreditCardStatement = true,
+  }) async {
+    final id = await InvestmentTransactionService.addAndGetId(
       investmentAccountId: investmentAccountId,
       cashAccountId: cashAccountId,
       symbol: symbol,
@@ -25,12 +31,22 @@ class LocalInvestmentRepository implements InvestmentRepository {
       unitPrice: unitPrice,
       total: total,
       date: date,
+      syncCreditCardStatement: syncCreditCardStatement,
     );
+    await _changeTracker.markUpsert(
+      entityType: 'investment_transaction',
+      localId: id,
+    );
+    return id;
   }
 
   @override
-  Future<void> deleteAndReturn(int transactionId) {
-    return InvestmentTransactionService.deleteAndReturn(transactionId);
+  Future<void> deleteAndReturn(int transactionId) async {
+    await InvestmentTransactionService.deleteAndReturn(transactionId);
+    await _changeTracker.markDelete(
+      entityType: 'investment_transaction',
+      localId: transactionId,
+    );
   }
 
   @override
@@ -64,8 +80,8 @@ class LocalInvestmentRepository implements InvestmentRepository {
     required double unitPrice,
     required double total,
     required DateTime date,
-  }) {
-    return InvestmentTransactionService.updateTransaction(
+  }) async {
+    await InvestmentTransactionService.updateTransaction(
       transactionId: transactionId,
       investmentAccountId: investmentAccountId,
       cashAccountId: cashAccountId,
@@ -75,6 +91,10 @@ class LocalInvestmentRepository implements InvestmentRepository {
       unitPrice: unitPrice,
       total: total,
       date: date,
+    );
+    await _changeTracker.markUpsert(
+      entityType: 'investment_transaction',
+      localId: transactionId,
     );
   }
 }

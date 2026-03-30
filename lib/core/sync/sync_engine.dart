@@ -57,6 +57,7 @@ class RemoteSyncEngine implements SyncEngine {
     'tracked_crypto',
     'tracked_crypto_state',
     'cari_card',
+    'subscription_definition',
     'income_plan',
     'expense_plan',
     'finance_transaction',

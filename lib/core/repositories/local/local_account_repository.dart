@@ -1,18 +1,39 @@
 import '../../../models/account.dart';
 import '../../../services/account_service.dart';
+import '../../sync/sync_change_tracker.dart';
 import '../contracts/account_repository.dart';
 
 class LocalAccountRepository implements AccountRepository {
-  const LocalAccountRepository();
+  LocalAccountRepository({
+    SyncChangeTracker? changeTracker,
+  }) : _changeTracker = changeTracker ?? SyncChangeTracker();
+
+  final SyncChangeTracker _changeTracker;
 
   @override
-  Future<void> add(Account account) {
-    return AccountService.addAccount(account);
+  Future<void> add(Account account) async {
+    await AccountService.addAccount(account);
+    await _changeTracker.markUpsert(
+      entityType: 'account',
+      localId: account.id,
+    );
   }
 
   @override
-  Future<bool> delete(int id) {
-    return AccountService.deleteAccount(id);
+  Future<bool> delete(int id) async {
+    final deleted = await AccountService.deleteAccount(id);
+    if (deleted) {
+      await _changeTracker.markDelete(
+        entityType: 'account',
+        localId: id,
+      );
+    } else {
+      await _changeTracker.markUpsert(
+        entityType: 'account',
+        localId: id,
+      );
+    }
+    return deleted;
   }
 
   @override
@@ -31,12 +52,20 @@ class LocalAccountRepository implements AccountRepository {
   }
 
   @override
-  Future<void> setActive(int id, bool value) {
-    return AccountService.setActive(id, value);
+  Future<void> setActive(int id, bool value) async {
+    await AccountService.setActive(id, value);
+    await _changeTracker.markUpsert(
+      entityType: 'account',
+      localId: id,
+    );
   }
 
   @override
-  Future<void> update(Account account) {
-    return AccountService.updateAccount(account);
+  Future<void> update(Account account) async {
+    await AccountService.updateAccount(account);
+    await _changeTracker.markUpsert(
+      entityType: 'account',
+      localId: account.id,
+    );
   }
 }

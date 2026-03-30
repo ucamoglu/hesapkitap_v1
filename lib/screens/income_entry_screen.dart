@@ -3,11 +3,11 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../core/runtime/app_runtime.dart';
 import '../models/account.dart';
 import '../models/finance_transaction.dart';
 import '../models/income_category.dart';
 import '../services/account_service.dart';
-import '../services/finance_transaction_service.dart';
 import '../services/income_category_service.dart';
 import '../services/location_consent_service.dart';
 import '../services/transaction_location_service.dart';
@@ -163,7 +163,7 @@ class _IncomeEntryScreenState extends State<IncomeEntryScreen> {
       final location = await _resolveLocationForSave();
       if (_isEditMode) {
         final tx = widget.initialTransaction!;
-        await FinanceTransactionService.updateTransaction(
+        await AppRuntime.dataLayer.finance.updateTransaction(
           transactionId: tx.id,
           accountId: _selectedAccountId!,
           categoryId: _selectedCategoryId!,
@@ -185,7 +185,7 @@ class _IncomeEntryScreenState extends State<IncomeEntryScreen> {
           ],
         );
       } else {
-        final txId = await FinanceTransactionService.addIncomeAndGetId(
+        final txId = await AppRuntime.dataLayer.finance.addIncomeAndGetId(
           accountId: _selectedAccountId!,
           categoryId: _selectedCategoryId!,
           amount: amount,
@@ -278,7 +278,7 @@ class _IncomeEntryScreenState extends State<IncomeEntryScreen> {
       _isSaving = true;
     });
     try {
-      await FinanceTransactionService.deleteAndReturn(
+      await AppRuntime.dataLayer.finance.deleteAndReturn(
           widget.initialTransaction!.id);
       if (!mounted) return;
       AppFeedback.deleted();

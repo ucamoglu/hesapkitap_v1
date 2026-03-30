@@ -36,6 +36,8 @@ class IsarService {
     'sync_metadata_v1.json',
     'sync_preferences_v1.json',
   ];
+  static List<String> get supportFileNames =>
+      List<String>.unmodifiable(_resettableSupportFiles);
 
   static Future<void> init() async {
     final dir = await getApplicationDocumentsDirectory();

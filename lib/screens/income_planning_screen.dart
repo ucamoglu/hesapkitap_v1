@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../core/runtime/app_runtime.dart';
 import '../models/account.dart';
 import '../models/income_category.dart';
 import '../models/income_plan.dart';
 import '../services/account_service.dart';
 import '../services/income_category_service.dart';
-import '../services/income_plan_service.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_theme_helpers.dart';
 import '../utils/navigation_helpers.dart';
@@ -88,7 +88,7 @@ class _IncomePlanningScreenState extends State<IncomePlanningScreen> {
 
     final accounts = await AccountService.getActiveCashflowAccounts();
     final categories = await IncomeCategoryService.getActiveManual();
-    final plans = await IncomePlanService.getAll();
+    final plans = await AppRuntime.dataLayer.incomePlans.getAll();
 
     if (!mounted) return;
     setState(() {
@@ -162,7 +162,7 @@ class _IncomePlanningScreenState extends State<IncomePlanningScreen> {
   Future<void> _checkDuePlans() async {
     if (_askingDue) return;
 
-    final due = await IncomePlanService.getDuePlans(DateTime.now());
+    final due = await AppRuntime.dataLayer.incomePlans.getDuePlans(DateTime.now());
     if (!mounted || due.isEmpty) return;
 
     _askingDue = true;
@@ -202,14 +202,14 @@ class _IncomePlanningScreenState extends State<IncomePlanningScreen> {
                   lastDate: DateTime(2100),
                 );
                 if (picked == null) return;
-                await IncomePlanService.postpone(plan, picked);
+                await AppRuntime.dataLayer.incomePlans.postpone(plan, picked);
                 if (ctx.mounted) Navigator.pop(ctx);
               },
               child: const Text('Şu tarihe ertele'),
             ),
             TextButton(
               onPressed: () async {
-                await IncomePlanService.cancel(plan);
+                await AppRuntime.dataLayer.incomePlans.cancel(plan);
                 if (ctx.mounted) Navigator.pop(ctx);
               },
               child: const Text('İptal Et'),
@@ -220,7 +220,7 @@ class _IncomePlanningScreenState extends State<IncomePlanningScreen> {
                 foregroundColor: Colors.white,
               ),
               onPressed: () async {
-                await IncomePlanService.markCompleted(plan);
+                await AppRuntime.dataLayer.incomePlans.markCompleted(plan);
                 if (ctx.mounted) Navigator.pop(ctx);
               },
               child: const Text('Evet, Gerçekleşti'),
@@ -464,7 +464,7 @@ class _IncomePlanningScreenState extends State<IncomePlanningScreen> {
           ..isActive = true
           ..createdAt = DateTime.now();
 
-        await IncomePlanService.save(plan);
+        await AppRuntime.dataLayer.incomePlans.save(plan);
       }
       if (!mounted) return;
 
@@ -917,7 +917,7 @@ class _IncomePlanningScreenState extends State<IncomePlanningScreen> {
                                     trailing: PopupMenuButton<String>(
                                       onSelected: (v) async {
                                         if (v == 'done') {
-                                          await IncomePlanService.markCompleted(
+                                          await AppRuntime.dataLayer.incomePlans.markCompleted(
                                               p);
                                         } else if (v == 'postpone') {
                                           final picked = await showDatePicker(
@@ -928,15 +928,15 @@ class _IncomePlanningScreenState extends State<IncomePlanningScreen> {
                                             lastDate: DateTime(2100),
                                           );
                                           if (picked != null) {
-                                            await IncomePlanService.postpone(
+                                            await AppRuntime.dataLayer.incomePlans.postpone(
                                               p,
                                               picked,
                                             );
                                           }
                                         } else if (v == 'cancel') {
-                                          await IncomePlanService.cancel(p);
+                                          await AppRuntime.dataLayer.incomePlans.cancel(p);
                                         } else if (v == 'delete') {
-                                          await IncomePlanService.delete(p.id);
+                                          await AppRuntime.dataLayer.incomePlans.delete(p.id);
                                         }
 
                                         if (!mounted) return;

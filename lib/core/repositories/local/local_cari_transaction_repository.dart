@@ -1,9 +1,14 @@
 import '../../../models/cari_transaction.dart';
 import '../../../services/cari_transaction_service.dart';
+import '../../sync/sync_change_tracker.dart';
 import '../contracts/cari_transaction_repository.dart';
 
 class LocalCariTransactionRepository implements CariTransactionRepository {
-  const LocalCariTransactionRepository();
+  LocalCariTransactionRepository({
+    SyncChangeTracker? changeTracker,
+  }) : _changeTracker = changeTracker ?? SyncChangeTracker();
+
+  final SyncChangeTracker _changeTracker;
 
   @override
   Future<int> addCollectionAndGetId({
@@ -14,8 +19,8 @@ class LocalCariTransactionRepository implements CariTransactionRepository {
     double? unitPrice,
     required DateTime date,
     String? description,
-  }) {
-    return CariTransactionService.addCollectionAndGetId(
+  }) async {
+    final id = await CariTransactionService.addCollectionAndGetId(
       cariCardId: cariCardId,
       accountId: accountId,
       amount: amount,
@@ -24,6 +29,11 @@ class LocalCariTransactionRepository implements CariTransactionRepository {
       date: date,
       description: description,
     );
+    await _changeTracker.markUpsert(
+      entityType: 'cari_transaction',
+      localId: id,
+    );
+    return id;
   }
 
   @override
@@ -35,8 +45,8 @@ class LocalCariTransactionRepository implements CariTransactionRepository {
     double? unitPrice,
     required DateTime date,
     String? description,
-  }) {
-    return CariTransactionService.addDebtAndGetId(
+  }) async {
+    final id = await CariTransactionService.addDebtAndGetId(
       cariCardId: cariCardId,
       accountId: accountId,
       amount: amount,
@@ -45,11 +55,21 @@ class LocalCariTransactionRepository implements CariTransactionRepository {
       date: date,
       description: description,
     );
+    await _changeTracker.markUpsert(
+      entityType: 'cari_transaction',
+      localId: id,
+    );
+    return id;
   }
 
   @override
-  Future<CariTransaction> deleteAndReturn(int transactionId) {
-    return CariTransactionService.deleteAndReturn(transactionId);
+  Future<CariTransaction> deleteAndReturn(int transactionId) async {
+    final deleted = await CariTransactionService.deleteAndReturn(transactionId);
+    await _changeTracker.markDelete(
+      entityType: 'cari_transaction',
+      localId: transactionId,
+    );
+    return deleted;
   }
 
   @override
@@ -68,8 +88,8 @@ class LocalCariTransactionRepository implements CariTransactionRepository {
     double? unitPrice,
     required DateTime date,
     String? description,
-  }) {
-    return CariTransactionService.updateTransaction(
+  }) async {
+    await CariTransactionService.updateTransaction(
       transactionId: transactionId,
       cariCardId: cariCardId,
       accountId: accountId,
@@ -79,6 +99,10 @@ class LocalCariTransactionRepository implements CariTransactionRepository {
       unitPrice: unitPrice,
       date: date,
       description: description,
+    );
+    await _changeTracker.markUpsert(
+      entityType: 'cari_transaction',
+      localId: transactionId,
     );
   }
 }
