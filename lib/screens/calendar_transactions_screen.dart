@@ -688,67 +688,6 @@ class _CalendarTransactionsScreenState
     }
   }
 
-  // Gelir/gider/transfer icin manuel kayit menusu acar.
-  Future<void> _openManualTransactionMenu() async {
-    await showModalBottomSheet<void>(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: const Icon(Icons.arrow_downward, color: Colors.green),
-                title: const Text('Gelir (Manuel)'),
-                onTap: () async {
-                  Navigator.pop(ctx);
-                  await Navigator.push<bool>(
-                    context,
-                    MaterialPageRoute(
-                        builder: (_) => const IncomeEntryScreen()),
-                  );
-                  if (!mounted) return;
-                  await _load();
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.arrow_upward, color: Colors.red),
-                title: const Text('Gider (Manuel)'),
-                onTap: () async {
-                  Navigator.pop(ctx);
-                  await Navigator.push<bool>(
-                    context,
-                    MaterialPageRoute(
-                        builder: (_) => const ExpenseEntryScreen()),
-                  );
-                  if (!mounted) return;
-                  await _load();
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.handshake, color: Colors.orange),
-                title: const Text('Cari Hesap (Manuel)'),
-                onTap: () async {
-                  Navigator.pop(ctx);
-                  await Navigator.push<bool>(
-                    context,
-                    MaterialPageRoute(
-                        builder: (_) => const CariAccountScreen()),
-                  );
-                  if (!mounted) return;
-                  await _load();
-                },
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
   Future<void> _completePlan(IncomePlan plan) async {
     try {
       await IncomePlanService.markCompleted(plan);
@@ -862,14 +801,10 @@ class _CalendarTransactionsScreenState
         leading: buildMenuLeading(),
         title: const Text('Takvim'),
         actions: [
-          IconButton(
-            onPressed: _openManualTransactionMenu,
-            icon: const Icon(Icons.add_circle_outline),
-            tooltip: 'Manuel İşlem',
-          ),
-          IconButton(
+          buildBarIconAction(
+            context,
             onPressed: _load,
-            icon: const Icon(Icons.refresh),
+            icon: Icons.refresh,
             tooltip: 'Yenile',
           ),
           buildHomeAction(context),
@@ -912,6 +847,10 @@ class _CalendarTransactionsScreenState
                               return result;
                             },
                             startingDayOfWeek: StartingDayOfWeek.monday,
+                            headerStyle: HeaderStyle(
+                              formatButtonVisible: false,
+                              titleCentered: true,
+                            ),
                             calendarStyle: CalendarStyle(
                               outsideDaysVisible: false,
                               selectedDecoration: BoxDecoration(

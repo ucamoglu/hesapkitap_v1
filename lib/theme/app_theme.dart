@@ -200,9 +200,23 @@ class AppTheme {
       appBarTheme: AppBarTheme(
         centerTitle: true,
         elevation: 0,
-        backgroundColor: Colors.white.withValues(alpha: 0.92),
+        toolbarHeight: 62,
+        scrolledUnderElevation: 0,
+        backgroundColor: Color.alphaBlend(
+          seedColor.withValues(alpha: 0.08),
+          surfaceTint.withValues(alpha: 0.98),
+        ),
         foregroundColor: const Color(0xFF1F1B24),
         surfaceTintColor: Colors.transparent,
+        shadowColor: seedColor.withValues(alpha: 0.08),
+        shape: RoundedRectangleBorder(
+          side: BorderSide(
+            color: seedColor.withValues(alpha: 0.12),
+          ),
+          borderRadius: const BorderRadius.vertical(
+            bottom: Radius.circular(26),
+          ),
+        ),
         titleTextStyle: base.textTheme.titleLarge?.copyWith(
           fontSize: 20,
           fontWeight: FontWeight.w700,

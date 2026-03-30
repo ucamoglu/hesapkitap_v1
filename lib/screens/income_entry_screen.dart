@@ -488,22 +488,16 @@ class _IncomeEntryScreenState extends State<IncomeEntryScreen> {
           drawer: buildAppMenuDrawer(),
           appBar: AppBar(
             leading: _isEditMode
-                ? IconButton(
-                    icon: const Icon(Icons.arrow_back),
+                ? buildBackAction(
+                    context,
                     onPressed: () => _handleExit(toDashboard: false),
                   )
-                : IconButton(
-                    icon: const Icon(Icons.arrow_back),
+                : buildBackAction(
+                    context,
                     onPressed: () => _handleExit(toDashboard: true),
                   ),
             title: Text(_isEditMode ? "Gelir Düzenle" : "Gelir Girişi"),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.home_outlined),
-                tooltip: 'Ana Ekran',
-                onPressed: () => _handleExit(toDashboard: true),
-              ),
-            ],
+            actions: [buildHomeAction(context)],
           ),
           body: _isLoading
               ? const Center(child: CircularProgressIndicator())

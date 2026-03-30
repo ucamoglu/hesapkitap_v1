@@ -644,6 +644,8 @@ class _CariAccountScreenState extends State<CariAccountScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final accentColor = colorScheme.primary;
     return PopScope(
         canPop: !_hasUnsavedChanges(),
         onPopInvokedWithResult: (didPop, result) async {
@@ -654,33 +656,28 @@ class _CariAccountScreenState extends State<CariAccountScreen> {
           drawer: buildAppMenuDrawer(),
           appBar: AppBar(
             leading: _isEditMode
-                ? IconButton(
-                    icon: const Icon(Icons.arrow_back),
+                ? buildBackAction(
+                    context,
                     onPressed: () => _handleExit(toDashboard: false),
                   )
-                : IconButton(
-                    icon: const Icon(Icons.arrow_back),
+                : buildBackAction(
+                    context,
                     onPressed: () => _handleExit(toDashboard: true),
                   ),
             title: Text(_isEditMode ? 'Cari İşlem Düzenle' : 'Cari Hesap'),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.home_outlined),
-                tooltip: 'Ana Ekran',
-                onPressed: () => _handleExit(toDashboard: true),
-              ),
-            ],
+            actions: [buildHomeAction(context)],
           ),
           body: _loading
               ? const Center(child: CircularProgressIndicator())
               : (_cards.isEmpty || _accounts.isEmpty)
-                  ? const Center(
-                      child: Padding(
-                        padding: EdgeInsets.all(16),
-                        child: Text(
-                          'Cari işlem için en az bir aktif cari kart ve aktif hesap olmalı.',
-                          textAlign: TextAlign.center,
-                        ),
+                  ? Center(
+                      child: buildInfoGuideCard(
+                        context,
+                        accentColor: accentColor,
+                        icon: Icons.people_alt_outlined,
+                        title: 'Cari Hesap Rehberi',
+                        message:
+                            'Cari hesap, kişi ya da firmalara verdiğiniz veya aldığınız TL ya da yabancı para cinsinden borç/alacak işlemlerini takip edebilmeniz için hazırlanmıştır. Önce Cari Kart Tanımı yapmalı, sonrasında borç ve alacak süreçlerinizi izleyebilir ve raporlayabilirsiniz.',
                       ),
                     )
                   : Form(

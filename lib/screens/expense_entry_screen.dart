@@ -697,22 +697,16 @@ class _ExpenseEntryScreenState extends State<ExpenseEntryScreen> {
           drawer: buildAppMenuDrawer(),
           appBar: AppBar(
             leading: _isEditMode
-                ? IconButton(
-                    icon: const Icon(Icons.arrow_back),
+                ? buildBackAction(
+                    context,
                     onPressed: () => _handleExit(toDashboard: false),
                   )
-                : IconButton(
-                    icon: const Icon(Icons.arrow_back),
+                : buildBackAction(
+                    context,
                     onPressed: () => _handleExit(toDashboard: true),
                   ),
             title: Text(_isEditMode ? "Gider Düzenle" : "Gider Girişi"),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.home_outlined),
-                tooltip: 'Ana Ekran',
-                onPressed: () => _handleExit(toDashboard: true),
-              ),
-            ],
+            actions: [buildHomeAction(context)],
           ),
           body: _isLoading
               ? const Center(child: CircularProgressIndicator())

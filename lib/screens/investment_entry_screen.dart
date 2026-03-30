@@ -865,6 +865,8 @@ class _InvestmentEntryScreenState extends State<InvestmentEntryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final accentColor = colorScheme.primary;
     final selectedAccount = _selectedAccount();
     final selectedCashAccount = _selectedCashAccount();
 
@@ -878,39 +880,33 @@ class _InvestmentEntryScreenState extends State<InvestmentEntryScreen> {
           drawer: buildAppMenuDrawer(),
           appBar: AppBar(
             leading: _isEditMode
-                ? IconButton(
-                    icon: const Icon(Icons.arrow_back),
+                ? buildBackAction(
+                    context,
                     onPressed: () => _handleExit(toDashboard: false),
                   )
-                : IconButton(
-                    icon: const Icon(Icons.arrow_back),
+                : buildBackAction(
+                    context,
                     onPressed: () => _handleExit(toDashboard: true),
                   ),
             title:
                 Text(_isEditMode ? 'Yatırım İşlemi Düzenle' : 'Yatırım İşlemi'),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.home_outlined),
-                tooltip: 'Ana Ekran',
-                onPressed: () => _handleExit(toDashboard: true),
-              ),
-            ],
+            actions: [buildHomeAction(context)],
           ),
           body: _loading
               ? const Center(child: CircularProgressIndicator())
               : (_investmentAccounts.isEmpty ||
                       _availableCashAccounts().isEmpty)
                   ? Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Text(
-                          _investmentAccounts.isEmpty
-                              ? 'İşlem için en az bir aktif yatırım hesabı ve bağlı yatırım türü olmalı.'
-                              : _txType == 'buy'
-                                  ? 'İşlem için en az bir aktif ödeme hesabı olmalı.'
-                                  : 'İşlem için en az bir aktif hedef hesap olmalı.',
-                          textAlign: TextAlign.center,
-                        ),
+                      child: buildInfoGuideCard(
+                        context,
+                        accentColor: accentColor,
+                        icon: Icons.trending_up_rounded,
+                        title: 'Yatırım Rehberi',
+                        message: _investmentAccounts.isEmpty
+                            ? 'Yatırım işlemleri, döviz, borsa, kıymetli maden ve kripto para gibi yatırımlarınızı takip edebilmeniz için hazırlanmıştır. Önce Yatırım menüsünden ilgilendiğiniz varlığı takibe almalı, sonrasında Hesap Tanım bölümünden bu varlık için hesap tanımlamalısınız. Sonrasında yatırım ve birikimlerinizin kar ve zarar süreçlerini izleyebilirsiniz.'
+                            : _txType == 'buy'
+                                ? 'Alış işlemi yapabilmek için en az bir aktif ödeme hesabı tanımlamalısınız.'
+                                : 'Satış işlemi yapabilmek için en az bir aktif hedef hesap tanımlamalısınız.',
                       ),
                     )
                   : Form(

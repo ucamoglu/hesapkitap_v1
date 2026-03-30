@@ -29,6 +29,7 @@ import '../screens/stock_tracking_screen.dart';
 import '../screens/subscriptions_screen.dart';
 import '../services/user_profile_service.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_theme_helpers.dart';
 
 enum _MenuSection {
   definition,
@@ -71,45 +72,6 @@ enum _MenuItem {
 }
 
 _MenuItem? _lastSelectedMenuItem;
-
-_MenuSection? _sectionForMenuItem(_MenuItem? item) {
-  switch (item) {
-    case _MenuItem.profile:
-    case _MenuItem.accounts:
-    case _MenuItem.fixedIncomes:
-    case _MenuItem.subscriptions:
-    case _MenuItem.incomeCategories:
-    case _MenuItem.expenseCategories:
-      return _MenuSection.definition;
-    case _MenuItem.creditCardStatements:
-    case _MenuItem.transactionsHistory:
-    case _MenuItem.accountHistory:
-      return _MenuSection.transactions;
-    case _MenuItem.financialAnalysis:
-    case _MenuItem.investmentTracking:
-    case _MenuItem.assetStatus:
-      return _MenuSection.analysis;
-    case _MenuItem.cariCards:
-    case _MenuItem.cariTransactionsHistory:
-    case _MenuItem.cariSummary:
-    case _MenuItem.cariSummaryForeign:
-      return _MenuSection.cariOperations;
-    case _MenuItem.incomePlanning:
-    case _MenuItem.expensePlanning:
-      return _MenuSection.planning;
-    case _MenuItem.currencyTracking:
-    case _MenuItem.metalTracking:
-    case _MenuItem.stockTracking:
-    case _MenuItem.cryptoTracking:
-      return _MenuSection.rates;
-    case _MenuItem.expenseMap:
-    case _MenuItem.calendar:
-    case _MenuItem.helpDocumentation:
-    case _MenuItem.about:
-    case null:
-      return null;
-  }
-}
 
 void rememberDrawerSelectionForScreen(Widget screen) {
   if (screen is ProfileScreen) {
@@ -242,9 +204,49 @@ void popToDashboard(BuildContext context) {
   Navigator.of(context).popUntil((route) => route.isFirst);
 }
 
+// Ust bar ikonlarini tum ekranlarda ayni gorsel dilde tutar.
+ButtonStyle _pageBarIconStyle(BuildContext context) {
+  final colorScheme = Theme.of(context).colorScheme;
+  return IconButton.styleFrom(
+    backgroundColor: Colors.white.withValues(alpha: 0.86),
+    foregroundColor: colorScheme.onSurface,
+    minimumSize: const Size(48, 48),
+    padding: EdgeInsets.zero,
+    iconSize: 28,
+  );
+}
+
+IconButton buildBackAction(
+  BuildContext context, {
+  required VoidCallback onPressed,
+  String tooltip = 'Geri',
+}) {
+  return IconButton(
+    style: _pageBarIconStyle(context),
+    icon: const Icon(Icons.arrow_back),
+    tooltip: tooltip,
+    onPressed: onPressed,
+  );
+}
+
+IconButton buildBarIconAction(
+  BuildContext context, {
+  required IconData icon,
+  required VoidCallback onPressed,
+  required String tooltip,
+}) {
+  return IconButton(
+    style: _pageBarIconStyle(context),
+    icon: Icon(icon),
+    tooltip: tooltip,
+    onPressed: onPressed,
+  );
+}
+
 Widget buildMenuLeading() {
   return Builder(
     builder: (context) => IconButton(
+      style: _pageBarIconStyle(context),
       icon: const Icon(Icons.arrow_back),
       tooltip: 'Menü',
       onPressed: () => Scaffold.of(context).openDrawer(),
@@ -253,10 +255,81 @@ Widget buildMenuLeading() {
 }
 
 IconButton buildHomeAction(BuildContext context) {
-  return IconButton(
-    icon: const Icon(Icons.home_outlined),
+  return buildBarIconAction(
+    context,
+    icon: Icons.home_outlined,
     tooltip: 'Ana Ekran',
     onPressed: () => popToDashboard(context),
+  );
+}
+
+// Bos durum veya yonlendirici aciklamalari tek kart kalibinda toplar.
+Widget buildInfoGuideCard(
+  BuildContext context, {
+  required Color accentColor,
+  required IconData icon,
+  required String title,
+  required String message,
+  EdgeInsetsGeometry padding = const EdgeInsets.all(20),
+}) {
+  final colorScheme = Theme.of(context).colorScheme;
+
+  return Padding(
+    padding: padding,
+    child: Container(
+      constraints: const BoxConstraints(maxWidth: 520),
+      decoration: context.surfaceDecoration(
+        accent: accentColor,
+        fillColor: accentColor.withValues(alpha: 0.10),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            height: 8,
+            decoration: BoxDecoration(
+              color: accentColor,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(22),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(icon, color: accentColor),
+                    const SizedBox(width: 10),
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: colorScheme.onSurface,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  message,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 15,
+                    height: 1.5,
+                    color: colorScheme.onSurface.withValues(alpha: 0.82),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ),
   );
 }
 
@@ -547,8 +620,7 @@ class _AppMenuDrawerState extends State<_AppMenuDrawer> {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final onPrimary = colorScheme.onPrimary;
-    final activeSection =
-        _lastExpandedSection ?? _sectionForMenuItem(_lastSelectedMenuItem);
+    final activeSection = _lastExpandedSection;
     final sectionEntries = <MapEntry<_MenuSection, Widget>>[
       MapEntry(
         _MenuSection.definition,

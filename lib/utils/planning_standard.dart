@@ -168,6 +168,44 @@ class PlanningStandard {
     return 'custom';
   }
 
+  static bool sameDay(DateTime? a, DateTime? b) {
+    if (a == null && b == null) return true;
+    if (a == null || b == null) return false;
+    return a.year == b.year && a.month == b.month && a.day == b.day;
+  }
+
+  static bool sameTime(TimeOfDay? a, TimeOfDay? b) {
+    if (a == null && b == null) return true;
+    if (a == null || b == null) return false;
+    return a.hour == b.hour && a.minute == b.minute;
+  }
+
+  static Future<bool> confirmDiscardDraft(
+    BuildContext context, {
+    String title = 'Taslak Kaydedilmedi',
+    String message =
+        'Yeni plan formundaki değişiklikler kaybolacak. Çıkmak istiyor musunuz?',
+  }) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Kal'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Çık'),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
+  }
+
   // Tekrarlayan planlar icin ekranda gosterilecek gelecek tarihleri uretir.
   static List<DateTime> previewDates({
     required DateTime startDate,

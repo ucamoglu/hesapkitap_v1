@@ -130,18 +130,6 @@ class _IncomePlanningScreenState extends State<IncomePlanningScreen> {
     _initialFormExpanded = _formExpanded;
   }
 
-  bool _sameDay(DateTime? a, DateTime? b) {
-    if (a == null && b == null) return true;
-    if (a == null || b == null) return false;
-    return a.year == b.year && a.month == b.month && a.day == b.day;
-  }
-
-  bool _sameTime(TimeOfDay? a, TimeOfDay? b) {
-    if (a == null && b == null) return true;
-    if (a == null || b == null) return false;
-    return a.hour == b.hour && a.minute == b.minute;
-  }
-
   bool _hasUnsavedDraft() {
     if (_loading) return false;
     return _selectedAccountId != _initialAccountId ||
@@ -150,10 +138,10 @@ class _IncomePlanningScreenState extends State<IncomePlanningScreen> {
         _periodType != _initialPeriodType ||
         _frequency != _initialFrequency ||
         _reminderMinutesBefore != _initialReminderMinutesBefore ||
-        !_sameDay(_startDate, _initialStartDate) ||
+        !PlanningStandard.sameDay(_startDate, _initialStartDate) ||
         _selectedWeekday != _initialSelectedWeekday ||
-        !_sameTime(_selectedTime, _initialSelectedTime) ||
-        !_sameDay(_endDate, _initialEndDate) ||
+        !PlanningStandard.sameTime(_selectedTime, _initialSelectedTime) ||
+        !PlanningStandard.sameDay(_endDate, _initialEndDate) ||
         _amountController.text.trim() != _initialAmountText.trim() ||
         _descController.text.trim() != _initialDescText.trim() ||
         _formExpanded != _initialFormExpanded;
@@ -161,26 +149,7 @@ class _IncomePlanningScreenState extends State<IncomePlanningScreen> {
 
   Future<bool> _confirmDiscardDraft() async {
     if (!_hasUnsavedDraft()) return true;
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Taslak Kaydedilmedi'),
-        content: const Text(
-          'Yeni plan formundaki değişiklikler kaybolacak. Çıkmak istiyor musunuz?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Kal'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Çık'),
-          ),
-        ],
-      ),
-    );
-    return result ?? false;
+    return PlanningStandard.confirmDiscardDraft(context);
   }
 
   Future<void> _handleExitToDashboard() async {
@@ -542,13 +511,16 @@ class _IncomePlanningScreenState extends State<IncomePlanningScreen> {
             leading: buildMenuLeading(),
             title: const Text('Gelir Planlama'),
             actions: [
-              IconButton(
+              buildBarIconAction(
+                context,
+                tooltip: 'Yenile',
+                icon: Icons.refresh,
                 onPressed: () => _load(checkDue: true),
-                icon: const Icon(Icons.refresh),
               ),
-              IconButton(
-                icon: const Icon(Icons.home_outlined),
+              buildBarIconAction(
+                context,
                 tooltip: 'Ana Ekran',
+                icon: Icons.home_outlined,
                 onPressed: _handleExitToDashboard,
               ),
             ],

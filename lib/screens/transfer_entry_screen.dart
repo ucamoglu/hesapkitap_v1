@@ -308,6 +308,8 @@ class _TransferEntryScreenState extends State<TransferEntryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final accentColor = colorScheme.secondary;
     return PopScope(
         canPop: !_hasUnsavedChanges(),
         onPopInvokedWithResult: (didPop, result) async {
@@ -317,29 +319,24 @@ class _TransferEntryScreenState extends State<TransferEntryScreen> {
         child: Scaffold(
           drawer: buildAppMenuDrawer(),
           appBar: AppBar(
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back),
+            leading: buildBackAction(
+              context,
               onPressed: () => _handleExit(toDashboard: true),
             ),
             title: const Text('Transfer'),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.home_outlined),
-                tooltip: 'Ana Ekran',
-                onPressed: () => _handleExit(toDashboard: true),
-              ),
-            ],
+            actions: [buildHomeAction(context)],
           ),
           body: _loading
               ? const Center(child: CircularProgressIndicator())
               : _accounts.length < 2
-                  ? const Center(
-                      child: Padding(
-                        padding: EdgeInsets.all(16),
-                        child: Text(
-                          'Transfer için en az iki aktif hesap olmalı.',
-                          textAlign: TextAlign.center,
-                        ),
+              ? Center(
+                      child: buildInfoGuideCard(
+                        context,
+                        accentColor: accentColor,
+                        icon: Icons.swap_horiz_rounded,
+                        title: 'Transfer Rehberi',
+                        message:
+                            'Transfer işlemi, hesaplarınız arasında para aktarma işlemlerini gerçekleştirebilmeniz için hazırlanmıştır. Transfer yapabilmek için önce en az iki aktif hesap tanımlamalısınız.',
                       ),
                     )
                   : Form(

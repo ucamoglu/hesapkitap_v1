@@ -307,31 +307,25 @@ class _FixedPaymentEntryScreenState extends State<FixedPaymentEntryScreen> {
     return Scaffold(
       drawer: buildAppMenuDrawer(),
       appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
+        leading: buildBackAction(
+          context,
           onPressed: () => popToDashboard(context),
         ),
-        title: const Text('Fatura Ode'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.home_outlined),
-            tooltip: 'Ana Ekran',
-            onPressed: () => popToDashboard(context),
-          ),
-        ],
+        title: const Text('Fatura Öde'),
+        actions: [buildHomeAction(context)],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : (_payments.isEmpty || _accounts.isEmpty)
               ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Text(
-                      _payments.isEmpty
-                          ? 'Fatura odemek icin once en az bir sabit odeme tanimlayin.'
-                          : 'Fatura odemek icin en az bir aktif odeme hesabi olmali.',
-                      textAlign: TextAlign.center,
-                    ),
+                  child: buildInfoGuideCard(
+                    context,
+                    accentColor: colorScheme.primary,
+                    icon: Icons.receipt_long_rounded,
+                    title: 'Fatura Ödeme Rehberi',
+                    message: _payments.isEmpty
+                        ? 'Fatura Ödeme, aylık ya da yıllık düzenli olarak yaptığınız ödemeleri (fatura, kredi, sigorta, harçlık, burs vb.) takip edebilmeniz için hazırlanmıştır. Önce bu ödemeleri Sabit Ödemelerim ekranında tanımlamalısınız. Sonrasında takvimden takip edebilir, günü geldiğinde mobil bildirim alabilir ve Fatura Ödeme butonuyla kolayca işleyebilirsiniz.'
+                        : 'Fatura ödemek için en az bir aktif ödeme hesabı tanımlamalısınız.',
                   ),
                 )
               : Form(
