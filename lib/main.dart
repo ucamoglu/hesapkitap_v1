@@ -187,6 +187,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   int dueSubscriptionCount = 0;
   List<_SubscriptionReminderRow> subscriptionPreviewRows = [];
   String? selectedAccountTypePreview;
+  bool showAssetBreakdown = false;
   List<_CariPreviewRow> cariPreviewRows = [];
   bool showCariPreview = false;
   bool showSubscriptionPreview = false;
@@ -754,6 +755,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
           investmentCurrent.abs() <= _zeroEpsilon) {
         selectedAccountTypePreview = null;
       }
+      if (cash.abs() <= _zeroEpsilon &&
+          bank.abs() <= _zeroEpsilon &&
+          investmentCurrent.abs() <= _zeroEpsilon) {
+        showAssetBreakdown = false;
+      }
       if (trackedRows.isEmpty) {
         showTrackedPreview = false;
       }
@@ -986,16 +992,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             padding: const EdgeInsets.all(16),
             children: [
               _buildHeroSummaryCard(),
-              if (cashTotal.abs() > _zeroEpsilon ||
-                  bankTotal.abs() > _zeroEpsilon ||
-                  investmentCurrentTotal.abs() > _zeroEpsilon) ...[
-                const SizedBox(height: 12),
-                _buildAccountTypeSummaryRow(),
-                if (selectedAccountTypePreview != null) ...[
-                  const SizedBox(height: 8),
-                  _buildAccountTypePreviewCard(),
-                ],
-              ],
+              _buildAssetBreakdownSection(),
               const SizedBox(height: 10),
               _buildCariAndTrackedRow(),
               if (plannedIncomeTotal.abs() > _zeroEpsilon ||
@@ -1060,77 +1057,142 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _buildHeroSummaryCard() {
     final colorScheme = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
+    final hasAssets = cashTotal.abs() > _zeroEpsilon ||
+        bankTotal.abs() > _zeroEpsilon ||
+        investmentCurrentTotal.abs() > _zeroEpsilon;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
         borderRadius: BorderRadius.circular(28),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            colorScheme.primary,
-            colorScheme.tertiary,
-          ],
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: colorScheme.primary.withValues(alpha: 0.22),
-            blurRadius: 24,
-            offset: const Offset(0, 12),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Genel Durum',
-            style: TextStyle(
-              color: Colors.white70,
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
+        onTap: hasAssets ? _toggleAssetBreakdown : null,
+        child: Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(28),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                colorScheme.primary,
+                colorScheme.tertiary,
+              ],
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '${_fmtAmount(totalBalance)} TL',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 30,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 14),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              _heroInfoChip(
-                icon: Icons.account_balance_wallet_outlined,
-                label: '$totalAccounts hesap',
+            boxShadow: [
+              BoxShadow(
+                color: colorScheme.primary.withValues(alpha: 0.22),
+                blurRadius: 24,
+                offset: const Offset(0, 12),
               ),
-              _heroInfoChip(
-                icon: Icons.verified_outlined,
-                label: 'Veriler güncel',
-              ),
-              if (dueSubscriptionCount > 0)
-                _heroInfoChip(
-                  icon: Icons.payments_outlined,
-                  label: '$dueSubscriptionCount bugun odeme',
-                ),
             ],
           ),
-          if (hasMissingInvestmentPrice) ...[
-            const SizedBox(height: 8),
-            const Text(
-              'Bazı yatırım kurları alınamadı; toplam değere dahil edilmeyebilir.',
-              style: TextStyle(
-                color: Colors.white70,
-                fontSize: 10,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Genel Durum',
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  if (hasAssets)
+                    Icon(
+                      showAssetBreakdown
+                          ? Icons.keyboard_arrow_up_rounded
+                          : Icons.keyboard_arrow_down_rounded,
+                      color: Colors.white,
+                      size: 24,
+                    ),
+                ],
               ),
-            ),
+              const SizedBox(height: 8),
+              Text(
+                '${_fmtAmount(totalBalance)} TL',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 30,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 14),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  _heroInfoChip(
+                    icon: Icons.account_balance_wallet_outlined,
+                    label: '$totalAccounts hesap',
+                  ),
+                  _heroInfoChip(
+                    icon: Icons.verified_outlined,
+                    label: 'Veriler güncel',
+                  ),
+                  if (dueSubscriptionCount > 0)
+                    _heroInfoChip(
+                      icon: Icons.payments_outlined,
+                      label: '$dueSubscriptionCount bugun odeme',
+                    ),
+                ],
+              ),
+              if (hasAssets) ...[
+                const SizedBox(height: 10),
+                _heroInfoChip(
+                  icon: Icons.unfold_more_rounded,
+                  label: showAssetBreakdown
+                      ? 'Varlik kartlarini gizle'
+                      : 'Varlik dagilimini goster',
+                ),
+              ],
+              if (hasMissingInvestmentPrice) ...[
+                const SizedBox(height: 8),
+                const Text(
+                  'Bazı yatırım kurları alınamadı; toplam değere dahil edilmeyebilir.',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 10,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _toggleAssetBreakdown() {
+    setState(() {
+      showAssetBreakdown = !showAssetBreakdown;
+      if (!showAssetBreakdown) {
+        selectedAccountTypePreview = null;
+      }
+    });
+  }
+
+  Widget _buildAssetBreakdownSection() {
+    final hasAssets = cashTotal.abs() > _zeroEpsilon ||
+        bankTotal.abs() > _zeroEpsilon ||
+        investmentCurrentTotal.abs() > _zeroEpsilon;
+    if (!hasAssets) return const SizedBox.shrink();
+
+    return AnimatedCrossFade(
+      duration: const Duration(milliseconds: 220),
+      crossFadeState: showAssetBreakdown
+          ? CrossFadeState.showSecond
+          : CrossFadeState.showFirst,
+      firstChild: const SizedBox.shrink(),
+      secondChild: Padding(
+        padding: const EdgeInsets.only(top: 12),
+        child: Column(
+          children: [
+            _buildAccountTypeSummaryRow(),
           ],
-        ],
+        ),
       ),
     );
   }
@@ -1177,6 +1239,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
           isSelected: selectedAccountTypePreview == 'cash',
         ),
       );
+      if (selectedAccountTypePreview == 'cash') {
+        cards.add(_buildInlineAccountTypePreviewCard());
+      }
     }
     if (bankTotal.abs() > _zeroEpsilon) {
       cards.add(
@@ -1189,6 +1254,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
           isSelected: selectedAccountTypePreview == 'bank',
         ),
       );
+      if (selectedAccountTypePreview == 'bank') {
+        cards.add(_buildInlineAccountTypePreviewCard());
+      }
     }
     if (investmentCurrentTotal.abs() > _zeroEpsilon) {
       cards.add(
@@ -1201,6 +1269,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
           isSelected: selectedAccountTypePreview == 'investment',
         ),
       );
+      if (selectedAccountTypePreview == 'investment') {
+        cards.add(_buildInlineAccountTypePreviewCard());
+      }
     }
     if (cards.isEmpty) return const SizedBox.shrink();
 
@@ -1842,7 +1913,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         borderRadius: BorderRadius.circular(22),
         onTap: onTap,
         child: Container(
-          padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(22),
@@ -1860,35 +1931,45 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
             ],
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Container(
-                width: 40,
-                height: 40,
+                width: 36,
+                height: 36,
                 decoration: BoxDecoration(
                   color: color.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(icon, size: 18, color: color),
+                child: Icon(icon, size: 17, color: color),
               ),
-              const SizedBox(height: 10),
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: Colors.black45,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                '${_fmtAmount(value)} TL',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        color: Colors.black45,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${_fmtAmount(value)} TL',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 15.5,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -1996,6 +2077,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
         ],
       ),
+    );
+  }
+
+  Widget _buildInlineAccountTypePreviewCard() {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: _buildAccountTypePreviewCard(),
     );
   }
 

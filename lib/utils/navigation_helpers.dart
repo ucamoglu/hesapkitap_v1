@@ -929,16 +929,8 @@ class _AppMenuDrawerState extends State<_AppMenuDrawer> {
         ),
       ),
     ];
-    final orderedSectionWidgets = [
-      ...sectionEntries
-          .where((entry) => entry.key == activeSection)
-          .map((entry) => entry.value),
-      ...sectionEntries
-          .where((entry) => entry.key != activeSection)
-          .map((entry) => entry.value),
-    ];
     final menuWidgets = <Widget>[
-      ...orderedSectionWidgets,
+      ...sectionEntries.map((entry) => entry.value),
       _menuStandaloneItem(
         context: context,
         item: _MenuItem.expenseMap,
@@ -1065,7 +1057,7 @@ class _AppMenuDrawerState extends State<_AppMenuDrawer> {
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 14, 14, 6),
+                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
                   child: Column(
                     children: menuWidgets,
                   ),
@@ -1094,26 +1086,26 @@ Widget _menuItem({
   final isSelected = _lastSelectedMenuItem == item;
 
   return Padding(
-    padding: const EdgeInsets.only(top: 8),
+    padding: const EdgeInsets.only(top: 6),
     child: Material(
       color: isSelected
           ? color
           : color.withValues(alpha: 0.08),
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(16),
       child: InkWell(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(16),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 10),
           child: Row(
             children: [
               _menuBadgeIcon(icon: icon, color: color),
-              const SizedBox(width: 12),
+              const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   title,
                   style: TextStyle(
-                    fontSize: 14.5,
+                    fontSize: 13,
                     fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
                     color: isSelected ? Colors.white : null,
                   ),
@@ -1144,37 +1136,37 @@ Widget _menuStandaloneItem({
   final isSelected = _lastSelectedMenuItem == item;
 
   return Container(
-    margin: const EdgeInsets.only(bottom: 10),
+    margin: const EdgeInsets.only(bottom: 8),
     decoration: BoxDecoration(
       color: isSelected ? color : Colors.white,
-      borderRadius: BorderRadius.circular(24),
+      borderRadius: BorderRadius.circular(18),
       border: Border.all(
         color: isSelected ? color : colorScheme.outline.withValues(alpha: 0.35),
       ),
       boxShadow: [
         BoxShadow(
           color: colorScheme.shadow.withValues(alpha: 0.05),
-          blurRadius: 18,
-          offset: const Offset(0, 8),
+          blurRadius: 12,
+          offset: const Offset(0, 5),
         ),
       ],
     ),
     child: Material(
       color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(18),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
           child: Row(
             children: [
               _menuBadgeIcon(icon: icon, color: color),
-              const SizedBox(width: 12),
+              const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   title,
                   style: TextStyle(
-                    fontSize: 15,
+                    fontSize: 13.5,
                     fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
                     color: isSelected ? Colors.white : null,
                   ),
@@ -1211,16 +1203,16 @@ Widget _menuSection({
 
   return Container(
     key: sectionKey,
-    margin: const EdgeInsets.only(bottom: 10),
+    margin: const EdgeInsets.only(bottom: 8),
     decoration: BoxDecoration(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(24),
+      borderRadius: BorderRadius.circular(18),
       border: Border.all(color: colorScheme.outline.withValues(alpha: 0.35)),
       boxShadow: [
         BoxShadow(
           color: colorScheme.shadow.withValues(alpha: 0.05),
-          blurRadius: 18,
-          offset: const Offset(0, 8),
+          blurRadius: 12,
+          offset: const Offset(0, 5),
         ),
       ],
     ),
@@ -1230,19 +1222,19 @@ Widget _menuSection({
         mainAxisSize: MainAxisSize.min,
         children: [
           InkWell(
-            borderRadius: BorderRadius.circular(24),
+            borderRadius: BorderRadius.circular(18),
             onTap: onToggle,
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
               child: Row(
                 children: [
                   _menuBadgeIcon(icon: icon, color: color),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: Text(
                       title,
                       style: const TextStyle(
-                        fontSize: 15.5,
+                        fontSize: 14,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -1269,7 +1261,7 @@ Widget _menuSection({
               curve: Curves.easeOutCubic,
               heightFactor: isExpanded ? 1 : 0,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
                 child: Column(
                   key: sectionContentKey,
                   mainAxisSize: MainAxisSize.min,
@@ -1289,12 +1281,12 @@ Widget _menuBadgeIcon({
   required Color color,
 }) {
   return Container(
-    width: 42,
-    height: 42,
+    width: 34,
+    height: 34,
     decoration: BoxDecoration(
       color: color.withValues(alpha: 0.12),
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(11),
     ),
-    child: Icon(icon, color: color, size: 21),
+    child: Icon(icon, color: color, size: 17),
   );
 }

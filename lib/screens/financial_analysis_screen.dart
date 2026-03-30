@@ -8,11 +8,15 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
 import '../models/category.dart';
+import '../models/cari_transaction.dart';
 import '../models/finance_transaction.dart';
 import '../models/income_category.dart';
+import '../models/investment_transaction.dart';
 import '../services/category_service.dart';
+import '../services/cari_transaction_service.dart';
 import '../services/finance_transaction_service.dart';
 import '../services/income_category_service.dart';
+import '../services/investment_transaction_service.dart';
 import '../theme/app_colors.dart';
 import '../utils/navigation_helpers.dart';
 
@@ -29,6 +33,8 @@ class _FinancialAnalysisScreenState extends State<FinancialAnalysisScreen> {
   bool _loading = true;
   String? _error;
   List<FinanceTransaction> _transactions = [];
+  List<CariTransaction> _cariTransactions = [];
+  List<InvestmentTransaction> _investmentTransactions = [];
   Map<int, String> _expenseCategoryNames = {};
   Map<int, String> _incomeCategoryNames = {};
   _AnalysisPeriodMode _periodMode = _AnalysisPeriodMode.monthly;
@@ -50,16 +56,22 @@ class _FinancialAnalysisScreenState extends State<FinancialAnalysisScreen> {
     try {
       final results = await Future.wait([
         FinanceTransactionService.getAll(),
+        CariTransactionService.getAll(),
+        InvestmentTransactionService.getAll(),
         CategoryService.getAllExpenseCategories(),
         IncomeCategoryService.getAll(),
       ]);
       final transactions = results[0] as List<FinanceTransaction>;
-      final expenseCategories = results[1] as List<Category>;
-      final incomeCategories = results[2] as List<IncomeCategory>;
+      final cariTransactions = results[1] as List<CariTransaction>;
+      final investmentTransactions = results[2] as List<InvestmentTransaction>;
+      final expenseCategories = results[3] as List<Category>;
+      final incomeCategories = results[4] as List<IncomeCategory>;
 
       if (!mounted) return;
       setState(() {
         _transactions = transactions;
+        _cariTransactions = cariTransactions;
+        _investmentTransactions = investmentTransactions;
         _expenseCategoryNames = {
           for (final category in expenseCategories)
             category.id: category.name.trim().isEmpty
@@ -88,7 +100,11 @@ class _FinancialAnalysisScreenState extends State<FinancialAnalysisScreen> {
   }
 
   List<int> _availableYears() {
-    final years = _transactions.map((tx) => tx.date.year).toSet().toList()
+    final years = <int>{
+      ..._transactions.map((tx) => tx.date.year),
+      ..._cariTransactions.map((tx) => tx.date.year),
+      ..._investmentTransactions.map((tx) => tx.date.year),
+    }.toList()
       ..sort((a, b) => b.compareTo(a));
     if (years.isEmpty) {
       return [DateTime.now().year];
@@ -97,11 +113,17 @@ class _FinancialAnalysisScreenState extends State<FinancialAnalysisScreen> {
   }
 
   List<int> _availableMonthsForYear(int year) {
-    final months = _transactions
-        .where((tx) => tx.date.year == year)
-        .map((tx) => tx.date.month)
-        .toSet()
-        .toList()
+    final months = <int>{
+      ..._transactions
+          .where((tx) => tx.date.year == year)
+          .map((tx) => tx.date.month),
+      ..._cariTransactions
+          .where((tx) => tx.date.year == year)
+          .map((tx) => tx.date.month),
+      ..._investmentTransactions
+          .where((tx) => tx.date.year == year)
+          .map((tx) => tx.date.month),
+    }.toList()
       ..sort();
     if (months.isEmpty) {
       return List<int>.generate(12, (index) => index + 1);
@@ -112,12 +134,11 @@ class _FinancialAnalysisScreenState extends State<FinancialAnalysisScreen> {
   List<FinanceTransaction> _periodTransactions() {
     final effectiveMonth = _effectiveSelectedMonth();
     return _transactions.where((tx) {
-      if (tx.date.year != _selectedYear) return false;
-      if (_periodMode == _AnalysisPeriodMode.monthly &&
-          tx.date.month != effectiveMonth) {
-        return false;
-      }
-      return true;
+      return _matchesPeriod(
+        tx.date,
+        year: _selectedYear,
+        month: effectiveMonth,
+      );
     }).toList()
       ..sort((a, b) => b.date.compareTo(a.date));
   }
@@ -126,13 +147,101 @@ class _FinancialAnalysisScreenState extends State<FinancialAnalysisScreen> {
     if (_periodMode == _AnalysisPeriodMode.monthly) {
       final previous = DateTime(_selectedYear, _effectiveSelectedMonth() - 1, 1);
       return _transactions.where((tx) {
-        return tx.date.year == previous.year && tx.date.month == previous.month;
+        return _matchesPeriod(
+          tx.date,
+          year: previous.year,
+          month: previous.month,
+          mode: _AnalysisPeriodMode.monthly,
+        );
       }).toList()
         ..sort((a, b) => b.date.compareTo(a.date));
     }
 
     final previousYear = _selectedYear - 1;
-    return _transactions.where((tx) => tx.date.year == previousYear).toList()
+    return _transactions.where((tx) {
+      return _matchesPeriod(
+        tx.date,
+        year: previousYear,
+        month: 1,
+        mode: _AnalysisPeriodMode.yearly,
+      );
+    }).toList()
+      ..sort((a, b) => b.date.compareTo(a.date));
+  }
+
+  List<CariTransaction> _periodCariTransactions() {
+    final effectiveMonth = _effectiveSelectedMonth();
+    return _cariTransactions.where((tx) {
+      return _matchesPeriod(
+        tx.date,
+        year: _selectedYear,
+        month: effectiveMonth,
+      );
+    }).toList()
+      ..sort((a, b) => b.date.compareTo(a.date));
+  }
+
+  List<CariTransaction> _comparisonCariTransactions() {
+    if (_periodMode == _AnalysisPeriodMode.monthly) {
+      final previous = DateTime(_selectedYear, _effectiveSelectedMonth() - 1, 1);
+      return _cariTransactions.where((tx) {
+        return _matchesPeriod(
+          tx.date,
+          year: previous.year,
+          month: previous.month,
+          mode: _AnalysisPeriodMode.monthly,
+        );
+      }).toList()
+        ..sort((a, b) => b.date.compareTo(a.date));
+    }
+
+    final previousYear = _selectedYear - 1;
+    return _cariTransactions.where((tx) {
+      return _matchesPeriod(
+        tx.date,
+        year: previousYear,
+        month: 1,
+        mode: _AnalysisPeriodMode.yearly,
+      );
+    }).toList()
+      ..sort((a, b) => b.date.compareTo(a.date));
+  }
+
+  List<InvestmentTransaction> _periodInvestmentTransactions() {
+    final effectiveMonth = _effectiveSelectedMonth();
+    return _investmentTransactions.where((tx) {
+      return _matchesPeriod(
+        tx.date,
+        year: _selectedYear,
+        month: effectiveMonth,
+      );
+    }).toList()
+      ..sort((a, b) => b.date.compareTo(a.date));
+  }
+
+  List<InvestmentTransaction> _comparisonInvestmentTransactions() {
+    if (_periodMode == _AnalysisPeriodMode.monthly) {
+      final previous = DateTime(_selectedYear, _effectiveSelectedMonth() - 1, 1);
+      return _investmentTransactions.where((tx) {
+        return _matchesPeriod(
+          tx.date,
+          year: previous.year,
+          month: previous.month,
+          mode: _AnalysisPeriodMode.monthly,
+        );
+      }).toList()
+        ..sort((a, b) => b.date.compareTo(a.date));
+    }
+
+    final previousYear = _selectedYear - 1;
+    return _investmentTransactions.where((tx) {
+      return _matchesPeriod(
+        tx.date,
+        year: previousYear,
+        month: 1,
+        mode: _AnalysisPeriodMode.yearly,
+      );
+    }).toList()
       ..sort((a, b) => b.date.compareTo(a.date));
   }
 
@@ -144,10 +253,62 @@ class _FinancialAnalysisScreenState extends State<FinancialAnalysisScreen> {
     return months.last;
   }
 
+  bool _matchesPeriod(
+    DateTime date, {
+    required int year,
+    required int month,
+    _AnalysisPeriodMode? mode,
+  }) {
+    final effectiveMode = mode ?? _periodMode;
+    if (date.year != year) return false;
+    if (effectiveMode == _AnalysisPeriodMode.monthly && date.month != month) {
+      return false;
+    }
+    return true;
+  }
+
   double _sumByType(List<FinanceTransaction> items, String type) {
     return items
         .where((tx) => tx.type == type)
         .fold<double>(0, (sum, tx) => sum + tx.amount);
+  }
+
+  _CashFlowMetrics _cashFlowMetrics({
+    required List<FinanceTransaction> financeItems,
+    required List<CariTransaction> cariItems,
+    required List<InvestmentTransaction> investmentItems,
+  }) {
+    final financeIncome = _sumByType(financeItems, 'income');
+    final financeExpense = _sumByType(financeItems, 'expense');
+    final cariCollection = cariItems
+        .where((tx) => tx.type == 'collection')
+        .fold<double>(0, (sum, tx) => sum + tx.amount);
+    final cariDebt = cariItems
+        .where((tx) => tx.type == 'debt')
+        .fold<double>(0, (sum, tx) => sum + tx.amount);
+    final investmentSell = investmentItems
+        .where((tx) => tx.type == 'sell')
+        .fold<double>(0, (sum, tx) => sum + tx.total);
+    final investmentBuy = investmentItems
+        .where((tx) => tx.type == 'buy')
+        .fold<double>(0, (sum, tx) => sum + tx.total);
+
+    return _CashFlowMetrics(
+      financeIncome: financeIncome,
+      financeExpense: financeExpense,
+      cariCollection: cariCollection,
+      cariDebt: cariDebt,
+      investmentSell: investmentSell,
+      investmentBuy: investmentBuy,
+      financeIncomeCount: financeItems.where((tx) => tx.type == 'income').length,
+      financeExpenseCount: financeItems.where((tx) => tx.type == 'expense').length,
+      cariCollectionCount: cariItems.where((tx) => tx.type == 'collection').length,
+      cariDebtCount: cariItems.where((tx) => tx.type == 'debt').length,
+      investmentSellCount:
+          investmentItems.where((tx) => tx.type == 'sell').length,
+      investmentBuyCount:
+          investmentItems.where((tx) => tx.type == 'buy').length,
+    );
   }
 
   String _fmtMoney(double value) {
@@ -247,22 +408,40 @@ class _FinancialAnalysisScreenState extends State<FinancialAnalysisScreen> {
     final buckets = <_TrendBucket>[];
     for (int offset = 11; offset >= 0; offset--) {
       final target = DateTime(now.year, now.month - offset, 1);
-      double income = 0;
-      double expense = 0;
-      for (final tx in _transactions) {
-        if (tx.date.year == target.year && tx.date.month == target.month) {
-          if (tx.type == 'income') {
-            income += tx.amount;
-          } else if (tx.type == 'expense') {
-            expense += tx.amount;
-          }
-        }
-      }
+      final financeItems = _transactions.where((tx) {
+        return _matchesPeriod(
+          tx.date,
+          year: target.year,
+          month: target.month,
+          mode: _AnalysisPeriodMode.monthly,
+        );
+      }).toList();
+      final cariItems = _cariTransactions.where((tx) {
+        return _matchesPeriod(
+          tx.date,
+          year: target.year,
+          month: target.month,
+          mode: _AnalysisPeriodMode.monthly,
+        );
+      }).toList();
+      final investmentItems = _investmentTransactions.where((tx) {
+        return _matchesPeriod(
+          tx.date,
+          year: target.year,
+          month: target.month,
+          mode: _AnalysisPeriodMode.monthly,
+        );
+      }).toList();
+      final flow = _cashFlowMetrics(
+        financeItems: financeItems,
+        cariItems: cariItems,
+        investmentItems: investmentItems,
+      );
       buckets.add(
         _TrendBucket(
           label: DateFormat('MMM', 'tr_TR').format(target),
-          income: income,
-          expense: expense,
+          income: flow.displayedIncome,
+          expense: flow.displayedExpense,
         ),
       );
     }
@@ -432,63 +611,83 @@ class _FinancialAnalysisScreenState extends State<FinancialAnalysisScreen> {
             style: TextStyle(color: Colors.black54),
           ),
           const SizedBox(height: 14),
-          SizedBox(
-            height: 220,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                for (final bucket in buckets)
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          Expanded(
-                            child: Align(
-                              alignment: Alignment.bottomCenter,
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  _trendBar(
-                                    value: bucket.income,
-                                    maxValue: maxValue,
-                                    color: AppColors.income,
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final minColumnWidth = 58.0;
+              final chartWidth = buckets.length * minColumnWidth;
+              final contentWidth = chartWidth > constraints.maxWidth
+                  ? chartWidth
+                  : constraints.maxWidth;
+
+              return SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
+                child: SizedBox(
+                  width: contentWidth,
+                  height: 220,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      for (final bucket in buckets)
+                        SizedBox(
+                          width: minColumnWidth,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              children: [
+                                Expanded(
+                                  child: Align(
+                                    alignment: Alignment.bottomCenter,
+                                    child: Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.end,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        _trendBar(
+                                          value: bucket.income,
+                                          maxValue: maxValue,
+                                          color: AppColors.income,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        _trendBar(
+                                          value: bucket.expense,
+                                          maxValue: maxValue,
+                                          color: AppColors.expense,
+                                        ),
+                                      ],
+                                    ),
                                   ),
-                                  const SizedBox(width: 4),
-                                  _trendBar(
-                                    value: bucket.expense,
-                                    maxValue: maxValue,
-                                    color: AppColors.expense,
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  bucket.label,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
                                   ),
-                                ],
-                              ),
+                                  textAlign: TextAlign.center,
+                                ),
+                                Text(
+                                  'Net ${_fmtMoney(bucket.income - bucket.expense)}',
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    color: Colors.black54,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
                             ),
                           ),
-                          const SizedBox(height: 8),
-                          Text(
-                            bucket.label,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          Text(
-                            'Net ${_fmtMoney(bucket.income - bucket.expense)}',
-                            style: const TextStyle(
-                              fontSize: 10,
-                              color: Colors.black54,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
-                    ),
+                        ),
+                    ],
                   ),
-              ],
-            ),
+                ),
+              );
+            },
           ),
         ],
       ),
@@ -498,14 +697,21 @@ class _FinancialAnalysisScreenState extends State<FinancialAnalysisScreen> {
   Widget _comparisonSection({
     required List<FinanceTransaction> currentItems,
     required List<FinanceTransaction> previousItems,
+    required List<CariTransaction> currentCariItems,
+    required List<CariTransaction> previousCariItems,
+    required List<InvestmentTransaction> currentInvestmentItems,
+    required List<InvestmentTransaction> previousInvestmentItems,
   }) {
-    final currentIncome = _sumByType(currentItems, 'income');
-    final currentExpense = _sumByType(currentItems, 'expense');
-    final currentNet = currentIncome - currentExpense;
-
-    final previousIncome = _sumByType(previousItems, 'income');
-    final previousExpense = _sumByType(previousItems, 'expense');
-    final previousNet = previousIncome - previousExpense;
+    final currentFlow = _cashFlowMetrics(
+      financeItems: currentItems,
+      cariItems: currentCariItems,
+      investmentItems: currentInvestmentItems,
+    );
+    final previousFlow = _cashFlowMetrics(
+      financeItems: previousItems,
+      cariItems: previousCariItems,
+      investmentItems: previousInvestmentItems,
+    );
 
     Widget row({
       required String title,
@@ -595,20 +801,20 @@ class _FinancialAnalysisScreenState extends State<FinancialAnalysisScreen> {
           const SizedBox(height: 12),
           row(
             title: 'Gelir',
-            current: currentIncome,
-            previous: previousIncome,
+            current: currentFlow.displayedIncome,
+            previous: previousFlow.displayedIncome,
             color: AppColors.income,
           ),
           row(
             title: 'Gider',
-            current: currentExpense,
-            previous: previousExpense,
+            current: currentFlow.displayedExpense,
+            previous: previousFlow.displayedExpense,
             color: AppColors.expense,
           ),
           row(
             title: 'Net Durum',
-            current: currentNet,
-            previous: previousNet,
+            current: currentFlow.overallNet,
+            previous: previousFlow.overallNet,
             color: AppColors.brand,
           ),
         ],
@@ -854,35 +1060,49 @@ class _FinancialAnalysisScreenState extends State<FinancialAnalysisScreen> {
   List<List<String>> _comparisonRows({
     required List<FinanceTransaction> currentItems,
     required List<FinanceTransaction> previousItems,
+    required List<CariTransaction> currentCariItems,
+    required List<CariTransaction> previousCariItems,
+    required List<InvestmentTransaction> currentInvestmentItems,
+    required List<InvestmentTransaction> previousInvestmentItems,
   }) {
-    final currentIncome = _sumByType(currentItems, 'income');
-    final currentExpense = _sumByType(currentItems, 'expense');
-    final currentNet = currentIncome - currentExpense;
-    final previousIncome = _sumByType(previousItems, 'income');
-    final previousExpense = _sumByType(previousItems, 'expense');
-    final previousNet = previousIncome - previousExpense;
+    final currentFlow = _cashFlowMetrics(
+      financeItems: currentItems,
+      cariItems: currentCariItems,
+      investmentItems: currentInvestmentItems,
+    );
+    final previousFlow = _cashFlowMetrics(
+      financeItems: previousItems,
+      cariItems: previousCariItems,
+      investmentItems: previousInvestmentItems,
+    );
 
     return [
       [
         'Gelir',
-        '${_fmtMoney(currentIncome)} TL',
-        '${_fmtMoney(previousIncome)} TL',
-        _deltaText(currentIncome, previousIncome),
-        _deltaPercentText(currentIncome, previousIncome),
+        '${_fmtMoney(currentFlow.displayedIncome)} TL',
+        '${_fmtMoney(previousFlow.displayedIncome)} TL',
+        _deltaText(currentFlow.displayedIncome, previousFlow.displayedIncome),
+        _deltaPercentText(
+          currentFlow.displayedIncome,
+          previousFlow.displayedIncome,
+        ),
       ],
       [
         'Gider',
-        '${_fmtMoney(currentExpense)} TL',
-        '${_fmtMoney(previousExpense)} TL',
-        _deltaText(currentExpense, previousExpense),
-        _deltaPercentText(currentExpense, previousExpense),
+        '${_fmtMoney(currentFlow.displayedExpense)} TL',
+        '${_fmtMoney(previousFlow.displayedExpense)} TL',
+        _deltaText(currentFlow.displayedExpense, previousFlow.displayedExpense),
+        _deltaPercentText(
+          currentFlow.displayedExpense,
+          previousFlow.displayedExpense,
+        ),
       ],
       [
         'Net Durum',
-        '${_fmtMoney(currentNet)} TL',
-        '${_fmtMoney(previousNet)} TL',
-        _deltaText(currentNet, previousNet),
-        _deltaPercentText(currentNet, previousNet),
+        '${_fmtMoney(currentFlow.overallNet)} TL',
+        '${_fmtMoney(previousFlow.overallNet)} TL',
+        _deltaText(currentFlow.overallNet, previousFlow.overallNet),
+        _deltaPercentText(currentFlow.overallNet, previousFlow.overallNet),
       ],
     ];
   }
@@ -901,6 +1121,48 @@ class _FinancialAnalysisScreenState extends State<FinancialAnalysisScreen> {
         .toList();
   }
 
+  String _investmentCardTitle(_CashFlowMetrics flow) {
+    return 'Net Yatırım';
+  }
+
+  String _investmentCardValue(_CashFlowMetrics flow) {
+    final value = flow.investmentNet;
+    final sign = value > 0 ? '+' : '';
+    return '$sign${_fmtMoney(value)} TL';
+  }
+
+  String _investmentCardCaption(_CashFlowMetrics flow) {
+    if (flow.investmentBuy > 0 && flow.investmentSell > 0) {
+      return 'Alış ${_fmtMoney(flow.investmentBuy)} TL • Satış ${_fmtMoney(flow.investmentSell)} TL';
+    }
+    if (flow.investmentBuy > 0) {
+      return '${flow.investmentBuyCount} alış işlemi';
+    }
+    if (flow.investmentSell > 0) {
+      return '${flow.investmentSellCount} satış işlemi';
+    }
+    return 'Seçili dönemde yatırım işlemi yok';
+  }
+
+  String _cariCardValue(_CashFlowMetrics flow) {
+    final value = flow.cariNet;
+    final sign = value > 0 ? '+' : '';
+    return '$sign${_fmtMoney(value)} TL';
+  }
+
+  String _cariCardCaption(_CashFlowMetrics flow) {
+    if (flow.cariCollection > 0 && flow.cariDebt > 0) {
+      return 'Gelen ${_fmtMoney(flow.cariCollection)} TL • Giden ${_fmtMoney(flow.cariDebt)} TL';
+    }
+    if (flow.cariCollection > 0) {
+      return '${flow.cariCollectionCount} gelen/tahsilat işlemi';
+    }
+    if (flow.cariDebt > 0) {
+      return '${flow.cariDebtCount} giden/borç işlemi';
+    }
+    return 'Seçili dönemde cari hareket yok';
+  }
+
   Future<Uint8List> _buildPdf(PdfPageFormat format) async {
     final font = pw.Font.ttf(
       await rootBundle.load('assets/fonts/Roboto-Regular.ttf'),
@@ -913,10 +1175,16 @@ class _FinancialAnalysisScreenState extends State<FinancialAnalysisScreen> {
     );
 
     final periodTransactions = _periodTransactions();
-    final income = _sumByType(periodTransactions, 'income');
-    final expense = _sumByType(periodTransactions, 'expense');
+    final periodCariTransactions = _periodCariTransactions();
+    final periodInvestmentTransactions = _periodInvestmentTransactions();
+    final flow = _cashFlowMetrics(
+      financeItems: periodTransactions,
+      cariItems: periodCariTransactions,
+      investmentItems: periodInvestmentTransactions,
+    );
+    final income = flow.displayedIncome;
+    final expense = flow.displayedExpense;
     final net = income - expense;
-    final savingsRate = income <= 0 ? 0.0 : (net / income) * 100;
     final expenseTotals = _categoryTotals(
       items: periodTransactions,
       type: 'expense',
@@ -926,6 +1194,9 @@ class _FinancialAnalysisScreenState extends State<FinancialAnalysisScreen> {
       type: 'income',
     );
     final comparisonTransactions = _comparisonTransactions();
+    final comparisonCariTransactions = _comparisonCariTransactions();
+    final comparisonInvestmentTransactions =
+        _comparisonInvestmentTransactions();
     final expenseChanges = _topExpenseCategoryChanges(
       currentItems: periodTransactions,
       previousItems: comparisonTransactions,
@@ -1080,9 +1351,20 @@ class _FinancialAnalysisScreenState extends State<FinancialAnalysisScreen> {
               pw.SizedBox(width: 8),
               pw.Expanded(
                 child: metricCell(
-                  'Tasarruf Oranı',
-                  _fmtPercent(savingsRate),
+                  _investmentCardTitle(flow),
+                  _investmentCardValue(flow),
                   PdfColor.fromInt(AppColors.brand.toARGB32()),
+                ),
+              ),
+              pw.SizedBox(width: 8),
+              pw.Expanded(
+                child: metricCell(
+                  'Net Cari',
+                  _cariCardValue(flow),
+                  PdfColor.fromInt(
+                    (flow.cariNet >= 0 ? Colors.orange : AppColors.expense)
+                        .toARGB32(),
+                  ),
                 ),
               ),
             ],
@@ -1114,6 +1396,10 @@ class _FinancialAnalysisScreenState extends State<FinancialAnalysisScreen> {
             rows: _comparisonRows(
               currentItems: periodTransactions,
               previousItems: comparisonTransactions,
+              currentCariItems: periodCariTransactions,
+              previousCariItems: comparisonCariTransactions,
+              currentInvestmentItems: periodInvestmentTransactions,
+              previousInvestmentItems: comparisonInvestmentTransactions,
             ),
             color: PdfColor.fromInt(AppColors.brand.toARGB32()),
             emptyText: 'Karşılaştırma verisi bulunmuyor.',
@@ -1175,10 +1461,16 @@ class _FinancialAnalysisScreenState extends State<FinancialAnalysisScreen> {
     rememberDrawerSelectionForScreen(widget);
 
     final periodTransactions = _periodTransactions();
-    final income = _sumByType(periodTransactions, 'income');
-    final expense = _sumByType(periodTransactions, 'expense');
+    final periodCariTransactions = _periodCariTransactions();
+    final periodInvestmentTransactions = _periodInvestmentTransactions();
+    final flow = _cashFlowMetrics(
+      financeItems: periodTransactions,
+      cariItems: periodCariTransactions,
+      investmentItems: periodInvestmentTransactions,
+    );
+    final income = flow.displayedIncome;
+    final expense = flow.displayedExpense;
     final net = income - expense;
-    final savingsRate = income <= 0 ? 0.0 : (net / income) * 100;
     final expenseTotals = _categoryTotals(
       items: periodTransactions,
       type: 'expense',
@@ -1188,6 +1480,9 @@ class _FinancialAnalysisScreenState extends State<FinancialAnalysisScreen> {
       type: 'income',
     );
     final comparisonTransactions = _comparisonTransactions();
+    final comparisonCariTransactions = _comparisonCariTransactions();
+    final comparisonInvestmentTransactions =
+        _comparisonInvestmentTransactions();
     final expenseChanges = _topExpenseCategoryChanges(
       currentItems: periodTransactions,
       previousItems: comparisonTransactions,
@@ -1240,33 +1535,76 @@ class _FinancialAnalysisScreenState extends State<FinancialAnalysisScreen> {
                             value: '${_fmtMoney(income)} TL',
                             color: AppColors.income,
                             icon: Icons.south_west,
-                            caption:
-                                '${periodTransactions.where((tx) => tx.type == 'income').length} gelir kaydı',
+                            caption: [
+                              if (flow.financeIncomeCount > 0)
+                                '${flow.financeIncomeCount} gelir kaydı',
+                              if (flow.investmentSellCount > 0)
+                                '${flow.investmentSellCount} yatırım satışı',
+                              if (flow.cariCollectionCount > 0)
+                                '${flow.cariCollectionCount} cari tahsilat',
+                            ].join(' • ').isEmpty
+                                ? 'Seçili dönemde gelir yok'
+                                : [
+                                    if (flow.financeIncomeCount > 0)
+                                      '${flow.financeIncomeCount} gelir kaydı',
+                                    if (flow.investmentSellCount > 0)
+                                      '${flow.investmentSellCount} yatırım satışı',
+                                    if (flow.cariCollectionCount > 0)
+                                      '${flow.cariCollectionCount} cari tahsilat',
+                                  ].join(' • '),
                           ),
                           _summaryCard(
                             title: 'Toplam Gider',
                             value: '${_fmtMoney(expense)} TL',
                             color: AppColors.expense,
                             icon: Icons.north_east,
-                            caption:
-                                '${periodTransactions.where((tx) => tx.type == 'expense').length} gider kaydı',
+                            caption: [
+                              if (flow.financeExpenseCount > 0)
+                                '${flow.financeExpenseCount} gider/fatura',
+                              if (flow.investmentBuyCount > 0)
+                                '${flow.investmentBuyCount} yatırım alış',
+                              if (flow.cariDebtCount > 0)
+                                '${flow.cariDebtCount} cari çıkış',
+                            ].join(' • ').isEmpty
+                                ? 'Seçili dönemde gider yok'
+                                : [
+                                    if (flow.financeExpenseCount > 0)
+                                      '${flow.financeExpenseCount} gider/fatura',
+                                    if (flow.investmentBuyCount > 0)
+                                      '${flow.investmentBuyCount} yatırım alış',
+                                    if (flow.cariDebtCount > 0)
+                                      '${flow.cariDebtCount} cari çıkış',
+                                  ].join(' • '),
                           ),
                           _summaryCard(
                             title: 'Net Durum',
                             value:
                                 '${net >= 0 ? '+' : ''}${_fmtMoney(net)} TL',
-                            color: net >= 0 ? AppColors.income : AppColors.expense,
+                            color: net >= 0
+                                ? AppColors.income
+                                : AppColors.expense,
                             icon: net >= 0
                                 ? Icons.trending_up
                                 : Icons.trending_down,
-                            caption: 'Gelir - gider farkı',
+                            caption: 'Gelir - gider',
                           ),
                           _summaryCard(
-                            title: 'Tasarruf Oranı',
-                            value: _fmtPercent(savingsRate),
+                            title: _investmentCardTitle(flow),
+                            value: _investmentCardValue(flow),
                             color: AppColors.brand,
-                            icon: Icons.pie_chart_outline,
-                            caption: 'Net / gelir oranı',
+                            icon: Icons.candlestick_chart,
+                            caption: _investmentCardCaption(flow),
+                          ),
+                          _summaryCard(
+                            title: 'Net Cari',
+                            value: _cariCardValue(flow),
+                            color: flow.cariNet >= 0
+                                ? Colors.orange
+                                : AppColors.expense,
+                            icon: flow.cariNet >= 0
+                                ? Icons.compare_arrows_rounded
+                                : Icons.south_east_rounded,
+                            caption: _cariCardCaption(flow),
                           ),
                         ],
                       ),
@@ -1288,6 +1626,10 @@ class _FinancialAnalysisScreenState extends State<FinancialAnalysisScreen> {
                       _comparisonSection(
                         currentItems: periodTransactions,
                         previousItems: comparisonTransactions,
+                        currentCariItems: periodCariTransactions,
+                        previousCariItems: comparisonCariTransactions,
+                        currentInvestmentItems: periodInvestmentTransactions,
+                        previousInvestmentItems: comparisonInvestmentTransactions,
                       ),
                       const SizedBox(height: 16),
                       _expenseChangeSection(expenseChanges),
@@ -1310,6 +1652,43 @@ class _TrendBucket {
     required this.income,
     required this.expense,
   });
+}
+
+class _CashFlowMetrics {
+  final double financeIncome;
+  final double financeExpense;
+  final double cariCollection;
+  final double cariDebt;
+  final double investmentSell;
+  final double investmentBuy;
+  final int financeIncomeCount;
+  final int financeExpenseCount;
+  final int cariCollectionCount;
+  final int cariDebtCount;
+  final int investmentSellCount;
+  final int investmentBuyCount;
+
+  const _CashFlowMetrics({
+    required this.financeIncome,
+    required this.financeExpense,
+    required this.cariCollection,
+    required this.cariDebt,
+    required this.investmentSell,
+    required this.investmentBuy,
+    required this.financeIncomeCount,
+    required this.financeExpenseCount,
+    required this.cariCollectionCount,
+    required this.cariDebtCount,
+    required this.investmentSellCount,
+    required this.investmentBuyCount,
+  });
+
+  double get displayedIncome => financeIncome + investmentSell + cariCollection;
+  double get displayedExpense => financeExpense + investmentBuy + cariDebt;
+  double get investmentNet => investmentBuy - investmentSell;
+  double get cariNet => cariCollection - cariDebt;
+  double get overallNet => displayedIncome - displayedExpense;
+  double get totalInflowBase => displayedIncome;
 }
 
 class _CategoryDelta {
