@@ -8,8 +8,18 @@ import '../models/transfer_transaction.dart';
 class AccountService {
   static const String _defaultCashName = 'CÜZDAN';
   static const String _defaultCashType = 'cash';
+  static const String defaultBalanceName = 'HİBE,İLK KAYIT,DENGE HESABI';
+  static const String balanceType = 'balance';
+  static const String balanceSystemKey = 'balance_account';
   static const String bankSubtypeBankAccount = 'bank_account';
   static const String bankSubtypeCreditCard = 'credit_card';
+
+  static bool isGhostAccount(Account account) => account.type == balanceType;
+
+  static bool isProtectedBalanceAccount(Account account) =>
+      account.isSystemGenerated &&
+      account.systemKey == balanceSystemKey &&
+      account.type == balanceType;
 
   static Future<void> _validateAccount(Account account) async {
     final isar = IsarService.isar;
@@ -19,7 +29,7 @@ class AccountService {
     }
 
     final type = account.type.trim().toLowerCase();
-    final validTypes = {'cash', 'bank', 'investment'};
+    final validTypes = {'cash', 'bank', 'investment', balanceType};
     if (!validTypes.contains(type)) {
       throw Exception('Geçersiz hesap türü.');
     }
@@ -27,6 +37,18 @@ class AccountService {
     account
       ..name = name
       ..type = type;
+
+    if (type == balanceType) {
+      account
+        ..bankSubtype = null
+        ..overdraftLimit = 0
+        ..linkedBankAccountId = null
+        ..statementDay = null
+        ..paymentDueDay = null
+        ..investmentSubtype = null
+        ..investmentSymbol = null;
+      return;
+    }
 
     if (type == 'cash') {
       account
@@ -165,6 +187,56 @@ class AccountService {
     }
   }
 
+  static Future<void> ensureDefaultBalanceAccount() async {
+    final isar = IsarService.isar;
+    final allAccounts = await isar.accounts.where().anyId().findAll();
+    Account? existing;
+    for (final account in allAccounts) {
+      if (account.systemKey == balanceSystemKey) {
+        existing = account;
+        break;
+      }
+      if (existing == null &&
+          account.type == balanceType &&
+          account.name == defaultBalanceName) {
+        existing = account;
+      }
+    }
+
+    if (existing == null) {
+      final account = Account()
+        ..name = defaultBalanceName
+        ..type = balanceType
+        ..balance = 0
+        ..isActive = true
+        ..isSystemGenerated = true
+        ..systemKey = balanceSystemKey
+        ..createdAt = DateTime.now();
+      await isar.writeTxn(() async {
+        await isar.accounts.put(account);
+      });
+      return;
+    }
+
+    final ensuredAccount = existing;
+    await isar.writeTxn(() async {
+      ensuredAccount
+        ..name = defaultBalanceName
+        ..type = balanceType
+        ..bankSubtype = null
+        ..linkedBankAccountId = null
+        ..overdraftLimit = 0
+        ..statementDay = null
+        ..paymentDueDay = null
+        ..investmentSubtype = null
+        ..investmentSymbol = null
+        ..isActive = true
+        ..isSystemGenerated = true
+        ..systemKey = balanceSystemKey;
+      await isar.accounts.put(ensuredAccount);
+    });
+  }
+
   /// Yeni bir hesap kaydini kalici olarak yazar.
   static Future<void> addAccount(Account account) async {
     final isar = IsarService.isar;
@@ -207,9 +279,13 @@ class AccountService {
   /// Kullanilan hesaplari silmek yerine kosullara gore pasife alir.
   static Future<bool> deleteAccount(int id) async {
     final isar = IsarService.isar;
+    final existing = await isar.accounts.get(id);
+    if (existing != null && isProtectedBalanceAccount(existing)) {
+      throw Exception('DENGE HESABI silinemez.');
+    }
     final used = await isAccountUsed(id);
     if (used) {
-      final account = await isar.accounts.get(id);
+      final account = existing;
       if (account != null && account.isActive) {
         final hasOpenBalance = account.isCreditCard
             ? account.balance.abs() > 1e-9
@@ -235,6 +311,7 @@ class AccountService {
   static Future<List<Account>> getAllAccounts() async {
     final isar = IsarService.isar;
     await ensureDefaultCashAccount();
+    await ensureDefaultBalanceAccount();
     try {
       return await isar.txn(() async {
         return await isar.accounts.where().anyId().findAll();
@@ -252,30 +329,63 @@ class AccountService {
   }
 
   static bool isCashflowAccount(Account account) {
-    return account.type != 'investment' && !account.isCreditCard;
+    return account.type != 'investment' &&
+        !account.isCreditCard &&
+        !isGhostAccount(account);
   }
 
   static bool isExpensePaymentAccount(Account account) {
+    return account.type != 'investment' && !isGhostAccount(account);
+  }
+
+  static bool isGhostSelectableCashflowAccount(Account account) {
+    return account.type != 'investment' && !account.isCreditCard;
+  }
+
+  static bool isGhostSelectableExpenseAccount(Account account) {
     return account.type != 'investment';
+  }
+
+  static List<Account> sortWithGhostLast(Iterable<Account> accounts) {
+    final items = accounts.toList();
+    items.sort((a, b) {
+      final aGhost = isGhostAccount(a);
+      final bGhost = isGhostAccount(b);
+      if (aGhost != bGhost) {
+        return aGhost ? 1 : -1;
+      }
+      return a.name.compareTo(b.name);
+    });
+    return items;
   }
 
   static Future<List<Account>> getActiveCashflowAccounts() async {
     final all = await getActiveAccounts();
-    return all.where(isCashflowAccount).toList();
+    return sortWithGhostLast(all.where(isCashflowAccount));
   }
 
   static Future<List<Account>> getActiveExpenseAccounts() async {
     final all = await getActiveAccounts();
-    return all.where(isExpensePaymentAccount).toList();
+    return sortWithGhostLast(all.where(isExpensePaymentAccount));
+  }
+
+  static Future<List<Account>> getActiveGhostSelectableCashflowAccounts() async {
+    final all = await getActiveAccounts();
+    return sortWithGhostLast(all.where(isGhostSelectableCashflowAccount));
+  }
+
+  static Future<List<Account>> getActiveGhostSelectableExpenseAccounts() async {
+    final all = await getActiveAccounts();
+    return sortWithGhostLast(all.where(isGhostSelectableExpenseAccount));
   }
 
   static Future<List<Account>> getActiveParentBankAccounts({
     int? excludeId,
   }) async {
     final all = await getActiveAccounts();
-    return all
-        .where((account) => account.isBankAccount && account.id != excludeId)
-        .toList();
+    return sortWithGhostLast(
+      all.where((account) => account.isBankAccount && account.id != excludeId),
+    );
   }
 
   /// Hesabin aktiflik durumunu is kurallarina uygun sekilde degistirir.
@@ -283,6 +393,9 @@ class AccountService {
     final isar = IsarService.isar;
     final account = await isar.accounts.get(id);
     if (account == null) return;
+    if (!value && isProtectedBalanceAccount(account)) {
+      throw Exception('DENGE HESABI pasif yapılamaz.');
+    }
     final hasOpenBalance = account.isCreditCard
         ? account.balance.abs() > 1e-9
         : account.balance > 0;
@@ -299,6 +412,23 @@ class AccountService {
   /// Mevcut hesap kaydini gunceller.
   static Future<void> updateAccount(Account account) async {
     final isar = IsarService.isar;
+    final existing = await isar.accounts.get(account.id);
+    if (existing != null && isProtectedBalanceAccount(existing)) {
+      final name = account.name.trim();
+      if (name.isEmpty) {
+        throw Exception('Hesap adı zorunludur.');
+      }
+      existing
+        ..name = name
+        ..type = balanceType
+        ..isActive = true
+        ..isSystemGenerated = true
+        ..systemKey = balanceSystemKey;
+      await isar.writeTxn(() async {
+        await isar.accounts.put(existing);
+      });
+      return;
+    }
     await _validateAccount(account);
 
     await isar.writeTxn(() async {

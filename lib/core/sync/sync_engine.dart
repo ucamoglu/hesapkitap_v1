@@ -61,6 +61,7 @@ class RemoteSyncEngine implements SyncEngine {
     'income_plan',
     'expense_plan',
     'finance_transaction',
+    'asset_record',
     'transfer_transaction',
     'investment_transaction',
     'cari_transaction',

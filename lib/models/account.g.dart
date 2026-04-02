@@ -52,53 +52,68 @@ const AccountSchema = CollectionSchema(
       name: r'investmentSymbol',
       type: IsarType.string,
     ),
-    r'isBankAccount': PropertySchema(
+    r'isBalanceAccount': PropertySchema(
       id: 7,
+      name: r'isBalanceAccount',
+      type: IsarType.bool,
+    ),
+    r'isBankAccount': PropertySchema(
+      id: 8,
       name: r'isBankAccount',
       type: IsarType.bool,
     ),
     r'isCreditCard': PropertySchema(
-      id: 8,
+      id: 9,
       name: r'isCreditCard',
       type: IsarType.bool,
     ),
+    r'isSystemGenerated': PropertySchema(
+      id: 10,
+      name: r'isSystemGenerated',
+      type: IsarType.bool,
+    ),
     r'linkedBankAccountId': PropertySchema(
-      id: 9,
+      id: 11,
       name: r'linkedBankAccountId',
       type: IsarType.long,
     ),
     r'name': PropertySchema(
-      id: 10,
+      id: 12,
       name: r'name',
       type: IsarType.string,
     ),
     r'overdraftLimit': PropertySchema(
-      id: 11,
+      id: 13,
       name: r'overdraftLimit',
       type: IsarType.double,
     ),
     r'paymentDueDay': PropertySchema(
-      id: 12,
+      id: 14,
       name: r'paymentDueDay',
       type: IsarType.long,
     ),
     r'statementDay': PropertySchema(
-      id: 13,
+      id: 15,
       name: r'statementDay',
       type: IsarType.long,
     ),
     r'supportsOverdraft': PropertySchema(
-      id: 14,
+      id: 16,
       name: r'supportsOverdraft',
       type: IsarType.bool,
     ),
+    r'systemKey': PropertySchema(
+      id: 17,
+      name: r'systemKey',
+      type: IsarType.string,
+    ),
     r'type': PropertySchema(
-      id: 15,
+      id: 18,
       name: r'type',
       type: IsarType.string,
     ),
     r'zz_is_active': PropertySchema(
-      id: 16,
+      id: 19,
       name: r'zz_is_active',
       type: IsarType.bool,
     )
@@ -143,6 +158,12 @@ int _accountEstimateSize(
     }
   }
   bytesCount += 3 + object.name.length * 3;
+  {
+    final value = object.systemKey;
+    if (value != null) {
+      bytesCount += 3 + value.length * 3;
+    }
+  }
   bytesCount += 3 + object.type.length * 3;
   return bytesCount;
 }
@@ -160,16 +181,19 @@ void _accountSerialize(
   writer.writeDouble(offsets[4], object.effectiveOverdraftLimit);
   writer.writeString(offsets[5], object.investmentSubtype);
   writer.writeString(offsets[6], object.investmentSymbol);
-  writer.writeBool(offsets[7], object.isBankAccount);
-  writer.writeBool(offsets[8], object.isCreditCard);
-  writer.writeLong(offsets[9], object.linkedBankAccountId);
-  writer.writeString(offsets[10], object.name);
-  writer.writeDouble(offsets[11], object.overdraftLimit);
-  writer.writeLong(offsets[12], object.paymentDueDay);
-  writer.writeLong(offsets[13], object.statementDay);
-  writer.writeBool(offsets[14], object.supportsOverdraft);
-  writer.writeString(offsets[15], object.type);
-  writer.writeBool(offsets[16], object.isActive);
+  writer.writeBool(offsets[7], object.isBalanceAccount);
+  writer.writeBool(offsets[8], object.isBankAccount);
+  writer.writeBool(offsets[9], object.isCreditCard);
+  writer.writeBool(offsets[10], object.isSystemGenerated);
+  writer.writeLong(offsets[11], object.linkedBankAccountId);
+  writer.writeString(offsets[12], object.name);
+  writer.writeDouble(offsets[13], object.overdraftLimit);
+  writer.writeLong(offsets[14], object.paymentDueDay);
+  writer.writeLong(offsets[15], object.statementDay);
+  writer.writeBool(offsets[16], object.supportsOverdraft);
+  writer.writeString(offsets[17], object.systemKey);
+  writer.writeString(offsets[18], object.type);
+  writer.writeBool(offsets[19], object.isActive);
 }
 
 Account _accountDeserialize(
@@ -185,13 +209,15 @@ Account _accountDeserialize(
   object.id = id;
   object.investmentSubtype = reader.readStringOrNull(offsets[5]);
   object.investmentSymbol = reader.readStringOrNull(offsets[6]);
-  object.linkedBankAccountId = reader.readLongOrNull(offsets[9]);
-  object.name = reader.readString(offsets[10]);
-  object.overdraftLimit = reader.readDouble(offsets[11]);
-  object.paymentDueDay = reader.readLongOrNull(offsets[12]);
-  object.statementDay = reader.readLongOrNull(offsets[13]);
-  object.type = reader.readString(offsets[15]);
-  object.isActive = reader.readBool(offsets[16]);
+  object.isSystemGenerated = reader.readBool(offsets[10]);
+  object.linkedBankAccountId = reader.readLongOrNull(offsets[11]);
+  object.name = reader.readString(offsets[12]);
+  object.overdraftLimit = reader.readDouble(offsets[13]);
+  object.paymentDueDay = reader.readLongOrNull(offsets[14]);
+  object.statementDay = reader.readLongOrNull(offsets[15]);
+  object.systemKey = reader.readStringOrNull(offsets[17]);
+  object.type = reader.readString(offsets[18]);
+  object.isActive = reader.readBool(offsets[19]);
   return object;
 }
 
@@ -221,20 +247,26 @@ P _accountDeserializeProp<P>(
     case 8:
       return (reader.readBool(offset)) as P;
     case 9:
-      return (reader.readLongOrNull(offset)) as P;
-    case 10:
-      return (reader.readString(offset)) as P;
-    case 11:
-      return (reader.readDouble(offset)) as P;
-    case 12:
-      return (reader.readLongOrNull(offset)) as P;
-    case 13:
-      return (reader.readLongOrNull(offset)) as P;
-    case 14:
       return (reader.readBool(offset)) as P;
-    case 15:
+    case 10:
+      return (reader.readBool(offset)) as P;
+    case 11:
+      return (reader.readLongOrNull(offset)) as P;
+    case 12:
       return (reader.readString(offset)) as P;
+    case 13:
+      return (reader.readDouble(offset)) as P;
+    case 14:
+      return (reader.readLongOrNull(offset)) as P;
+    case 15:
+      return (reader.readLongOrNull(offset)) as P;
     case 16:
+      return (reader.readBool(offset)) as P;
+    case 17:
+      return (reader.readStringOrNull(offset)) as P;
+    case 18:
+      return (reader.readString(offset)) as P;
+    case 19:
       return (reader.readBool(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -1153,6 +1185,16 @@ extension AccountQueryFilter
     });
   }
 
+  QueryBuilder<Account, Account, QAfterFilterCondition> isBalanceAccountEqualTo(
+      bool value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'isBalanceAccount',
+        value: value,
+      ));
+    });
+  }
+
   QueryBuilder<Account, Account, QAfterFilterCondition> isBankAccountEqualTo(
       bool value) {
     return QueryBuilder.apply(this, (query) {
@@ -1168,6 +1210,16 @@ extension AccountQueryFilter
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.equalTo(
         property: r'isCreditCard',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition>
+      isSystemGeneratedEqualTo(bool value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'isSystemGenerated',
         value: value,
       ));
     });
@@ -1591,6 +1643,152 @@ extension AccountQueryFilter
     });
   }
 
+  QueryBuilder<Account, Account, QAfterFilterCondition> systemKeyIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'systemKey',
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition> systemKeyIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'systemKey',
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition> systemKeyEqualTo(
+    String? value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'systemKey',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition> systemKeyGreaterThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'systemKey',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition> systemKeyLessThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'systemKey',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition> systemKeyBetween(
+    String? lower,
+    String? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'systemKey',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition> systemKeyStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'systemKey',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition> systemKeyEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'systemKey',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition> systemKeyContains(
+      String value,
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'systemKey',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition> systemKeyMatches(
+      String pattern,
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'systemKey',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition> systemKeyIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'systemKey',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition> systemKeyIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'systemKey',
+        value: '',
+      ));
+    });
+  }
+
   QueryBuilder<Account, Account, QAfterFilterCondition> typeEqualTo(
     String value, {
     bool caseSensitive = true,
@@ -1825,6 +2023,18 @@ extension AccountQuerySortBy on QueryBuilder<Account, Account, QSortBy> {
     });
   }
 
+  QueryBuilder<Account, Account, QAfterSortBy> sortByIsBalanceAccount() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isBalanceAccount', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterSortBy> sortByIsBalanceAccountDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isBalanceAccount', Sort.desc);
+    });
+  }
+
   QueryBuilder<Account, Account, QAfterSortBy> sortByIsBankAccount() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'isBankAccount', Sort.asc);
@@ -1846,6 +2056,18 @@ extension AccountQuerySortBy on QueryBuilder<Account, Account, QSortBy> {
   QueryBuilder<Account, Account, QAfterSortBy> sortByIsCreditCardDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'isCreditCard', Sort.desc);
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterSortBy> sortByIsSystemGenerated() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isSystemGenerated', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterSortBy> sortByIsSystemGeneratedDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isSystemGenerated', Sort.desc);
     });
   }
 
@@ -1918,6 +2140,18 @@ extension AccountQuerySortBy on QueryBuilder<Account, Account, QSortBy> {
   QueryBuilder<Account, Account, QAfterSortBy> sortBySupportsOverdraftDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'supportsOverdraft', Sort.desc);
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterSortBy> sortBySystemKey() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'systemKey', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterSortBy> sortBySystemKeyDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'systemKey', Sort.desc);
     });
   }
 
@@ -2046,6 +2280,18 @@ extension AccountQuerySortThenBy
     });
   }
 
+  QueryBuilder<Account, Account, QAfterSortBy> thenByIsBalanceAccount() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isBalanceAccount', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterSortBy> thenByIsBalanceAccountDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isBalanceAccount', Sort.desc);
+    });
+  }
+
   QueryBuilder<Account, Account, QAfterSortBy> thenByIsBankAccount() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'isBankAccount', Sort.asc);
@@ -2067,6 +2313,18 @@ extension AccountQuerySortThenBy
   QueryBuilder<Account, Account, QAfterSortBy> thenByIsCreditCardDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'isCreditCard', Sort.desc);
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterSortBy> thenByIsSystemGenerated() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isSystemGenerated', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterSortBy> thenByIsSystemGeneratedDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isSystemGenerated', Sort.desc);
     });
   }
 
@@ -2139,6 +2397,18 @@ extension AccountQuerySortThenBy
   QueryBuilder<Account, Account, QAfterSortBy> thenBySupportsOverdraftDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'supportsOverdraft', Sort.desc);
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterSortBy> thenBySystemKey() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'systemKey', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterSortBy> thenBySystemKeyDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'systemKey', Sort.desc);
     });
   }
 
@@ -2219,6 +2489,12 @@ extension AccountQueryWhereDistinct
     });
   }
 
+  QueryBuilder<Account, Account, QDistinct> distinctByIsBalanceAccount() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'isBalanceAccount');
+    });
+  }
+
   QueryBuilder<Account, Account, QDistinct> distinctByIsBankAccount() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'isBankAccount');
@@ -2228,6 +2504,12 @@ extension AccountQueryWhereDistinct
   QueryBuilder<Account, Account, QDistinct> distinctByIsCreditCard() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'isCreditCard');
+    });
+  }
+
+  QueryBuilder<Account, Account, QDistinct> distinctByIsSystemGenerated() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'isSystemGenerated');
     });
   }
 
@@ -2265,6 +2547,13 @@ extension AccountQueryWhereDistinct
   QueryBuilder<Account, Account, QDistinct> distinctBySupportsOverdraft() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'supportsOverdraft');
+    });
+  }
+
+  QueryBuilder<Account, Account, QDistinct> distinctBySystemKey(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'systemKey', caseSensitive: caseSensitive);
     });
   }
 
@@ -2334,6 +2623,12 @@ extension AccountQueryProperty
     });
   }
 
+  QueryBuilder<Account, bool, QQueryOperations> isBalanceAccountProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'isBalanceAccount');
+    });
+  }
+
   QueryBuilder<Account, bool, QQueryOperations> isBankAccountProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'isBankAccount');
@@ -2343,6 +2638,12 @@ extension AccountQueryProperty
   QueryBuilder<Account, bool, QQueryOperations> isCreditCardProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'isCreditCard');
+    });
+  }
+
+  QueryBuilder<Account, bool, QQueryOperations> isSystemGeneratedProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'isSystemGenerated');
     });
   }
 
@@ -2379,6 +2680,12 @@ extension AccountQueryProperty
   QueryBuilder<Account, bool, QQueryOperations> supportsOverdraftProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'supportsOverdraft');
+    });
+  }
+
+  QueryBuilder<Account, String?, QQueryOperations> systemKeyProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'systemKey');
     });
   }
 

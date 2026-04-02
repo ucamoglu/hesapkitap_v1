@@ -2,6 +2,7 @@ import 'package:isar/isar.dart';
 
 import '../../database/isar_service.dart';
 import '../../models/account.dart';
+import '../../models/asset_record.dart';
 import '../../models/cari_card.dart';
 import '../../models/cari_transaction.dart';
 import '../../models/category.dart';
@@ -75,6 +76,10 @@ class CloudSyncMigrationService {
       SyncCollectionSnapshot(
         entityType: 'finance_transaction',
         count: (await isar.financeTransactions.where().anyId().findAll()).length,
+      ),
+      SyncCollectionSnapshot(
+        entityType: 'asset_record',
+        count: (await isar.assetRecords.where().anyId().findAll()).length,
       ),
       SyncCollectionSnapshot(
         entityType: 'investment_transaction',
@@ -258,6 +263,10 @@ class CloudSyncMigrationService {
     await addIds(
       'finance_transaction',
       await isar.financeTransactions.where().idProperty().findAll(),
+    );
+    await addIds(
+      'asset_record',
+      await isar.assetRecords.where().idProperty().findAll(),
     );
     await addIds(
       'investment_transaction',

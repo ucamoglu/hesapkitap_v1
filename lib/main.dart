@@ -10,9 +10,11 @@ import 'core/runtime/app_messenger.dart';
 import 'core/runtime/app_runtime.dart';
 import 'database/isar_service.dart';
 import 'screens/cari_account_screen.dart';
+import 'screens/asset_operation_screen.dart';
 import 'screens/expense_entry_screen.dart';
 import 'screens/fixed_payment_entry_screen.dart';
 import 'screens/income_entry_screen.dart';
+import 'screens/my_assets_screen.dart';
 import 'screens/onboarding_welcome_screen.dart';
 import 'services/local_notification_service.dart';
 import 'services/user_profile_service.dart';
@@ -165,6 +167,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   double get cashTotal => _dashboardData.cashTotal;
   double get bankTotal => _dashboardData.bankTotal;
   double get investmentCurrentTotal => _dashboardData.investmentCurrentTotal;
+  double get activeAssetTotal => _dashboardData.activeAssetTotal;
   bool get hasMissingInvestmentPrice => _dashboardData.hasMissingInvestmentPrice;
   double get cariReceivableTotal => _dashboardData.cariReceivableTotal;
   double get cariDebtTotal => _dashboardData.cariDebtTotal;
@@ -177,11 +180,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
   List<AccountPreviewRow> get bankPreviewRows => _dashboardData.bankPreviewRows;
   List<AccountPreviewRow> get investmentPreviewRows =>
       _dashboardData.investmentPreviewRows;
+  List<AccountPreviewRow> get assetPreviewRows => _dashboardData.assetPreviewRows;
   int get activeSubscriptionCount => _dashboardData.activeSubscriptionCount;
   int get dueSubscriptionCount => _dashboardData.dueSubscriptionCount;
   List<SubscriptionReminderRow> get subscriptionPreviewRows =>
       _dashboardData.subscriptionPreviewRows;
   List<CariPreviewRow> get cariPreviewRows => _dashboardData.cariPreviewRows;
+  bool get hasCariPreviewData => cariPreviewRows.isNotEmpty;
   String get profileName => _dashboardData.profileName;
   Uint8List? get profilePhoto => _dashboardData.profilePhoto;
 
@@ -203,6 +208,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _dashboardData = nextData;
       if (nextData.dueSubscriptionCount == 0) {
         showSubscriptionPreview = false;
+      }
+      if (nextData.cariPreviewRows.isEmpty) {
+        showCariPreview = false;
       }
       if (selectedAccountTypePreview == 'cash' &&
           nextData.cashTotal.abs() <= _zeroEpsilon) {
@@ -297,6 +305,40 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
+  Future<void> _openAssetBuyEntry() async {
+    final saved = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const AssetOperationScreen(mode: AssetOperationMode.buy),
+      ),
+    );
+    if (saved == true) {
+      await loadDashboard();
+    }
+  }
+
+  Future<void> _openAssetSellEntry() async {
+    final saved = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const AssetOperationScreen(mode: AssetOperationMode.sell),
+      ),
+    );
+    if (saved == true) {
+      await loadDashboard();
+    }
+  }
+
+  Future<void> _openMyAssets() async {
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const MyAssetsScreen(),
+      ),
+    );
+    await loadDashboard();
+  }
+
   Future<void> _openQuickActionSheet() async {
     await showModalBottomSheet<void>(
       context: context,
@@ -305,62 +347,145 @@ class _DashboardScreenState extends State<DashboardScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
-      builder: (sheetContext) {
-        return SafeArea(
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 6, 16, 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Yeni Islem',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Kaydetmek istedigin islemi sec.',
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [
+                  _quickSheetAction(
+                    icon: Icons.swap_horiz,
+                    label: 'Transfer',
+                    color: Colors.blue,
+                    onTap: () {
+                      Navigator.pop(sheetContext);
+                      _openTransferEntry();
+                    },
+                  ),
+                  _quickSheetAction(
+                    icon: Icons.handshake,
+                    label: 'Cari',
+                    color: Colors.orange,
+                    onTap: () {
+                      Navigator.pop(sheetContext);
+                      _openCariEntry();
+                    },
+                  ),
+                  _quickSheetAction(
+                    icon: Icons.trending_up,
+                    label: 'Yatirim',
+                    color: AppColors.brand,
+                    onTap: () {
+                      Navigator.pop(sheetContext);
+                      _openInvestmentEntry();
+                    },
+                  ),
+                  _quickSheetAction(
+                    icon: Icons.domain_add_outlined,
+                    label: 'Varlık İşlem',
+                    color: Colors.brown,
+                    onTap: () {
+                      Navigator.pop(sheetContext);
+                      _openAssetActionPopup();
+                    },
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openAssetActionPopup() async {
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      builder: (dialogContext) {
+        return Dialog(
+          insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(28),
+          ),
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 6, 16, 18),
+            padding: const EdgeInsets.fromLTRB(18, 20, 18, 18),
             child: Column(
               mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Yeni Islem',
+                  'Varlık İşlem',
                   style: TextStyle(
-                    fontSize: 22,
+                    fontSize: 20,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 8),
                 Text(
-                  'Kaydetmek istedigin islemi sec.',
+                  'Yapmak istedigin varlık operasyonunu sec.',
+                  textAlign: TextAlign.center,
                   style: TextStyle(
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
-                const SizedBox(height: 16),
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
+                const SizedBox(height: 18),
+                Row(
                   children: [
-                    _quickSheetAction(
-                      icon: Icons.swap_horiz,
-                      label: 'Transfer',
-                      color: Colors.blue,
-                      onTap: () {
-                        Navigator.pop(sheetContext);
-                        _openTransferEntry();
-                      },
+                    Expanded(
+                      child: _quickSheetAction(
+                        icon: Icons.add_home_work_outlined,
+                        label: 'Satın Al',
+                        color: AppColors.income,
+                        useHalfSheetWidth: false,
+                        onTap: () {
+                          Navigator.pop(dialogContext);
+                          _openAssetBuyEntry();
+                        },
+                      ),
                     ),
-                    _quickSheetAction(
-                      icon: Icons.handshake,
-                      label: 'Cari',
-                      color: Colors.orange,
-                      onTap: () {
-                        Navigator.pop(sheetContext);
-                        _openCariEntry();
-                      },
-                    ),
-                    _quickSheetAction(
-                      icon: Icons.trending_up,
-                      label: 'Yatirim',
-                      color: AppColors.brand,
-                      onTap: () {
-                        Navigator.pop(sheetContext);
-                        _openInvestmentEntry();
-                      },
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _quickSheetAction(
+                        icon: Icons.sell_outlined,
+                        label: 'Sat',
+                        color: Colors.orange,
+                        useHalfSheetWidth: false,
+                        onTap: () {
+                          Navigator.pop(dialogContext);
+                          _openAssetSellEntry();
+                        },
+                      ),
                     ),
                   ],
+                ),
+                const SizedBox(height: 14),
+                Center(
+                  child: TextButton(
+                    onPressed: () => Navigator.pop(dialogContext),
+                    child: const Text('İptal'),
+                  ),
                 ),
               ],
             ),
@@ -452,6 +577,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
             children: [
               _buildHeroSummaryCard(),
               _buildAssetBreakdownSection(),
+              if (assetPreviewRows.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                _buildOwnedAssetsSection(),
+              ],
               const SizedBox(height: 10),
               _buildCariAndTrackedRow(),
               if (plannedIncomeTotal.abs() > _zeroEpsilon ||
@@ -619,6 +748,99 @@ class _DashboardScreenState extends State<DashboardScreen> {
           children: [
             _buildAccountTypeSummaryRow(),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOwnedAssetsSection() {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(22),
+        onTap: _openMyAssets,
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(
+              color: Colors.brown.withValues(alpha: 0.18),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Theme.of(context).colorScheme.shadow.withValues(alpha: 0.05),
+                blurRadius: 18,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: Colors.brown.withValues(alpha: 0.10),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.domain_add_outlined,
+                      color: Colors.brown,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Text(
+                      'Varlıklarım',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 18,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    '${_fmtAmount(activeAssetTotal)} TL',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      color: Colors.brown,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              ...assetPreviewRows.take(4).map(
+                (row) => Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          row.name,
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                      Text(
+                        row.valueText,
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              if (assetPreviewRows.length > 4)
+                Text(
+                  '+${assetPreviewRows.length - 4} varlık daha',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -806,19 +1028,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildCariAndTrackedRow() {
+    final hasCari = hasCariPreviewData;
     final hasTracked = trackedQuotes.isNotEmpty;
+    final hasSubscriptions = dueSubscriptionCount > 0;
+    if (!hasCari && !hasTracked && !hasSubscriptions) {
+      return const SizedBox.shrink();
+    }
     return LayoutBuilder(
       builder: (context, constraints) {
         final compact = constraints.maxWidth < 1080;
         if (compact) {
           return Column(
             children: [
-              _buildCariSummaryCard(),
-              if (showCariPreview) ...[
+              if (hasCari) _buildCariSummaryCard(),
+              if (hasCari && showCariPreview) ...[
                 const SizedBox(height: 8),
                 _buildCariPreviewCard(),
               ],
-              if (dueSubscriptionCount > 0) ...[
+              if (hasSubscriptions) ...[
                 const SizedBox(height: 8),
                 _buildSubscriptionPaymentCard(),
                 if (showSubscriptionPreview) ...[
@@ -840,12 +1067,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
         if (!hasTracked) {
           return Column(
             children: [
-              _buildCariSummaryCard(),
-              if (showCariPreview) ...[
+              if (hasCari) _buildCariSummaryCard(),
+              if (hasCari && showCariPreview) ...[
                 const SizedBox(height: 8),
                 _buildCariPreviewCard(),
               ],
-              if (dueSubscriptionCount > 0) ...[
+              if (hasSubscriptions) ...[
                 const SizedBox(height: 8),
                 _buildSubscriptionPaymentCard(),
                 if (showSubscriptionPreview) ...[
@@ -864,12 +1091,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
               flex: flexes.$1,
               child: Column(
                 children: [
-                  _buildCariSummaryCard(),
-                  if (showCariPreview) ...[
+                  if (hasCari) _buildCariSummaryCard(),
+                  if (hasCari && showCariPreview) ...[
                     const SizedBox(height: 8),
                     _buildCariPreviewCard(),
                   ],
-                  if (dueSubscriptionCount > 0) ...[
+                  if (hasSubscriptions) ...[
                     const SizedBox(height: 8),
                     _buildSubscriptionPaymentCard(),
                     if (showSubscriptionPreview) ...[
@@ -1843,48 +2070,51 @@ class _DashboardScreenState extends State<DashboardScreen> {
     required String label,
     required Color color,
     required VoidCallback onTap,
+    bool useHalfSheetWidth = true,
   }) {
-    return SizedBox(
-      width: (MediaQuery.of(context).size.width - 56) / 2,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(22),
-          onTap: onTap,
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(22),
-              border: Border.all(color: color.withValues(alpha: 0.18)),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.75),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Icon(icon, color: color),
+    final child = Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(22),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: color.withValues(alpha: 0.18)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.75),
+                  borderRadius: BorderRadius.circular(14),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    label,
-                    style: TextStyle(
-                      color: color,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                    ),
+                child: Icon(icon, color: color),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
+    );
+    if (!useHalfSheetWidth) return child;
+    return SizedBox(
+      width: (MediaQuery.of(context).size.width - 56) / 2,
+      child: child,
     );
   }
 

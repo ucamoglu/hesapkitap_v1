@@ -10,6 +10,7 @@ class DashboardViewData {
   final double cashTotal;
   final double bankTotal;
   final double investmentCurrentTotal;
+  final double activeAssetTotal;
   final bool hasMissingInvestmentPrice;
   final double cariReceivableTotal;
   final double cariDebtTotal;
@@ -21,6 +22,7 @@ class DashboardViewData {
   final List<AccountPreviewRow> cashPreviewRows;
   final List<AccountPreviewRow> bankPreviewRows;
   final List<AccountPreviewRow> investmentPreviewRows;
+  final List<AccountPreviewRow> assetPreviewRows;
   final int activeSubscriptionCount;
   final int dueSubscriptionCount;
   final List<SubscriptionReminderRow> subscriptionPreviewRows;
@@ -36,6 +38,7 @@ class DashboardViewData {
     required this.cashTotal,
     required this.bankTotal,
     required this.investmentCurrentTotal,
+    required this.activeAssetTotal,
     required this.hasMissingInvestmentPrice,
     required this.cariReceivableTotal,
     required this.cariDebtTotal,
@@ -47,6 +50,7 @@ class DashboardViewData {
     required this.cashPreviewRows,
     required this.bankPreviewRows,
     required this.investmentPreviewRows,
+    required this.assetPreviewRows,
     required this.activeSubscriptionCount,
     required this.dueSubscriptionCount,
     required this.subscriptionPreviewRows,
@@ -64,6 +68,7 @@ class DashboardViewData {
       cashTotal: 0,
       bankTotal: 0,
       investmentCurrentTotal: 0,
+      activeAssetTotal: 0,
       hasMissingInvestmentPrice: false,
       cariReceivableTotal: 0,
       cariDebtTotal: 0,
@@ -75,6 +80,7 @@ class DashboardViewData {
       cashPreviewRows: <AccountPreviewRow>[],
       bankPreviewRows: <AccountPreviewRow>[],
       investmentPreviewRows: <AccountPreviewRow>[],
+      assetPreviewRows: <AccountPreviewRow>[],
       activeSubscriptionCount: 0,
       dueSubscriptionCount: 0,
       subscriptionPreviewRows: <SubscriptionReminderRow>[],

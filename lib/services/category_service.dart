@@ -5,6 +5,8 @@ import '../models/category.dart';
 import '../models/finance_transaction.dart';
 
 class CategoryService {
+  static const String assetPurchaseSystemKey = 'asset_purchase';
+
   static void _validateExpenseCategory(Category category) {
     final name = category.name.trim();
     if (name.isEmpty) {
@@ -172,5 +174,41 @@ class CategoryService {
         await isar.categorys.put(category);
       }
     });
+  }
+
+  static Future<Category> ensureAssetPurchaseCategory() async {
+    final isar = IsarService.isar;
+    final existing = await isar.categorys
+        .where()
+        .filter()
+        .typeEqualTo('expense')
+        .and()
+        .systemKeyEqualTo(assetPurchaseSystemKey)
+        .findFirst();
+    if (existing != null) {
+      if (!existing.isActive || !existing.isSystemGenerated) {
+        await isar.writeTxn(() async {
+          existing
+            ..name = 'Varlık Alımı'
+            ..isActive = true
+            ..isSystemGenerated = true
+            ..systemKey = assetPurchaseSystemKey;
+          await isar.categorys.put(existing);
+        });
+      }
+      return existing;
+    }
+
+    final category = Category()
+      ..name = 'Varlık Alımı'
+      ..type = 'expense'
+      ..isActive = true
+      ..isSystemGenerated = true
+      ..systemKey = assetPurchaseSystemKey
+      ..createdAt = DateTime.now();
+    await isar.writeTxn(() async {
+      await isar.categorys.put(category);
+    });
+    return category;
   }
 }

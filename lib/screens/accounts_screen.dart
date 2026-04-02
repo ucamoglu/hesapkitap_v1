@@ -38,6 +38,8 @@ class _AccountsScreenState extends State<AccountsScreen> {
         return Colors.blue;
       case 'bank':
         return colorScheme.primary;
+      case 'balance':
+        return Colors.deepPurple;
       case 'investment':
         return Colors.teal;
       default:
@@ -94,6 +96,9 @@ class _AccountsScreenState extends State<AccountsScreen> {
   // Hesap tipine gore kart alt aciklamasini ve gerekiyorsa canli degeri uretir.
   String _accountSubtitle(Account acc) {
     if (acc.type != 'investment') {
+      if (acc.type == 'balance') {
+        return 'Denge Hesabı\nHayalet hesap • Özetlerde görünmez';
+      }
       if (acc.type == 'cash') {
         return 'Kasa\nBakiye: ${_fmtAmount(acc.balance)} TL';
       }
@@ -250,6 +255,8 @@ class _AccountsScreenState extends State<AccountsScreen> {
         return Icons.account_balance_wallet;
       case "bank":
         return Icons.account_balance;
+      case "balance":
+        return Icons.blur_on;
       case "investment":
         return Icons.trending_up;
       default:
@@ -352,20 +359,28 @@ class _AccountsScreenState extends State<AccountsScreen> {
                         borderRadius: BorderRadius.circular(18),
                       ),
                       onSelected: (value) => _handleMenuAction(acc, value),
-                      itemBuilder: (context) => [
-                        const PopupMenuItem(
-                          value: "edit",
-                          child: Text("Düzenle"),
-                        ),
-                        PopupMenuItem(
-                          value: "toggle",
-                          child: Text(acc.isActive ? "Pasif Yap" : "Aktif Yap"),
-                        ),
-                        const PopupMenuItem(
-                          value: "delete",
-                          child: Text("Sil"),
-                        ),
-                      ],
+                      itemBuilder: (context) {
+                        final isProtectedBalanceAccount =
+                            AccountService.isProtectedBalanceAccount(acc);
+                        return [
+                          const PopupMenuItem(
+                            value: "edit",
+                            child: Text("Düzenle"),
+                          ),
+                          if (!isProtectedBalanceAccount)
+                            PopupMenuItem(
+                              value: "toggle",
+                              child: Text(
+                                acc.isActive ? "Pasif Yap" : "Aktif Yap",
+                              ),
+                            ),
+                          if (!isProtectedBalanceAccount)
+                            const PopupMenuItem(
+                              value: "delete",
+                              child: Text("Sil"),
+                            ),
+                        ];
+                      },
                     ),
                     tileColor: softColor,
                     shape: RoundedRectangleBorder(
@@ -410,6 +425,9 @@ class _AccountsScreenState extends State<AccountsScreen> {
       excludeId: initialAccount?.id,
     );
     if (!mounted) return;
+    final isProtectedBalanceAccount =
+        initialAccount != null &&
+        AccountService.isProtectedBalanceAccount(initialAccount);
     _disposeDialogControllers();
     final nameController =
         _dialogNameController =
@@ -473,46 +491,49 @@ class _AccountsScreenState extends State<AccountsScreen> {
                         labelText: "Hesap Adı",
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
-                      initialValue: selectedType,
-                      items: const [
-                        DropdownMenuItem(
-                          value: "cash",
-                          child: Text("Kasa"),
+                    if (!isProtectedBalanceAccount) ...[
+                      const SizedBox(height: 12),
+                      DropdownButtonFormField<String>(
+                        initialValue: selectedType,
+                        items: const [
+                          DropdownMenuItem(
+                            value: "cash",
+                            child: Text("Kasa"),
+                          ),
+                          DropdownMenuItem(
+                            value: "bank",
+                            child: Text("Banka"),
+                          ),
+                          DropdownMenuItem(
+                            value: "investment",
+                            child: Text("Yatırım"),
+                          ),
+                        ],
+                        onChanged: (value) {
+                          setState(() {
+                            selectedType = value!;
+                            if (selectedType != "investment") {
+                              selectedInvestmentSubtype = null;
+                              selectedSymbol = null;
+                            }
+                            if (selectedType != "bank") {
+                              selectedBankSubtype = null;
+                              selectedLinkedBankAccountId = null;
+                              statementDayController.clear();
+                              paymentDueDayController.clear();
+                            } else {
+                              selectedBankSubtype ??=
+                                  AccountService.bankSubtypeBankAccount;
+                            }
+                          });
+                        },
+                        decoration: const InputDecoration(
+                          labelText: "Hesap Türü",
                         ),
-                        DropdownMenuItem(
-                          value: "bank",
-                          child: Text("Banka"),
-                        ),
-                        DropdownMenuItem(
-                          value: "investment",
-                          child: Text("Yatırım"),
-                        ),
-                      ],
-                      onChanged: (value) {
-                        setState(() {
-                          selectedType = value!;
-                          if (selectedType != "investment") {
-                            selectedInvestmentSubtype = null;
-                            selectedSymbol = null;
-                          }
-                          if (selectedType != "bank") {
-                            selectedBankSubtype = null;
-                            selectedLinkedBankAccountId = null;
-                            statementDayController.clear();
-                            paymentDueDayController.clear();
-                          } else {
-                            selectedBankSubtype ??=
-                                AccountService.bankSubtypeBankAccount;
-                          }
-                        });
-                      },
-                      decoration: const InputDecoration(
-                        labelText: "Hesap Türü",
                       ),
-                    ),
-                    if (selectedType == "bank") ...[
+                    ],
+                    if (!isProtectedBalanceAccount &&
+                        selectedType == "bank") ...[
                       const SizedBox(height: 12),
                       DropdownButtonFormField<String>(
                         initialValue: selectedBankSubtype,
@@ -545,7 +566,8 @@ class _AccountsScreenState extends State<AccountsScreen> {
                         ),
                       ),
                     ],
-                    if (selectedType == "bank" &&
+                    if (!isProtectedBalanceAccount &&
+                        selectedType == "bank" &&
                         selectedBankSubtype ==
                             AccountService.bankSubtypeBankAccount) ...[
                       const SizedBox(height: 12),
@@ -562,7 +584,8 @@ class _AccountsScreenState extends State<AccountsScreen> {
                         ),
                       ),
                     ],
-                    if (selectedType == "bank" &&
+                    if (!isProtectedBalanceAccount &&
+                        selectedType == "bank" &&
                         selectedBankSubtype ==
                             AccountService.bankSubtypeCreditCard) ...[
                       const SizedBox(height: 12),
@@ -626,7 +649,8 @@ class _AccountsScreenState extends State<AccountsScreen> {
                           ),
                         ),
                     ],
-                    if (selectedType == "investment") ...[
+                    if (!isProtectedBalanceAccount &&
+                        selectedType == "investment") ...[
                       const SizedBox(height: 12),
                       DropdownButtonFormField<String>(
                         initialValue: selectedInvestmentSubtype,
@@ -659,7 +683,8 @@ class _AccountsScreenState extends State<AccountsScreen> {
                         ),
                       ),
                     ],
-                    if (selectedType == "investment" &&
+                    if (!isProtectedBalanceAccount &&
+                        selectedType == "investment" &&
                         selectedInvestmentSubtype == "currency")
                       DropdownButtonFormField<String>(
                         initialValue: selectedSymbol,
@@ -680,7 +705,8 @@ class _AccountsScreenState extends State<AccountsScreen> {
                           labelText: "Kayıtlı Döviz Seçimi",
                         ),
                       ),
-                    if (selectedType == "investment" &&
+                    if (!isProtectedBalanceAccount &&
+                        selectedType == "investment" &&
                         selectedInvestmentSubtype == "metal")
                       DropdownButtonFormField<String>(
                         initialValue: selectedSymbol,
@@ -701,7 +727,8 @@ class _AccountsScreenState extends State<AccountsScreen> {
                           labelText: "Kayıtlı Kıymetli Maden Seçimi",
                         ),
                       ),
-                    if (selectedType == "investment" &&
+                    if (!isProtectedBalanceAccount &&
+                        selectedType == "investment" &&
                         selectedInvestmentSubtype == "stock")
                       DropdownButtonFormField<String>(
                         initialValue: selectedSymbol,
@@ -722,7 +749,8 @@ class _AccountsScreenState extends State<AccountsScreen> {
                           labelText: "Kayıtlı Hisse Seçimi",
                         ),
                       ),
-                    if (selectedType == "investment" &&
+                    if (!isProtectedBalanceAccount &&
+                        selectedType == "investment" &&
                         selectedInvestmentSubtype == "crypto")
                       DropdownButtonFormField<String>(
                         initialValue: selectedSymbol,
@@ -743,7 +771,8 @@ class _AccountsScreenState extends State<AccountsScreen> {
                           labelText: "Kayıtlı Kripto Seçimi",
                         ),
                       ),
-                    if (selectedType == "investment" &&
+                    if (!isProtectedBalanceAccount &&
+                        selectedType == "investment" &&
                         selectedInvestmentSubtype == "currency" &&
                         trackedCurrencies.isEmpty)
                       const Padding(
@@ -753,7 +782,8 @@ class _AccountsScreenState extends State<AccountsScreen> {
                           style: TextStyle(color: Colors.red),
                         ),
                       ),
-                    if (selectedType == "investment" &&
+                    if (!isProtectedBalanceAccount &&
+                        selectedType == "investment" &&
                         selectedInvestmentSubtype == "metal" &&
                         trackedMetals.isEmpty)
                       const Padding(
@@ -763,7 +793,8 @@ class _AccountsScreenState extends State<AccountsScreen> {
                           style: TextStyle(color: Colors.red),
                         ),
                       ),
-                    if (selectedType == "investment" &&
+                    if (!isProtectedBalanceAccount &&
+                        selectedType == "investment" &&
                         selectedInvestmentSubtype == "stock" &&
                         trackedStocks.isEmpty)
                       const Padding(
@@ -773,7 +804,8 @@ class _AccountsScreenState extends State<AccountsScreen> {
                           style: TextStyle(color: Colors.red),
                         ),
                       ),
-                    if (selectedType == "investment" &&
+                    if (!isProtectedBalanceAccount &&
+                        selectedType == "investment" &&
                         selectedInvestmentSubtype == "crypto" &&
                         trackedCryptos.isEmpty)
                       const Padding(
@@ -801,18 +833,22 @@ class _AccountsScreenState extends State<AccountsScreen> {
                   return;
                 }
 
-                if (selectedType == "bank" && selectedBankSubtype == null) {
+                if (!isProtectedBalanceAccount &&
+                    selectedType == "bank" &&
+                    selectedBankSubtype == null) {
                   _showSnack("Banka türü için hesap alt türü seçiniz.");
                   return;
                 }
-                if (selectedType == "bank" &&
+                if (!isProtectedBalanceAccount &&
+                    selectedType == "bank" &&
                     selectedBankSubtype ==
                         AccountService.bankSubtypeCreditCard &&
                     selectedLinkedBankAccountId == null) {
                   _showSnack("Kredi kartı için bağlı banka hesabı seçiniz.");
                   return;
                 }
-                if (selectedType == "bank" &&
+                if (!isProtectedBalanceAccount &&
+                    selectedType == "bank" &&
                     selectedBankSubtype ==
                         AccountService.bankSubtypeCreditCard &&
                     parentBankAccounts.isEmpty) {
@@ -828,14 +864,16 @@ class _AccountsScreenState extends State<AccountsScreen> {
                       overdraftLimitController.text,
                     ) ??
                     0;
-                if (selectedType == "bank" &&
+                if (!isProtectedBalanceAccount &&
+                    selectedType == "bank" &&
                     selectedBankSubtype ==
                         AccountService.bankSubtypeBankAccount &&
                     overdraftLimit < 0) {
                   _showSnack("Ek hesap tutarı negatif olamaz.");
                   return;
                 }
-                if (selectedType == "bank" &&
+                if (!isProtectedBalanceAccount &&
+                    selectedType == "bank" &&
                     selectedBankSubtype ==
                         AccountService.bankSubtypeCreditCard &&
                     (statementDay == null ||
@@ -844,7 +882,8 @@ class _AccountsScreenState extends State<AccountsScreen> {
                   _showSnack("Hesap kesim günü 1-31 arasında olmalıdır.");
                   return;
                 }
-                if (selectedType == "bank" &&
+                if (!isProtectedBalanceAccount &&
+                    selectedType == "bank" &&
                     selectedBankSubtype ==
                         AccountService.bankSubtypeCreditCard &&
                     (paymentDueDay == null ||
@@ -853,18 +892,21 @@ class _AccountsScreenState extends State<AccountsScreen> {
                   _showSnack("Son ödeme günü 1-31 arasında olmalıdır.");
                   return;
                 }
-                if (selectedType == "investment" &&
+                if (!isProtectedBalanceAccount &&
+                    selectedType == "investment" &&
                     selectedInvestmentSubtype == null) {
                   _showSnack("Yatırım hesabı için alt tür seçiniz.");
                   return;
                 }
-                if (selectedType == "investment" &&
+                if (!isProtectedBalanceAccount &&
+                    selectedType == "investment" &&
                     selectedInvestmentSubtype == "currency" &&
                     selectedSymbol == null) {
                   _showSnack("Döviz alt türü için kayıtlı döviz seçiniz.");
                   return;
                 }
-                if (selectedType == "investment" &&
+                if (!isProtectedBalanceAccount &&
+                    selectedType == "investment" &&
                     selectedInvestmentSubtype == "metal" &&
                     selectedSymbol == null) {
                   _showSnack(
@@ -872,13 +914,15 @@ class _AccountsScreenState extends State<AccountsScreen> {
                   );
                   return;
                 }
-                if (selectedType == "investment" &&
+                if (!isProtectedBalanceAccount &&
+                    selectedType == "investment" &&
                     selectedInvestmentSubtype == "stock" &&
                     selectedSymbol == null) {
                   _showSnack("Borsa alt türü için kayıtlı hisse seçiniz.");
                   return;
                 }
-                if (selectedType == "investment" &&
+                if (!isProtectedBalanceAccount &&
+                    selectedType == "investment" &&
                     selectedInvestmentSubtype == "crypto" &&
                     selectedSymbol == null) {
                   _showSnack("Kripto alt türü için kayıtlı kripto seçiniz.");
@@ -886,33 +930,35 @@ class _AccountsScreenState extends State<AccountsScreen> {
                 }
 
                 final account = initialAccount ?? Account();
-                account
-                  ..name = name
-                  ..type = selectedType
-                  ..bankSubtype =
-                      selectedType == 'bank' ? selectedBankSubtype : null
-                  ..overdraftLimit = selectedType == 'bank' &&
-                          selectedBankSubtype ==
-                              AccountService.bankSubtypeBankAccount
-                      ? overdraftLimit
-                      : 0
-                  ..linkedBankAccountId = selectedType == 'bank' &&
-                          selectedBankSubtype ==
-                              AccountService.bankSubtypeCreditCard
-                      ? selectedLinkedBankAccountId
-                      : null
-                  ..statementDay = selectedType == 'bank' &&
-                          selectedBankSubtype ==
-                              AccountService.bankSubtypeCreditCard
-                      ? statementDay
-                      : null
-                  ..paymentDueDay = selectedType == 'bank' &&
-                          selectedBankSubtype ==
-                              AccountService.bankSubtypeCreditCard
-                      ? paymentDueDay
-                      : null
-                  ..investmentSubtype = selectedInvestmentSubtype
-                  ..investmentSymbol = selectedSymbol;
+                account.name = name;
+                if (!isProtectedBalanceAccount) {
+                  account
+                    ..type = selectedType
+                    ..bankSubtype =
+                        selectedType == 'bank' ? selectedBankSubtype : null
+                    ..overdraftLimit = selectedType == 'bank' &&
+                            selectedBankSubtype ==
+                                AccountService.bankSubtypeBankAccount
+                        ? overdraftLimit
+                        : 0
+                    ..linkedBankAccountId = selectedType == 'bank' &&
+                            selectedBankSubtype ==
+                                AccountService.bankSubtypeCreditCard
+                        ? selectedLinkedBankAccountId
+                        : null
+                    ..statementDay = selectedType == 'bank' &&
+                            selectedBankSubtype ==
+                                AccountService.bankSubtypeCreditCard
+                        ? statementDay
+                        : null
+                    ..paymentDueDay = selectedType == 'bank' &&
+                            selectedBankSubtype ==
+                                AccountService.bankSubtypeCreditCard
+                        ? paymentDueDay
+                        : null
+                    ..investmentSubtype = selectedInvestmentSubtype
+                    ..investmentSymbol = selectedSymbol;
+                }
 
                 if (initialAccount == null) {
                   account
@@ -997,11 +1043,11 @@ class _AccountsScreenState extends State<AccountsScreen> {
         !account.isActive,
       );
       await loadAccounts();
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Bakiyesi 0'dan büyük hesap pasife alınamaz."),
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
         ),
       );
     }

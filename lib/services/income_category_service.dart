@@ -5,6 +5,8 @@ import '../models/finance_transaction.dart';
 import '../models/income_category.dart';
 
 class IncomeCategoryService {
+  static const String assetSaleSystemKey = 'asset_sale';
+
   static void _validateCategory(IncomeCategory category) {
     final name = category.name.trim();
     if (name.isEmpty) {
@@ -154,5 +156,38 @@ class IncomeCategoryService {
         await isar.incomeCategorys.put(category);
       }
     });
+  }
+
+  static Future<IncomeCategory> ensureAssetSaleCategory() async {
+    final isar = IsarService.isar;
+    final existing = await isar.incomeCategorys
+        .where()
+        .filter()
+        .systemKeyEqualTo(assetSaleSystemKey)
+        .findFirst();
+    if (existing != null) {
+      if (!existing.isActive || !existing.isSystemGenerated) {
+        await isar.writeTxn(() async {
+          existing
+            ..name = 'Varlık Satışı'
+            ..isActive = true
+            ..isSystemGenerated = true
+            ..systemKey = assetSaleSystemKey;
+          await isar.incomeCategorys.put(existing);
+        });
+      }
+      return existing;
+    }
+
+    final category = IncomeCategory()
+      ..name = 'Varlık Satışı'
+      ..isActive = true
+      ..isSystemGenerated = true
+      ..systemKey = assetSaleSystemKey
+      ..createdAt = DateTime.now();
+    await isar.writeTxn(() async {
+      await isar.incomeCategorys.put(category);
+    });
+    return category;
   }
 }

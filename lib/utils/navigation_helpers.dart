@@ -23,6 +23,7 @@ import '../screens/income_category_screen.dart';
 import '../screens/income_expense_transactions_screen.dart';
 import '../screens/income_planning_screen.dart';
 import '../screens/investment_tracking_screen.dart';
+import '../screens/my_assets_screen.dart';
 import '../screens/precious_metal_tracking_screen.dart';
 import '../screens/profile_screen.dart';
 import '../screens/stock_tracking_screen.dart';
@@ -57,6 +58,7 @@ enum _MenuItem {
   transactionsHistory,
   accountHistory,
   investmentTracking,
+  myAssets,
   assetStatus,
   cariSummary,
   cariSummaryForeign,
@@ -141,6 +143,11 @@ void rememberDrawerSelectionForScreen(Widget screen) {
   }
   if (screen is InvestmentTrackingScreen) {
     _lastSelectedMenuItem = _MenuItem.investmentTracking;
+    _lastExpandedSection = _MenuSection.analysis;
+    return;
+  }
+  if (screen is MyAssetsScreen) {
+    _lastSelectedMenuItem = _MenuItem.myAssets;
     _lastExpandedSection = _MenuSection.analysis;
     return;
   }
@@ -802,6 +809,20 @@ class _AppMenuDrawerState extends State<_AppMenuDrawer> {
                   section: _MenuSection.analysis,
                 );
                 _openScreen(const InvestmentTrackingScreen());
+              },
+            ),
+            _menuItem(
+              context: context,
+              item: _MenuItem.myAssets,
+              icon: Icons.domain_add_outlined,
+              color: Colors.brown,
+              title: 'Varlıklarım',
+              onTap: () {
+                _rememberSelection(
+                  item: _MenuItem.myAssets,
+                  section: _MenuSection.analysis,
+                );
+                _openScreen(const MyAssetsScreen());
               },
             ),
             _menuItem(

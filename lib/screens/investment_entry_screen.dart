@@ -61,6 +61,7 @@ class _InvestmentEntryScreenState extends State<InvestmentEntryScreen> {
 
   bool _loading = true;
   bool _saving = false;
+  int? _lastBalanceInfoAccountId;
 
   bool get _isEditMode => widget.initialTransaction != null;
 
@@ -68,6 +69,28 @@ class _InvestmentEntryScreenState extends State<InvestmentEntryScreen> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message)),
+    );
+  }
+
+  Future<void> _maybeShowBalanceAccountInfo(Account? account) async {
+    if (account == null || !AccountService.isGhostAccount(account)) return;
+    if (_lastBalanceInfoAccountId == account.id) return;
+    _lastBalanceInfoAccountId = account.id;
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Bilgilendirme'),
+        content: const Text(
+          'Bu hesap hibe, bağış, ilk kayıt hesabı olarak kullanılmalıdır.',
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Anladım'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -89,8 +112,8 @@ class _InvestmentEntryScreenState extends State<InvestmentEntryScreen> {
   Future<void> _load() async {
     final results = await Future.wait([
       AccountService.getActiveAccounts(),
-      AccountService.getActiveExpenseAccounts(),
-      AccountService.getActiveCashflowAccounts(),
+      AccountService.getActiveGhostSelectableExpenseAccounts(),
+      AccountService.getActiveGhostSelectableCashflowAccounts(),
       CreditCardStatementService.getAll(),
       if (_isEditMode) AccountService.getAllAccounts(),
       TrackedCurrencyService.getAll(),
@@ -146,22 +169,22 @@ class _InvestmentEntryScreenState extends State<InvestmentEntryScreen> {
     }
     final buyPaymentMap = <int, Account>{};
     for (final a in [...buyPaymentAccounts, ...extraCash]) {
-      if (AccountService.isExpensePaymentAccount(a)) {
+      if (AccountService.isGhostSelectableExpenseAccount(a)) {
         buyPaymentMap[a.id] = a;
       }
     }
     final sellTargetMap = <int, Account>{};
     for (final a in [...sellTargetAccounts, ...extraCash]) {
-      if (AccountService.isCashflowAccount(a)) {
+      if (AccountService.isGhostSelectableCashflowAccount(a)) {
         sellTargetMap[a.id] = a;
       }
     }
     final investmentAccounts = investmentMap.values.toList()
       ..sort((a, b) => a.name.compareTo(b.name));
-    final normalizedBuyPaymentAccounts = buyPaymentMap.values.toList()
-      ..sort((a, b) => a.name.compareTo(b.name));
-    final normalizedSellTargetAccounts = sellTargetMap.values.toList()
-      ..sort((a, b) => a.name.compareTo(b.name));
+    final normalizedBuyPaymentAccounts =
+        AccountService.sortWithGhostLast(buyPaymentMap.values);
+    final normalizedSellTargetAccounts =
+        AccountService.sortWithGhostLast(sellTargetMap.values);
 
     if (!mounted) return;
     final tx = widget.initialTransaction;
@@ -207,6 +230,7 @@ class _InvestmentEntryScreenState extends State<InvestmentEntryScreen> {
       _initialInstallmentCountText = _installmentCountController.text;
       _loading = false;
     });
+    _syncAmountForBalanceAccount();
     _refreshSellPreview();
   }
 
@@ -365,6 +389,21 @@ class _InvestmentEntryScreenState extends State<InvestmentEntryScreen> {
     return _parseQuantity(_quantityController.text);
   }
 
+  bool get _isBalanceBackedBuy {
+    final cashAccount = _selectedCashAccount();
+    return _txType == 'buy' &&
+        cashAccount != null &&
+        AccountService.isGhostAccount(cashAccount);
+  }
+
+  void _syncAmountForBalanceAccount() {
+    if (!_isBalanceBackedBuy) return;
+    final zeroAmount = _fmtMoney(0);
+    if (_amountController.text != zeroAmount) {
+      _amountController.text = zeroAmount;
+    }
+  }
+
   bool get _supportsInstallment {
     final cashAccount = _selectedCashAccount();
     return !_isEditMode &&
@@ -376,6 +415,9 @@ class _InvestmentEntryScreenState extends State<InvestmentEntryScreen> {
   bool _hasValidInputsForPreview() {
     final amount = _liveAmount();
     final quantity = _liveQuantity();
+    if (_isBalanceBackedBuy) {
+      return quantity != null && quantity > 0;
+    }
     return amount != null && amount > 0 && quantity != null && quantity > 0;
   }
 
@@ -391,7 +433,9 @@ class _InvestmentEntryScreenState extends State<InvestmentEntryScreen> {
   double? _projectedCashBalance() {
     final cashAccount = _selectedCashAccount();
     final amount = _liveAmount();
-    if (cashAccount == null || amount == null || amount <= 0) return null;
+    if (cashAccount == null || amount == null || amount < 0) return null;
+    if (_isBalanceBackedBuy) return cashAccount.balance;
+    if (amount <= 0) return null;
     if (_txType == 'buy') {
       return cashAccount.isCreditCard
           ? cashAccount.balance - amount
@@ -408,16 +452,18 @@ class _InvestmentEntryScreenState extends State<InvestmentEntryScreen> {
 
     if (account == null ||
         cashAccount == null ||
-        amount == null ||
-        amount <= 0 ||
         quantity == null ||
         quantity <= 0) {
       return null;
     }
+    if (!_isBalanceBackedBuy && (amount == null || amount <= 0)) {
+      return null;
+    }
+    final effectiveAmount = amount!;
 
     if (_txType == 'buy' &&
         !cashAccount.isCreditCard &&
-        cashAccount.balance + 1e-9 < amount) {
+        cashAccount.balance + 1e-9 < effectiveAmount) {
       return 'Kaynak hesap bakiyesi bu alış tutarını karşılamıyor.';
     }
     if (_txType == 'sell' && cashAccount.isCreditCard) {
@@ -558,7 +604,11 @@ class _InvestmentEntryScreenState extends State<InvestmentEntryScreen> {
     final cashAccount = _selectedCashAccount();
     final installmentCount = int.tryParse(_installmentCountController.text);
 
-    if (amount == null || amount <= 0 || quantity == null || quantity <= 0) {
+    if ((_isBalanceBackedBuy
+            ? amount == null || amount < 0
+            : amount == null || amount <= 0) ||
+        quantity == null ||
+        quantity <= 0) {
       _showSnack('Geçerli tutar ve miktar giriniz.');
       return;
     }
@@ -584,7 +634,8 @@ class _InvestmentEntryScreenState extends State<InvestmentEntryScreen> {
       return;
     }
 
-    final unitPrice = amount / quantity;
+    final effectiveAmount = amount;
+    final double unitPrice = _isBalanceBackedBuy ? 0 : effectiveAmount / quantity;
     final key = _buildCalculationKey(
       accountId: account.id,
       txType: _txType,
@@ -624,7 +675,7 @@ class _InvestmentEntryScreenState extends State<InvestmentEntryScreen> {
           type: _txType,
           quantity: quantity,
           unitPrice: unitPrice,
-          total: amount,
+          total: effectiveAmount,
           date: _selectedDate,
         );
       } else {
@@ -635,7 +686,7 @@ class _InvestmentEntryScreenState extends State<InvestmentEntryScreen> {
           type: _txType,
           quantity: quantity,
           unitPrice: unitPrice,
-          total: amount,
+          total: effectiveAmount,
           date: _selectedDate,
           syncCreditCardStatement: !_isInstallment,
         );
@@ -644,7 +695,7 @@ class _InvestmentEntryScreenState extends State<InvestmentEntryScreen> {
             investmentTransactionId: createdId,
             creditCardAccount: cashAccount,
             transactionDate: _selectedDate,
-            totalAmount: amount,
+            totalAmount: effectiveAmount,
             installmentCount: installmentCount!,
           );
         }
@@ -747,6 +798,9 @@ class _InvestmentEntryScreenState extends State<InvestmentEntryScreen> {
   }
 
   String _cashAccountLabel(Account a) {
+    if (AccountService.isGhostAccount(a)) {
+      return '${a.name} • DENGE hesabı';
+    }
     if (a.isCreditCard) {
       return '${a.name} • Kart Borcu: ${_fmtMoney(a.balance.abs())} TL';
     }
@@ -926,6 +980,7 @@ class _InvestmentEntryScreenState extends State<InvestmentEntryScreen> {
                             onSelectionChanged: (set) {
                               setState(() {
                                 _txType = set.first;
+                                _syncAmountForBalanceAccount();
                                 final availableAccounts =
                                     _availableCashAccounts();
                                 if (!_supportsInstallment) {
@@ -996,15 +1051,19 @@ class _InvestmentEntryScreenState extends State<InvestmentEntryScreen> {
                                   ),
                                 )
                                 .toList(),
-                            onChanged: (v) {
+                            onChanged: (v) async {
                               setState(() {
                                 _selectedCashAccountId = v;
+                                _syncAmountForBalanceAccount();
                                 if (!_supportsInstallment) {
                                   _isInstallment = false;
                                   _installmentCountController.clear();
                                 }
                                 _invalidateCalculation();
                               });
+                              await _maybeShowBalanceAccountInfo(
+                                _selectedCashAccount(),
+                              );
                               _refreshSellPreview();
                             },
                             validator: (v) =>
@@ -1087,33 +1146,35 @@ class _InvestmentEntryScreenState extends State<InvestmentEntryScreen> {
                               child: Text(_fmtDate(_selectedDate)),
                             ),
                           ),
-                          TextFormField(
-                            controller: _amountController,
-                            keyboardType: const TextInputType.numberWithOptions(
-                                decimal: true),
-                            inputFormatters: const [
-                              TurkishMoneyInputFormatter()
-                            ],
-                            decoration: const InputDecoration(
-                              labelText: 'Tutar (TL)',
-                              border: OutlineInputBorder(),
+                          if (!_isBalanceBackedBuy) ...[
+                            TextFormField(
+                              controller: _amountController,
+                              keyboardType: const TextInputType.numberWithOptions(
+                                  decimal: true),
+                              inputFormatters: const [
+                                TurkishMoneyInputFormatter()
+                              ],
+                              decoration: const InputDecoration(
+                                labelText: 'Tutar (TL)',
+                                border: OutlineInputBorder(),
+                              ),
+                              onChanged: (_) {
+                                setState(() {
+                                  _invalidateCalculation();
+                                });
+                                _refreshSellPreview();
+                              },
+                              validator: (v) {
+                                final parsed =
+                                    TurkishMoneyInputFormatter.parse(v ?? '');
+                                if (parsed == null || parsed <= 0) {
+                                  return 'Geçerli tutar giriniz.';
+                                }
+                                return null;
+                              },
                             ),
-                            onChanged: (_) {
-                              setState(() {
-                                _invalidateCalculation();
-                              });
-                              _refreshSellPreview();
-                            },
-                            validator: (v) {
-                              final parsed =
-                                  TurkishMoneyInputFormatter.parse(v ?? '');
-                              if (parsed == null || parsed <= 0) {
-                                return 'Geçerli tutar giriniz.';
-                              }
-                              return null;
-                            },
-                          ),
-                          const SizedBox(height: 12),
+                            const SizedBox(height: 12),
+                          ],
                           TextFormField(
                             controller: _quantityController,
                             keyboardType: const TextInputType.numberWithOptions(

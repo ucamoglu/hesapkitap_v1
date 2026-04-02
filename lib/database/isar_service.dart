@@ -4,6 +4,7 @@ import 'package:isar/isar.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../models/account.dart';
+import '../models/asset_record.dart';
 import '../models/category.dart';
 import '../models/credit_card_installment.dart';
 import '../models/credit_card_payment.dart';
@@ -33,6 +34,7 @@ class IsarService {
   static late Isar isar;
   static bool get encryptedAtRest => false;
   static const _resettableSupportFiles = <String>[
+    'asset_records_v1.json',
     'sync_metadata_v1.json',
     'sync_preferences_v1.json',
   ];
@@ -48,6 +50,7 @@ class IsarService {
     isar = await Isar.open(
       [
         AccountSchema,
+        AssetRecordSchema,
         CategorySchema,
         CreditCardInstallmentSchema,
         CreditCardPaymentSchema,

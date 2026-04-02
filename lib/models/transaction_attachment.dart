@@ -6,7 +6,7 @@ part 'transaction_attachment.g.dart';
 class TransactionAttachment {
   Id id = Isar.autoIncrement;
 
-  // finance / cari / investment
+  // finance / cari / investment / asset
   late String ownerType;
 
   // Ekin bagli oldugu yerel hareket ID'si.

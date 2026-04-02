@@ -31,6 +31,8 @@ class Account {
   double balance = 0;
   @Name('zz_is_active')
   bool isActive = true;
+  bool isSystemGenerated = false;
+  String? systemKey;
 
   // Hesabin ilk olusturulma zamani.
   late DateTime createdAt;
@@ -48,6 +50,8 @@ class Account {
   bool get isCreditCard =>
       type == 'bank' && effectiveBankSubtype == 'credit_card';
 
+  bool get isBalanceAccount => type == 'balance';
+
   bool get supportsOverdraft =>
       type == 'bank' && effectiveBankSubtype == 'bank_account';
 
@@ -56,6 +60,7 @@ class Account {
 
   bool canWithdraw(double amount) {
     if (amount <= 0) return true;
+    if (isBalanceAccount) return true;
     if (isCreditCard) return true;
     return balance + effectiveOverdraftLimit + 1e-9 >= amount;
   }

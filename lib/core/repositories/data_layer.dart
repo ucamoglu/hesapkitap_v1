@@ -1,6 +1,7 @@
 import '../sync/sync_engine.dart';
 import '../sync/sync_change_tracker.dart';
 import 'contracts/account_repository.dart';
+import 'contracts/asset_repository.dart';
 import 'contracts/cari_card_repository.dart';
 import 'contracts/cari_transaction_repository.dart';
 import 'contracts/expense_category_repository.dart';
@@ -13,6 +14,7 @@ import 'contracts/subscription_repository.dart';
 import 'contracts/transfer_repository.dart';
 import 'contracts/user_profile_repository.dart';
 import 'local/local_account_repository.dart';
+import 'local/local_asset_repository.dart';
 import 'local/local_cari_card_repository.dart';
 import 'local/local_cari_transaction_repository.dart';
 import 'local/local_expense_category_repository.dart';
@@ -28,6 +30,7 @@ import 'local/local_user_profile_repository.dart';
 class DataLayer {
   // Hesap, finans ve sync bagimliliklarini tek yerde toplar.
   final AccountRepository accounts;
+  final AssetRepository assets;
   final FinanceRepository finance;
   final CariCardRepository cariCards;
   final CariTransactionRepository cariTransactions;
@@ -43,6 +46,7 @@ class DataLayer {
 
   DataLayer({
     required this.accounts,
+    required this.assets,
     required this.finance,
     required this.cariCards,
     required this.cariTransactions,
@@ -62,6 +66,7 @@ class DataLayer {
     final changeTracker = SyncChangeTracker();
     return DataLayer(
       accounts: LocalAccountRepository(changeTracker: changeTracker),
+      assets: LocalAssetRepository(changeTracker: changeTracker),
       finance: LocalFinanceRepository(changeTracker: changeTracker),
       cariCards: LocalCariCardRepository(changeTracker: changeTracker),
       cariTransactions: LocalCariTransactionRepository(

@@ -3,12 +3,14 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 
 import '../../models/account.dart';
+import '../../models/asset_record.dart';
 import '../../models/cari_card.dart';
 import '../../models/cari_transaction.dart';
 import '../../models/market_rate_item.dart';
 import '../../models/subscription_definition.dart';
 import '../../models/user_profile.dart';
 import '../../services/account_service.dart';
+import '../../services/asset_record_service.dart';
 import '../../services/cari_card_service.dart';
 import '../../services/cari_transaction_service.dart';
 import '../../services/expense_plan_service.dart';
@@ -46,6 +48,7 @@ class DashboardLoader {
       ExpensePlanService.getAll(),
       FinanceTransactionService.getByDateRange(start: dayStart, end: dayEnd),
       SubscriptionDefinitionService.getActive(),
+      AssetRecordService.getActive(),
     ]);
 
     final accounts = results[0] as List<Account>;
@@ -63,6 +66,7 @@ class DashboardLoader {
     final allExpensePlans = results[12] as List<dynamic>;
     final allFinanceTx = results[13] as List<dynamic>;
     final subscriptions = results[14] as List<SubscriptionDefinition>;
+    final activeAssets = results[15] as List<AssetRecord>;
 
     final ratesByCode = await _loadRates(
       accounts: accounts,
@@ -86,10 +90,15 @@ class DashboardLoader {
     final cashRows = <AccountPreviewRow>[];
     final bankRows = <AccountPreviewRow>[];
     final investmentRows = <AccountPreviewRow>[];
+    final assetRows = <AccountPreviewRow>[];
     final cariRows = <CariPreviewRow>[];
     bool missingInvestmentPrice = false;
 
-    for (final a in accounts) {
+    final visibleAccounts = accounts
+        .where((account) => !AccountService.isGhostAccount(account))
+        .toList();
+
+    for (final a in visibleAccounts) {
       final type = a.type;
       if (type == 'cash') {
         cash += a.balance;
@@ -141,6 +150,20 @@ class DashboardLoader {
     cashRows.sort((a, b) => a.name.compareTo(b.name));
     bankRows.sort((a, b) => a.name.compareTo(b.name));
     investmentRows.sort((a, b) => a.name.compareTo(b.name));
+    var activeAssetTotal = 0.0;
+    for (final asset in activeAssets) {
+      final value = asset.effectiveDashboardValue;
+      activeAssetTotal += value;
+      assetRows.add(
+        AccountPreviewRow(
+          name: asset.displayName,
+          valueText: '${_fmtAmount(value)} TL',
+          subtitle: asset.currentValue != null ? 'Güncel değer' : 'Edinim değeri',
+          color: Colors.brown,
+        ),
+      );
+    }
+    assetRows.sort((a, b) => a.name.compareTo(b.name));
 
     for (final tx in cariTx) {
       if (tx.type == 'collection') {
@@ -480,14 +503,17 @@ class DashboardLoader {
     final photoBytes = profile?.photoBytes;
 
     return DashboardViewData(
-      totalAccounts: accounts.length,
-      cashBankAccounts:
-          accounts.where((a) => a.type == 'cash' || a.type == 'bank').length,
-      investmentAccounts: accounts.where((a) => a.type == 'investment').length,
+      cashBankAccounts: visibleAccounts
+          .where((a) => a.type == 'cash' || a.type == 'bank')
+          .length,
+      investmentAccounts:
+          visibleAccounts.where((a) => a.type == 'investment').length,
+      totalAccounts: visibleAccounts.length,
       totalBalance: cash + bank + investmentCurrent,
       cashTotal: cash,
       bankTotal: bank,
       investmentCurrentTotal: investmentCurrent,
+      activeAssetTotal: activeAssetTotal,
       hasMissingInvestmentPrice: missingInvestmentPrice,
       cariReceivableTotal: cariReceivable,
       cariDebtTotal: cariDebt,
@@ -499,6 +525,7 @@ class DashboardLoader {
       cashPreviewRows: cashRows,
       bankPreviewRows: bankRows,
       investmentPreviewRows: investmentRows,
+      assetPreviewRows: assetRows,
       activeSubscriptionCount: subscriptions.length,
       dueSubscriptionCount: subscriptionRows.length,
       subscriptionPreviewRows: subscriptionRows,

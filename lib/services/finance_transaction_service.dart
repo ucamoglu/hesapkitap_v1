@@ -7,6 +7,7 @@ import '../models/expense_plan.dart';
 import '../models/finance_transaction.dart';
 import '../models/income_plan.dart';
 import '../models/transaction_attachment.dart';
+import 'account_service.dart';
 import 'credit_card_installment_service.dart';
 import 'credit_card_statement_service.dart';
 
@@ -67,6 +68,12 @@ class FinanceTransactionService {
   static Future<List<FinanceTransaction>> getAll() async {
     final isar = IsarService.isar;
     final items = await isar.financeTransactions.where().anyId().findAll();
+    final accounts = await isar.accounts.where().anyId().findAll();
+    final ghostIds = accounts
+        .where(AccountService.isGhostAccount)
+        .map((account) => account.id)
+        .toSet();
+    items.removeWhere((item) => ghostIds.contains(item.accountId));
     items.sort((a, b) => b.date.compareTo(a.date));
     return items;
   }
@@ -82,6 +89,12 @@ class FinanceTransactionService {
         .filter()
         .dateBetween(start, end)
         .findAll();
+    final accounts = await isar.accounts.where().anyId().findAll();
+    final ghostIds = accounts
+        .where(AccountService.isGhostAccount)
+        .map((account) => account.id)
+        .toSet();
+    items.removeWhere((item) => ghostIds.contains(item.accountId));
     items.sort((a, b) => b.date.compareTo(a.date));
     return items;
   }

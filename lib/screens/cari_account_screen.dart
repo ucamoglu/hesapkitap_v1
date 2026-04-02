@@ -99,10 +99,11 @@ class _CariAccountScreenState extends State<CariAccountScreen> {
   // Form icin gerekli cari kart, hesap ve varsa mevcut hareket verisini yukler.
   Future<void> _load() async {
     final allCards = await CariCardService.getAll();
-    final activeAccounts = await AccountService.getActiveCashflowAccounts();
+    final activeAccounts =
+        await AccountService.getActiveGhostSelectableCashflowAccounts();
     final allAccounts = _isEditMode
         ? (await AccountService.getAllAccounts())
-            .where(AccountService.isCashflowAccount)
+            .where(AccountService.isGhostSelectableCashflowAccount)
             .toList()
         : const <Account>[];
 
@@ -304,6 +305,9 @@ class _CariAccountScreenState extends State<CariAccountScreen> {
     final account = _selectedAccount();
     final amount = _liveAmount();
     if (account == null || amount == null || amount <= 0) {
+      return null;
+    }
+    if (AccountService.isGhostAccount(account)) {
       return null;
     }
     if (_isDebt && account.balance + 1e-9 < amount) {

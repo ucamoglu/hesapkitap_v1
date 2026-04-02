@@ -4,6 +4,7 @@ import 'package:isar/isar.dart';
 
 import '../../../database/isar_service.dart';
 import '../../../models/account.dart';
+import '../../../models/asset_record.dart';
 import '../../../models/cari_card.dart';
 import '../../../models/cari_transaction.dart';
 import '../../../models/category.dart';
@@ -35,6 +36,7 @@ List<SyncEntityMapper> buildDefaultSyncMappers() {
     _CategorySyncMapper(),
     _IncomeCategorySyncMapper(),
     _FinanceTransactionSyncMapper(),
+    _AssetRecordSyncMapper(),
     _InvestmentTransactionSyncMapper(),
     _ExpensePlanSyncMapper(),
     _IncomePlanSyncMapper(),
@@ -140,6 +142,10 @@ abstract class _ScalarMapper<T> implements SyncEntityMapper {
     return false;
   }
 
+  Future<bool> deleteInTxn(Future<bool> Function() deleteAction) {
+    return isar.writeTxn(deleteAction);
+  }
+
   Isar get isar => _isar;
 }
 
@@ -151,6 +157,11 @@ class _AccountSyncMapper extends _ScalarMapper<Account> {
   Future<Account?> load(int localId) => isar.accounts.get(localId);
 
   @override
+  Future<bool> deleteLocal(int localId) {
+    return deleteInTxn(() => isar.accounts.delete(localId));
+  }
+
+  @override
   Future<Map<String, dynamic>> toPayload(
     Account item,
     SyncReferenceResolver resolver,
@@ -158,10 +169,17 @@ class _AccountSyncMapper extends _ScalarMapper<Account> {
     return {
       'name': item.name,
       'type': item.type,
+      'bankSubtype': item.bankSubtype,
+      'linkedBankAccountId': item.linkedBankAccountId,
+      'overdraftLimit': item.overdraftLimit,
+      'statementDay': item.statementDay,
+      'paymentDueDay': item.paymentDueDay,
       'investmentSubtype': item.investmentSubtype,
       'investmentSymbol': item.investmentSymbol,
       'balance': item.balance,
       'isActive': item.isActive,
+      'isSystemGenerated': item.isSystemGenerated,
+      'systemKey': item.systemKey,
       'createdAt': item.createdAt.toUtc().toIso8601String(),
     };
   }
@@ -178,10 +196,19 @@ class _AccountSyncMapper extends _ScalarMapper<Account> {
     account
       ..name = remote.payload['name'] as String
       ..type = remote.payload['type'] as String
+      ..bankSubtype = remote.payload['bankSubtype'] as String?
+      ..linkedBankAccountId = remote.payload['linkedBankAccountId'] as int?
+      ..overdraftLimit =
+          (remote.payload['overdraftLimit'] as num?)?.toDouble() ?? 0
+      ..statementDay = remote.payload['statementDay'] as int?
+      ..paymentDueDay = remote.payload['paymentDueDay'] as int?
       ..investmentSubtype = remote.payload['investmentSubtype'] as String?
       ..investmentSymbol = remote.payload['investmentSymbol'] as String?
       ..balance = (remote.payload['balance'] as num?)?.toDouble() ?? 0
       ..isActive = remote.payload['isActive'] as bool? ?? true
+      ..isSystemGenerated =
+          remote.payload['isSystemGenerated'] as bool? ?? false
+      ..systemKey = remote.payload['systemKey'] as String?
       ..createdAt = _parseDate(remote.payload['createdAt']);
     final id = await isar.writeTxn(() => isar.accounts.put(account));
     return SyncImportResult.applied(id);
@@ -194,6 +221,11 @@ class _CategorySyncMapper extends _ScalarMapper<Category> {
 
   @override
   Future<Category?> load(int localId) => isar.categorys.get(localId);
+
+  @override
+  Future<bool> deleteLocal(int localId) {
+    return deleteInTxn(() => isar.categorys.delete(localId));
+  }
 
   @override
   Future<Map<String, dynamic>> toPayload(
@@ -250,6 +282,11 @@ class _IncomeCategorySyncMapper extends _ScalarMapper<IncomeCategory> {
   Future<IncomeCategory?> load(int localId) => isar.incomeCategorys.get(localId);
 
   @override
+  Future<bool> deleteLocal(int localId) {
+    return deleteInTxn(() => isar.incomeCategorys.delete(localId));
+  }
+
+  @override
   Future<Map<String, dynamic>> toPayload(
     IncomeCategory item,
     SyncReferenceResolver resolver,
@@ -292,6 +329,11 @@ class _SubscriptionDefinitionSyncMapper
   @override
   Future<SubscriptionDefinition?> load(int localId) =>
       isar.subscriptionDefinitions.get(localId);
+
+  @override
+  Future<bool> deleteLocal(int localId) {
+    return deleteInTxn(() => isar.subscriptionDefinitions.delete(localId));
+  }
 
   @override
   Future<Map<String, dynamic>> toPayload(
@@ -388,6 +430,11 @@ class _FinanceTransactionSyncMapper extends _ScalarMapper<FinanceTransaction> {
       isar.financeTransactions.get(localId);
 
   @override
+  Future<bool> deleteLocal(int localId) {
+    return deleteInTxn(() => isar.financeTransactions.delete(localId));
+  }
+
+  @override
   Future<Map<String, dynamic>> toPayload(
     FinanceTransaction item,
     SyncReferenceResolver resolver,
@@ -397,6 +444,8 @@ class _FinanceTransactionSyncMapper extends _ScalarMapper<FinanceTransaction> {
       'categoryRemoteId': resolver.remoteIdFor('category', item.categoryId),
       'type': item.type,
       'amount': item.amount,
+      'latitude': item.latitude,
+      'longitude': item.longitude,
       'description': item.description,
       'incomePlanRemoteId': item.incomePlanId == null
           ? null
@@ -444,12 +493,186 @@ class _FinanceTransactionSyncMapper extends _ScalarMapper<FinanceTransaction> {
       ..categoryId = categoryId
       ..type = remote.payload['type'] as String
       ..amount = (remote.payload['amount'] as num).toDouble()
+      ..latitude = (remote.payload['latitude'] as num?)?.toDouble()
+      ..longitude = (remote.payload['longitude'] as num?)?.toDouble()
       ..description = remote.payload['description'] as String?
       ..incomePlanId = incomePlanId
       ..expensePlanId = expensePlanId
       ..date = _parseDate(remote.payload['date'])
       ..createdAt = _parseDate(remote.payload['createdAt']);
     final id = await isar.writeTxn(() => isar.financeTransactions.put(item));
+    return SyncImportResult.applied(id);
+  }
+}
+
+class _AssetRecordSyncMapper extends _ScalarMapper<AssetRecord> {
+  @override
+  String get entityType => 'asset_record';
+
+  @override
+  Future<AssetRecord?> load(int localId) => isar.assetRecords.get(localId);
+
+  @override
+  Future<bool> deleteLocal(int localId) {
+    return deleteInTxn(() => isar.assetRecords.delete(localId));
+  }
+
+  @override
+  Future<Map<String, dynamic>> toPayload(
+    AssetRecord item,
+    SyncReferenceResolver resolver,
+  ) async {
+    return {
+      'assetType': item.assetType,
+      'name': item.name,
+      'areaSquareMeters': item.areaSquareMeters,
+      'address': item.address,
+      'brand': item.brand,
+      'model': item.model,
+      'description': item.description,
+      'acquisitionValue': item.acquisitionValue,
+      'currentValueInput': item.currentValueInput,
+      'paymentMethod': item.paymentMethod,
+      'primaryPaymentAmount': item.primaryPaymentAmount,
+      'secondaryExpenseAccountRemoteId': item.secondaryExpenseAccountId == null
+          ? null
+          : resolver.remoteIdFor('account', item.secondaryExpenseAccountId!),
+      'secondaryPaymentAmount': item.secondaryPaymentAmount,
+      'secondaryPurchaseFinanceRemoteId':
+          item.secondaryPurchaseFinanceTransactionId == null
+              ? null
+              : resolver.remoteIdFor(
+                  'finance_transaction',
+                  item.secondaryPurchaseFinanceTransactionId!,
+                ),
+      'creditCardInstallmentCount': item.creditCardInstallmentCount,
+      'saleValue': item.saleValue,
+      'acquisitionDate': item.acquisitionDate.toUtc().toIso8601String(),
+      'saleDate': item.saleDate?.toUtc().toIso8601String(),
+      'expenseAccountRemoteId':
+          resolver.remoteIdFor('account', item.expenseAccountId),
+      'expenseCategoryRemoteId':
+          resolver.remoteIdFor('category', item.expenseCategoryId),
+      'incomeAccountRemoteId': item.incomeAccountId == null
+          ? null
+          : resolver.remoteIdFor('account', item.incomeAccountId!),
+      'incomeCategoryRemoteId': item.incomeCategoryId == null
+          ? null
+          : resolver.remoteIdFor('income_category', item.incomeCategoryId!),
+      'purchaseFinanceRemoteId': item.purchaseFinanceTransactionId == null
+          ? null
+          : resolver.remoteIdFor(
+              'finance_transaction',
+              item.purchaseFinanceTransactionId!,
+            ),
+      'saleFinanceRemoteId': item.saleFinanceTransactionId == null
+          ? null
+          : resolver.remoteIdFor(
+              'finance_transaction',
+              item.saleFinanceTransactionId!,
+            ),
+      'isActive': item.isActive,
+      'isSold': item.isSold,
+      'createdAt': item.createdAt.toUtc().toIso8601String(),
+      'updatedAt': item.updatedAt.toUtc().toIso8601String(),
+    };
+  }
+
+  @override
+  Future<SyncImportResult> upsertFromRemote(
+    RemoteSyncRecord remote,
+    SyncReferenceResolver resolver,
+  ) async {
+    final expenseAccountId = _resolveRequiredRef(
+      resolver,
+      remote.payload,
+      'expenseAccountRemoteId',
+      'account',
+    );
+    final expenseCategoryId = _resolveRequiredRef(
+      resolver,
+      remote.payload,
+      'expenseCategoryRemoteId',
+      'category',
+    );
+    if (expenseAccountId == null || expenseCategoryId == null) {
+      return SyncImportResult.conflict('Asset record references unresolved');
+    }
+    final incomeAccountRemoteId = remote.payload['incomeAccountRemoteId'] as String?;
+    final incomeCategoryRemoteId =
+        remote.payload['incomeCategoryRemoteId'] as String?;
+    final purchaseFinanceRemoteId =
+        remote.payload['purchaseFinanceRemoteId'] as String?;
+    final secondaryExpenseAccountRemoteId =
+        remote.payload['secondaryExpenseAccountRemoteId'] as String?;
+    final secondaryPurchaseFinanceRemoteId =
+        remote.payload['secondaryPurchaseFinanceRemoteId'] as String?;
+    final saleFinanceRemoteId = remote.payload['saleFinanceRemoteId'] as String?;
+    final incomeAccountId =
+        incomeAccountRemoteId == null || incomeAccountRemoteId.isEmpty
+            ? null
+            : resolver.localIdFor('account', incomeAccountRemoteId);
+    final incomeCategoryId =
+        incomeCategoryRemoteId == null || incomeCategoryRemoteId.isEmpty
+            ? null
+            : resolver.localIdFor('income_category', incomeCategoryRemoteId);
+    final purchaseFinanceId =
+        purchaseFinanceRemoteId == null || purchaseFinanceRemoteId.isEmpty
+            ? null
+            : resolver.localIdFor('finance_transaction', purchaseFinanceRemoteId);
+    final secondaryExpenseAccountId =
+        secondaryExpenseAccountRemoteId == null ||
+                secondaryExpenseAccountRemoteId.isEmpty
+            ? null
+            : resolver.localIdFor('account', secondaryExpenseAccountRemoteId);
+    final secondaryPurchaseFinanceId =
+        secondaryPurchaseFinanceRemoteId == null ||
+                secondaryPurchaseFinanceRemoteId.isEmpty
+            ? null
+            : resolver.localIdFor(
+                'finance_transaction',
+                secondaryPurchaseFinanceRemoteId,
+              );
+    final saleFinanceId = saleFinanceRemoteId == null || saleFinanceRemoteId.isEmpty
+        ? null
+        : resolver.localIdFor('finance_transaction', saleFinanceRemoteId);
+    final localId = resolver.localIdFor(entityType, remote.remoteId);
+    final current = localId == null ? null : await isar.assetRecords.get(localId);
+    final item = current ?? AssetRecord();
+    if (current != null) item.id = current.id;
+    item
+      ..assetType = remote.payload['assetType'] as String
+      ..name = remote.payload['name'] as String? ?? ''
+      ..areaSquareMeters = remote.payload['areaSquareMeters'] as String?
+      ..address = remote.payload['address'] as String?
+      ..brand = remote.payload['brand'] as String?
+      ..model = remote.payload['model'] as String?
+      ..description = remote.payload['description'] as String?
+      ..acquisitionValue = (remote.payload['acquisitionValue'] as num).toDouble()
+      ..currentValueInput = remote.payload['currentValueInput'] as String?
+      ..paymentMethod = remote.payload['paymentMethod'] as String? ?? 'single'
+      ..primaryPaymentAmount =
+          (remote.payload['primaryPaymentAmount'] as num?)?.toDouble()
+      ..secondaryExpenseAccountId = secondaryExpenseAccountId
+      ..secondaryPaymentAmount =
+          (remote.payload['secondaryPaymentAmount'] as num?)?.toDouble()
+      ..secondaryPurchaseFinanceTransactionId = secondaryPurchaseFinanceId
+      ..creditCardInstallmentCount =
+          remote.payload['creditCardInstallmentCount'] as int?
+      ..saleValue = (remote.payload['saleValue'] as num?)?.toDouble()
+      ..acquisitionDate = _parseDate(remote.payload['acquisitionDate'])
+      ..saleDate = _parseDateOrNull(remote.payload['saleDate'])
+      ..expenseAccountId = expenseAccountId
+      ..expenseCategoryId = expenseCategoryId
+      ..incomeAccountId = incomeAccountId
+      ..incomeCategoryId = incomeCategoryId
+      ..purchaseFinanceTransactionId = purchaseFinanceId
+      ..saleFinanceTransactionId = saleFinanceId
+      ..isActive = remote.payload['isActive'] as bool? ?? true
+      ..isSold = remote.payload['isSold'] as bool? ?? false
+      ..createdAt = _parseDate(remote.payload['createdAt'])
+      ..updatedAt = _parseDate(remote.payload['updatedAt']);
+    final id = await isar.writeTxn(() => isar.assetRecords.put(item));
     return SyncImportResult.applied(id);
   }
 }
@@ -462,6 +685,11 @@ class _InvestmentTransactionSyncMapper
   @override
   Future<InvestmentTransaction?> load(int localId) =>
       isar.investmentTransactions.get(localId);
+
+  @override
+  Future<bool> deleteLocal(int localId) {
+    return deleteInTxn(() => isar.investmentTransactions.delete(localId));
+  }
 
   @override
   Future<Map<String, dynamic>> toPayload(
@@ -530,6 +758,11 @@ class _ExpensePlanSyncMapper extends _ScalarMapper<ExpensePlan> {
   Future<ExpensePlan?> load(int localId) => isar.expensePlans.get(localId);
 
   @override
+  Future<bool> deleteLocal(int localId) {
+    return deleteInTxn(() => isar.expensePlans.delete(localId));
+  }
+
+  @override
   Future<Map<String, dynamic>> toPayload(
     ExpensePlan item,
     SyncReferenceResolver resolver,
@@ -593,6 +826,11 @@ class _IncomePlanSyncMapper extends _ScalarMapper<IncomePlan> {
 
   @override
   Future<IncomePlan?> load(int localId) => isar.incomePlans.get(localId);
+
+  @override
+  Future<bool> deleteLocal(int localId) {
+    return deleteInTxn(() => isar.incomePlans.delete(localId));
+  }
 
   @override
   Future<Map<String, dynamic>> toPayload(
@@ -661,6 +899,11 @@ class _TransferTransactionSyncMapper extends _ScalarMapper<TransferTransaction> 
       isar.transferTransactions.get(localId);
 
   @override
+  Future<bool> deleteLocal(int localId) {
+    return deleteInTxn(() => isar.transferTransactions.delete(localId));
+  }
+
+  @override
   Future<Map<String, dynamic>> toPayload(
     TransferTransaction item,
     SyncReferenceResolver resolver,
@@ -712,6 +955,11 @@ class _UserProfileSyncMapper extends _ScalarMapper<UserProfile> {
   Future<UserProfile?> load(int localId) => isar.userProfiles.get(localId);
 
   @override
+  Future<bool> deleteLocal(int localId) {
+    return deleteInTxn(() => isar.userProfiles.delete(localId));
+  }
+
+  @override
   Future<Map<String, dynamic>> toPayload(
     UserProfile item,
     SyncReferenceResolver resolver,
@@ -761,6 +1009,11 @@ class _TrackedCurrencySyncMapper extends _ScalarMapper<TrackedCurrency> {
   Future<TrackedCurrency?> load(int localId) => isar.trackedCurrencys.get(localId);
 
   @override
+  Future<bool> deleteLocal(int localId) {
+    return deleteInTxn(() => isar.trackedCurrencys.delete(localId));
+  }
+
+  @override
   Future<Map<String, dynamic>> toPayload(
     TrackedCurrency item,
     SyncReferenceResolver resolver,
@@ -799,6 +1052,11 @@ class _TrackedCurrencyStateSyncMapper extends _ScalarMapper<TrackedCurrencyState
       isar.trackedCurrencyStates.get(localId);
 
   @override
+  Future<bool> deleteLocal(int localId) {
+    return deleteInTxn(() => isar.trackedCurrencyStates.delete(localId));
+  }
+
+  @override
   Future<Map<String, dynamic>> toPayload(
     TrackedCurrencyState item,
     SyncReferenceResolver resolver,
@@ -830,6 +1088,11 @@ class _TrackedMetalSyncMapper extends _ScalarMapper<TrackedMetal> {
 
   @override
   Future<TrackedMetal?> load(int localId) => isar.trackedMetals.get(localId);
+
+  @override
+  Future<bool> deleteLocal(int localId) {
+    return deleteInTxn(() => isar.trackedMetals.delete(localId));
+  }
 
   @override
   Future<Map<String, dynamic>> toPayload(
@@ -867,6 +1130,11 @@ class _TrackedMetalStateSyncMapper extends _ScalarMapper<TrackedMetalState> {
       isar.trackedMetalStates.get(localId);
 
   @override
+  Future<bool> deleteLocal(int localId) {
+    return deleteInTxn(() => isar.trackedMetalStates.delete(localId));
+  }
+
+  @override
   Future<Map<String, dynamic>> toPayload(
     TrackedMetalState item,
     SyncReferenceResolver resolver,
@@ -897,6 +1165,11 @@ class _TrackedStockSyncMapper extends _ScalarMapper<TrackedStock> {
 
   @override
   Future<TrackedStock?> load(int localId) => isar.trackedStocks.get(localId);
+
+  @override
+  Future<bool> deleteLocal(int localId) {
+    return deleteInTxn(() => isar.trackedStocks.delete(localId));
+  }
 
   @override
   Future<Map<String, dynamic>> toPayload(
@@ -934,6 +1207,11 @@ class _TrackedStockStateSyncMapper extends _ScalarMapper<TrackedStockState> {
       isar.trackedStockStates.get(localId);
 
   @override
+  Future<bool> deleteLocal(int localId) {
+    return deleteInTxn(() => isar.trackedStockStates.delete(localId));
+  }
+
+  @override
   Future<Map<String, dynamic>> toPayload(
     TrackedStockState item,
     SyncReferenceResolver resolver,
@@ -964,6 +1242,11 @@ class _TrackedCryptoSyncMapper extends _ScalarMapper<TrackedCrypto> {
 
   @override
   Future<TrackedCrypto?> load(int localId) => isar.trackedCryptos.get(localId);
+
+  @override
+  Future<bool> deleteLocal(int localId) {
+    return deleteInTxn(() => isar.trackedCryptos.delete(localId));
+  }
 
   @override
   Future<Map<String, dynamic>> toPayload(
@@ -1001,6 +1284,11 @@ class _TrackedCryptoStateSyncMapper extends _ScalarMapper<TrackedCryptoState> {
       isar.trackedCryptoStates.get(localId);
 
   @override
+  Future<bool> deleteLocal(int localId) {
+    return deleteInTxn(() => isar.trackedCryptoStates.delete(localId));
+  }
+
+  @override
   Future<Map<String, dynamic>> toPayload(
     TrackedCryptoState item,
     SyncReferenceResolver resolver,
@@ -1032,6 +1320,11 @@ class _CariCardSyncMapper extends _ScalarMapper<CariCard> {
 
   @override
   Future<CariCard?> load(int localId) => isar.cariCards.get(localId);
+
+  @override
+  Future<bool> deleteLocal(int localId) {
+    return deleteInTxn(() => isar.cariCards.delete(localId));
+  }
 
   @override
   Future<Map<String, dynamic>> toPayload(
@@ -1086,6 +1379,11 @@ class _CariTransactionSyncMapper extends _ScalarMapper<CariTransaction> {
 
   @override
   Future<CariTransaction?> load(int localId) => isar.cariTransactions.get(localId);
+
+  @override
+  Future<bool> deleteLocal(int localId) {
+    return deleteInTxn(() => isar.cariTransactions.delete(localId));
+  }
 
   @override
   Future<Map<String, dynamic>> toPayload(
@@ -1144,6 +1442,11 @@ class _TransactionAttachmentSyncMapper
       isar.transactionAttachments.get(localId);
 
   @override
+  Future<bool> deleteLocal(int localId) {
+    return deleteInTxn(() => isar.transactionAttachments.delete(localId));
+  }
+
+  @override
   Future<Map<String, dynamic>> toPayload(
     TransactionAttachment item,
     SyncReferenceResolver resolver,
@@ -1152,6 +1455,7 @@ class _TransactionAttachmentSyncMapper
       'finance' => 'finance_transaction',
       'cari' => 'cari_transaction',
       'investment' => 'investment_transaction',
+      'asset' => 'asset_record',
       _ => '',
     };
     return {
@@ -1171,6 +1475,7 @@ class _TransactionAttachmentSyncMapper
       'finance' => 'finance_transaction',
       'cari' => 'cari_transaction',
       'investment' => 'investment_transaction',
+      'asset' => 'asset_record',
       _ => '',
     };
     if (targetEntityType.isEmpty) {

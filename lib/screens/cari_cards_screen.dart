@@ -40,8 +40,9 @@ class _CariCardsScreenState extends State<CariCardsScreen> {
         title: const Text('Cari Kartlar'),
         content: const Text(
           "Bu ekranda kişi ve firma bazlı cari kart tanımlamaları yapılır.\n\n"
-          "Cari kartlar, borç/alacak süreçlerinin düzenli ve izlenebilir şekilde yönetilebilmesi amacıyla kullanılır.\n\n"
-          "Örneğin bir kişiye borç verildiğinde, İşlem ekranında 'Giden' türünde kayıt oluşturularak ilgili cari hareket sisteme işlenir.\n\n"
+          "Cari kartlar, borç/alacak kalanlarını takip etmek için geliştirilmiştir.\n\n"
+          "Cari kart tanımlanırken, para birimini TL veya yabancı para olarak seçebilirsiniz. Yabancı para seçmek için önce yatırımcı menüsünden ilgili yabancı para birimini takibe alınız ve ardından, ilgili döviz, kıymetli maden, kripto para veya borsa enstrümanı ile ilişkilendirme yapabilirsiniz.\n\n"
+          "Örneğin bir kişiye borç verildiğinde, İşlem ekranında 'Giden' türünde kayıt oluşturular, tahsil edildiğinde gelen kaydı oluşturularak ilgili cari hareket sisteme işlenir. Veya Borç aldığınız da Gelen, Ödediğin de ise Giden olarak kaydı tamamlayabilirsiniz\n\n"
           "Bu sayede borç/alacak durumu cari kart bazında güvenli ve sürdürülebilir biçimde takip edilebilir.",
         ),
         actions: [

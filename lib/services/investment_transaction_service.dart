@@ -4,6 +4,7 @@ import '../database/isar_service.dart';
 import '../models/account.dart';
 import '../models/finance_transaction.dart';
 import '../models/investment_transaction.dart';
+import 'account_service.dart';
 import 'credit_card_installment_service.dart';
 import 'credit_card_statement_service.dart';
 import 'investment_outcome_category_service.dart';
@@ -73,10 +74,6 @@ class InvestmentTransactionService {
     if (type != 'buy' && type != 'sell') {
       throw Exception('Geçersiz işlem türü.');
     }
-    if (quantity <= 0 || unitPrice <= 0 || total <= 0) {
-      throw Exception('Miktar, fiyat ve tutar sıfırdan büyük olmalıdır.');
-    }
-
     final isar = IsarService.isar;
     late int createdId;
     late bool shouldSyncCreditCardStatement;
@@ -89,6 +86,11 @@ class InvestmentTransactionService {
       if (investmentAccount == null || cashAccount == null) {
         throw Exception('Hesap bulunamadı.');
       }
+      final isBalanceBackedBuy =
+          type == 'buy' &&
+          AccountService.isGhostAccount(cashAccount) &&
+          total == 0 &&
+          unitPrice == 0;
       if (investmentAccount.type != 'investment') {
         throw Exception('Seçilen yatırım hesabı geçersiz.');
       }
@@ -97,6 +99,12 @@ class InvestmentTransactionService {
       }
       if (!investmentAccount.isActive || !cashAccount.isActive) {
         throw Exception('Pasif hesapta işlem yapılamaz.');
+      }
+      if (quantity <= 0 || unitPrice < 0 || total < 0) {
+        throw Exception('Miktar pozitif, fiyat ve tutar negatif olamaz.');
+      }
+      if (!isBalanceBackedBuy && (unitPrice <= 0 || total <= 0)) {
+        throw Exception('Miktar, fiyat ve tutar sıfırdan büyük olmalıdır.');
       }
 
       if (type == 'buy' &&
@@ -205,10 +213,6 @@ class InvestmentTransactionService {
     if (type != 'buy' && type != 'sell') {
       throw Exception('Geçersiz işlem türü.');
     }
-    if (quantity <= 0 || unitPrice <= 0 || total <= 0) {
-      throw Exception('Miktar, fiyat ve tutar sıfırdan büyük olmalıdır.');
-    }
-
     final isar = IsarService.isar;
     Account? oldCreditCardForStatementRevert;
     Account? newCreditCardForStatementApply;
@@ -266,11 +270,22 @@ class InvestmentTransactionService {
       if (newInvestment.type != 'investment') {
         throw Exception('Seçilen yatırım hesabı geçersiz.');
       }
+      final isBalanceBackedBuy =
+          type == 'buy' &&
+          AccountService.isGhostAccount(newCash) &&
+          total == 0 &&
+          unitPrice == 0;
       if (newCash.type == 'investment') {
         throw Exception('Kaynak/Hedef hesap yatırım türünde olamaz.');
       }
       if (!newInvestment.isActive || !newCash.isActive) {
         throw Exception('Pasif hesapta işlem yapılamaz.');
+      }
+      if (quantity <= 0 || unitPrice < 0 || total < 0) {
+        throw Exception('Miktar pozitif, fiyat ve tutar negatif olamaz.');
+      }
+      if (!isBalanceBackedBuy && (unitPrice <= 0 || total <= 0)) {
+        throw Exception('Miktar, fiyat ve tutar sıfırdan büyük olmalıdır.');
       }
       if (type == 'buy' && !newCash.isCreditCard && newCash.balance < total) {
         throw Exception('Kaynak hesap bakiyesi yetersiz.');
@@ -475,7 +490,7 @@ class InvestmentTransactionService {
       if (normalizedType == 'buy' ||
           normalizedType == 'alış' ||
           normalizedType == 'alis') {
-        if (tx.quantity > 0 && tx.unitPrice > 0) {
+        if (tx.quantity > 0 && tx.unitPrice >= 0) {
           lots.add(_FifoLot(qty: tx.quantity, unitCost: tx.unitPrice));
         }
         continue;

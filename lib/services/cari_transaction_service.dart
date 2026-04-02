@@ -5,6 +5,7 @@ import '../models/account.dart';
 import '../models/cari_card.dart';
 import '../models/cari_transaction.dart';
 import '../models/transaction_attachment.dart';
+import 'account_service.dart';
 
 class CariTransactionService {
   static void _validateCariType(String type) {
@@ -115,7 +116,8 @@ class CariTransactionService {
         unitPrice: unitPrice,
       );
       _validateCariAccount(account);
-      if (account.balance + 1e-9 < amount) {
+      if (!AccountService.isGhostAccount(account) &&
+          account.balance + 1e-9 < amount) {
         throw Exception('Hesap bakiyesi bu cari çıkış için yetersiz.');
       }
 
@@ -267,7 +269,8 @@ class CariTransactionService {
           if (amount <= 0) {
             throw Exception('Cari işlem tutarı sıfırdan büyük olmalıdır.');
           }
-          if (oldAccount.balance + 1e-9 < amount) {
+          if (!AccountService.isGhostAccount(oldAccount) &&
+              oldAccount.balance + 1e-9 < amount) {
             throw Exception('Hesap bakiyesi bu cari çıkış için yetersiz.');
           }
           oldAccount.balance -= amount;
@@ -288,7 +291,8 @@ class CariTransactionService {
           if (amount <= 0) {
             throw Exception('Cari işlem tutarı sıfırdan büyük olmalıdır.');
           }
-          if (newAccount.balance + 1e-9 < amount) {
+          if (!AccountService.isGhostAccount(newAccount) &&
+              newAccount.balance + 1e-9 < amount) {
             throw Exception('Hesap bakiyesi bu cari çıkış için yetersiz.');
           }
           newAccount.balance -= amount;

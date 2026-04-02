@@ -106,7 +106,9 @@ class _IncomeEntryScreenState extends State<IncomeEntryScreen> {
         _selectedAccountId = accounts.any((a) => a.id == tx.accountId)
             ? tx.accountId
             : (accounts.isNotEmpty ? accounts.first.id : null);
-        _selectedCategoryId = tx.categoryId;
+        _selectedCategoryId = categories.any((c) => c.id == tx.categoryId)
+            ? tx.categoryId
+            : (categories.isNotEmpty ? categories.first.id : null);
         _selectedDate = tx.date;
         _amountController.text = _fmtAmount(tx.amount);
         _descriptionController.text = tx.description ?? '';
@@ -517,7 +519,10 @@ class _IncomeEntryScreenState extends State<IncomeEntryScreen> {
                         padding: const EdgeInsets.all(16),
                         children: [
                           DropdownButtonFormField<int>(
-                            initialValue: _selectedAccountId,
+                            initialValue:
+                                _accounts.any((a) => a.id == _selectedAccountId)
+                                    ? _selectedAccountId
+                                    : null,
                             decoration: const InputDecoration(
                               labelText: "Hesap",
                               border: OutlineInputBorder(),
@@ -540,7 +545,10 @@ class _IncomeEntryScreenState extends State<IncomeEntryScreen> {
                           ),
                           const SizedBox(height: 12),
                           DropdownButtonFormField<int>(
-                            initialValue: _selectedCategoryId,
+                            initialValue: _categories.any(
+                                    (c) => c.id == _selectedCategoryId)
+                                ? _selectedCategoryId
+                                : null,
                             decoration: const InputDecoration(
                               labelText: "Gelir Tipi",
                               border: OutlineInputBorder(),
