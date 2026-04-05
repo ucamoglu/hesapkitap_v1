@@ -86,8 +86,7 @@ class InvestmentTransactionService {
       if (investmentAccount == null || cashAccount == null) {
         throw Exception('Hesap bulunamadı.');
       }
-      final isBalanceBackedBuy =
-          type == 'buy' &&
+      final isBalanceBackedGhostFlow =
           AccountService.isGhostAccount(cashAccount) &&
           total == 0 &&
           unitPrice == 0;
@@ -103,12 +102,13 @@ class InvestmentTransactionService {
       if (quantity <= 0 || unitPrice < 0 || total < 0) {
         throw Exception('Miktar pozitif, fiyat ve tutar negatif olamaz.');
       }
-      if (!isBalanceBackedBuy && (unitPrice <= 0 || total <= 0)) {
+      if (!isBalanceBackedGhostFlow && (unitPrice <= 0 || total <= 0)) {
         throw Exception('Miktar, fiyat ve tutar sıfırdan büyük olmalıdır.');
       }
 
       if (type == 'buy' &&
           !cashAccount.isCreditCard &&
+          !AccountService.isGhostAccount(cashAccount) &&
           cashAccount.balance < total) {
         throw Exception('Kaynak hesap bakiyesi yetersiz.');
       }
@@ -270,8 +270,7 @@ class InvestmentTransactionService {
       if (newInvestment.type != 'investment') {
         throw Exception('Seçilen yatırım hesabı geçersiz.');
       }
-      final isBalanceBackedBuy =
-          type == 'buy' &&
+      final isBalanceBackedGhostFlow =
           AccountService.isGhostAccount(newCash) &&
           total == 0 &&
           unitPrice == 0;
@@ -284,10 +283,13 @@ class InvestmentTransactionService {
       if (quantity <= 0 || unitPrice < 0 || total < 0) {
         throw Exception('Miktar pozitif, fiyat ve tutar negatif olamaz.');
       }
-      if (!isBalanceBackedBuy && (unitPrice <= 0 || total <= 0)) {
+      if (!isBalanceBackedGhostFlow && (unitPrice <= 0 || total <= 0)) {
         throw Exception('Miktar, fiyat ve tutar sıfırdan büyük olmalıdır.');
       }
-      if (type == 'buy' && !newCash.isCreditCard && newCash.balance < total) {
+      if (type == 'buy' &&
+          !newCash.isCreditCard &&
+          !AccountService.isGhostAccount(newCash) &&
+          newCash.balance < total) {
         throw Exception('Kaynak hesap bakiyesi yetersiz.');
       }
       if (type == 'sell' && newCash.isCreditCard) {
@@ -445,8 +447,8 @@ class InvestmentTransactionService {
     required double sellQuantity,
     required double sellUnitPrice,
   }) async {
-    if (sellQuantity <= 0 || sellUnitPrice <= 0) {
-      throw Exception('Geçerli miktar ve birim fiyat giriniz.');
+    if (sellQuantity <= 0 || sellUnitPrice < 0) {
+      throw Exception('Geçerli miktar giriniz.');
     }
     return _calculateFifoSellPreview(
       isar: IsarService.isar,

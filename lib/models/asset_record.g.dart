@@ -132,53 +132,58 @@ const AssetRecordSchema = CollectionSchema(
       name: r'paymentMethod',
       type: IsarType.string,
     ),
-    r'primaryPaymentAmount': PropertySchema(
+    r'plate': PropertySchema(
       id: 23,
+      name: r'plate',
+      type: IsarType.string,
+    ),
+    r'primaryPaymentAmount': PropertySchema(
+      id: 24,
       name: r'primaryPaymentAmount',
       type: IsarType.double,
     ),
     r'profitOrLoss': PropertySchema(
-      id: 24,
+      id: 25,
       name: r'profitOrLoss',
       type: IsarType.double,
     ),
     r'purchaseFinanceTransactionId': PropertySchema(
-      id: 25,
+      id: 26,
       name: r'purchaseFinanceTransactionId',
       type: IsarType.long,
     ),
     r'saleDate': PropertySchema(
-      id: 26,
+      id: 27,
       name: r'saleDate',
       type: IsarType.dateTime,
     ),
     r'saleFinanceTransactionId': PropertySchema(
-      id: 27,
+      id: 28,
       name: r'saleFinanceTransactionId',
       type: IsarType.long,
     ),
     r'saleValue': PropertySchema(
-      id: 28,
+      id: 29,
       name: r'saleValue',
       type: IsarType.double,
     ),
     r'secondaryExpenseAccountId': PropertySchema(
-      id: 29,
+      id: 30,
       name: r'secondaryExpenseAccountId',
       type: IsarType.long,
     ),
     r'secondaryPaymentAmount': PropertySchema(
-      id: 30,
+      id: 31,
       name: r'secondaryPaymentAmount',
       type: IsarType.double,
     ),
     r'secondaryPurchaseFinanceTransactionId': PropertySchema(
-      id: 31,
+      id: 32,
       name: r'secondaryPurchaseFinanceTransactionId',
       type: IsarType.long,
     ),
     r'updatedAt': PropertySchema(
-      id: 32,
+      id: 33,
       name: r'updatedAt',
       type: IsarType.dateTime,
     )
@@ -244,6 +249,12 @@ int _assetRecordEstimateSize(
   }
   bytesCount += 3 + object.name.length * 3;
   bytesCount += 3 + object.paymentMethod.length * 3;
+  {
+    final value = object.plate;
+    if (value != null) {
+      bytesCount += 3 + value.length * 3;
+    }
+  }
   return bytesCount;
 }
 
@@ -276,16 +287,17 @@ void _assetRecordSerialize(
   writer.writeString(offsets[20], object.model);
   writer.writeString(offsets[21], object.name);
   writer.writeString(offsets[22], object.paymentMethod);
-  writer.writeDouble(offsets[23], object.primaryPaymentAmount);
-  writer.writeDouble(offsets[24], object.profitOrLoss);
-  writer.writeLong(offsets[25], object.purchaseFinanceTransactionId);
-  writer.writeDateTime(offsets[26], object.saleDate);
-  writer.writeLong(offsets[27], object.saleFinanceTransactionId);
-  writer.writeDouble(offsets[28], object.saleValue);
-  writer.writeLong(offsets[29], object.secondaryExpenseAccountId);
-  writer.writeDouble(offsets[30], object.secondaryPaymentAmount);
-  writer.writeLong(offsets[31], object.secondaryPurchaseFinanceTransactionId);
-  writer.writeDateTime(offsets[32], object.updatedAt);
+  writer.writeString(offsets[23], object.plate);
+  writer.writeDouble(offsets[24], object.primaryPaymentAmount);
+  writer.writeDouble(offsets[25], object.profitOrLoss);
+  writer.writeLong(offsets[26], object.purchaseFinanceTransactionId);
+  writer.writeDateTime(offsets[27], object.saleDate);
+  writer.writeLong(offsets[28], object.saleFinanceTransactionId);
+  writer.writeDouble(offsets[29], object.saleValue);
+  writer.writeLong(offsets[30], object.secondaryExpenseAccountId);
+  writer.writeDouble(offsets[31], object.secondaryPaymentAmount);
+  writer.writeLong(offsets[32], object.secondaryPurchaseFinanceTransactionId);
+  writer.writeDateTime(offsets[33], object.updatedAt);
 }
 
 AssetRecord _assetRecordDeserialize(
@@ -315,16 +327,17 @@ AssetRecord _assetRecordDeserialize(
   object.model = reader.readStringOrNull(offsets[20]);
   object.name = reader.readString(offsets[21]);
   object.paymentMethod = reader.readString(offsets[22]);
-  object.primaryPaymentAmount = reader.readDoubleOrNull(offsets[23]);
-  object.purchaseFinanceTransactionId = reader.readLongOrNull(offsets[25]);
-  object.saleDate = reader.readDateTimeOrNull(offsets[26]);
-  object.saleFinanceTransactionId = reader.readLongOrNull(offsets[27]);
-  object.saleValue = reader.readDoubleOrNull(offsets[28]);
-  object.secondaryExpenseAccountId = reader.readLongOrNull(offsets[29]);
-  object.secondaryPaymentAmount = reader.readDoubleOrNull(offsets[30]);
+  object.plate = reader.readStringOrNull(offsets[23]);
+  object.primaryPaymentAmount = reader.readDoubleOrNull(offsets[24]);
+  object.purchaseFinanceTransactionId = reader.readLongOrNull(offsets[26]);
+  object.saleDate = reader.readDateTimeOrNull(offsets[27]);
+  object.saleFinanceTransactionId = reader.readLongOrNull(offsets[28]);
+  object.saleValue = reader.readDoubleOrNull(offsets[29]);
+  object.secondaryExpenseAccountId = reader.readLongOrNull(offsets[30]);
+  object.secondaryPaymentAmount = reader.readDoubleOrNull(offsets[31]);
   object.secondaryPurchaseFinanceTransactionId =
-      reader.readLongOrNull(offsets[31]);
-  object.updatedAt = reader.readDateTime(offsets[32]);
+      reader.readLongOrNull(offsets[32]);
+  object.updatedAt = reader.readDateTime(offsets[33]);
   return object;
 }
 
@@ -382,24 +395,26 @@ P _assetRecordDeserializeProp<P>(
     case 22:
       return (reader.readString(offset)) as P;
     case 23:
-      return (reader.readDoubleOrNull(offset)) as P;
+      return (reader.readStringOrNull(offset)) as P;
     case 24:
       return (reader.readDoubleOrNull(offset)) as P;
     case 25:
-      return (reader.readLongOrNull(offset)) as P;
+      return (reader.readDoubleOrNull(offset)) as P;
     case 26:
-      return (reader.readDateTimeOrNull(offset)) as P;
+      return (reader.readLongOrNull(offset)) as P;
     case 27:
-      return (reader.readLongOrNull(offset)) as P;
+      return (reader.readDateTimeOrNull(offset)) as P;
     case 28:
-      return (reader.readDoubleOrNull(offset)) as P;
+      return (reader.readLongOrNull(offset)) as P;
     case 29:
-      return (reader.readLongOrNull(offset)) as P;
-    case 30:
       return (reader.readDoubleOrNull(offset)) as P;
-    case 31:
+    case 30:
       return (reader.readLongOrNull(offset)) as P;
+    case 31:
+      return (reader.readDoubleOrNull(offset)) as P;
     case 32:
+      return (reader.readLongOrNull(offset)) as P;
+    case 33:
       return (reader.readDateTime(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -2821,6 +2836,155 @@ extension AssetRecordQueryFilter
     });
   }
 
+  QueryBuilder<AssetRecord, AssetRecord, QAfterFilterCondition> plateIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'plate',
+      ));
+    });
+  }
+
+  QueryBuilder<AssetRecord, AssetRecord, QAfterFilterCondition>
+      plateIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'plate',
+      ));
+    });
+  }
+
+  QueryBuilder<AssetRecord, AssetRecord, QAfterFilterCondition> plateEqualTo(
+    String? value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'plate',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<AssetRecord, AssetRecord, QAfterFilterCondition>
+      plateGreaterThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'plate',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<AssetRecord, AssetRecord, QAfterFilterCondition> plateLessThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'plate',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<AssetRecord, AssetRecord, QAfterFilterCondition> plateBetween(
+    String? lower,
+    String? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'plate',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<AssetRecord, AssetRecord, QAfterFilterCondition> plateStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'plate',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<AssetRecord, AssetRecord, QAfterFilterCondition> plateEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'plate',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<AssetRecord, AssetRecord, QAfterFilterCondition> plateContains(
+      String value,
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'plate',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<AssetRecord, AssetRecord, QAfterFilterCondition> plateMatches(
+      String pattern,
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'plate',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<AssetRecord, AssetRecord, QAfterFilterCondition> plateIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'plate',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<AssetRecord, AssetRecord, QAfterFilterCondition>
+      plateIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'plate',
+        value: '',
+      ));
+    });
+  }
+
   QueryBuilder<AssetRecord, AssetRecord, QAfterFilterCondition>
       primaryPaymentAmountIsNull() {
     return QueryBuilder.apply(this, (query) {
@@ -3888,6 +4052,18 @@ extension AssetRecordQuerySortBy
     });
   }
 
+  QueryBuilder<AssetRecord, AssetRecord, QAfterSortBy> sortByPlate() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'plate', Sort.asc);
+    });
+  }
+
+  QueryBuilder<AssetRecord, AssetRecord, QAfterSortBy> sortByPlateDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'plate', Sort.desc);
+    });
+  }
+
   QueryBuilder<AssetRecord, AssetRecord, QAfterSortBy>
       sortByPrimaryPaymentAmount() {
     return QueryBuilder.apply(this, (query) {
@@ -4335,6 +4511,18 @@ extension AssetRecordQuerySortThenBy
     });
   }
 
+  QueryBuilder<AssetRecord, AssetRecord, QAfterSortBy> thenByPlate() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'plate', Sort.asc);
+    });
+  }
+
+  QueryBuilder<AssetRecord, AssetRecord, QAfterSortBy> thenByPlateDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'plate', Sort.desc);
+    });
+  }
+
   QueryBuilder<AssetRecord, AssetRecord, QAfterSortBy>
       thenByPrimaryPaymentAmount() {
     return QueryBuilder.apply(this, (query) {
@@ -4634,6 +4822,13 @@ extension AssetRecordQueryWhereDistinct
     });
   }
 
+  QueryBuilder<AssetRecord, AssetRecord, QDistinct> distinctByPlate(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'plate', caseSensitive: caseSensitive);
+    });
+  }
+
   QueryBuilder<AssetRecord, AssetRecord, QDistinct>
       distinctByPrimaryPaymentAmount() {
     return QueryBuilder.apply(this, (query) {
@@ -4850,6 +5045,12 @@ extension AssetRecordQueryProperty
   QueryBuilder<AssetRecord, String, QQueryOperations> paymentMethodProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'paymentMethod');
+    });
+  }
+
+  QueryBuilder<AssetRecord, String?, QQueryOperations> plateProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'plate');
     });
   }
 

@@ -14,7 +14,6 @@ import 'screens/asset_operation_screen.dart';
 import 'screens/expense_entry_screen.dart';
 import 'screens/fixed_payment_entry_screen.dart';
 import 'screens/income_entry_screen.dart';
-import 'screens/my_assets_screen.dart';
 import 'screens/onboarding_welcome_screen.dart';
 import 'services/local_notification_service.dart';
 import 'services/user_profile_service.dart';
@@ -155,6 +154,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   DashboardViewData _dashboardData = DashboardViewData.initial();
   String? selectedAccountTypePreview;
   bool showAssetBreakdown = false;
+  bool showOwnedAssetPreview = false;
   bool showCariPreview = false;
   bool showSubscriptionPreview = false;
   bool showTrackedPreview = false;
@@ -211,6 +211,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
       }
       if (nextData.cariPreviewRows.isEmpty) {
         showCariPreview = false;
+      }
+      if (nextData.assetPreviewRows.isEmpty) {
+        showOwnedAssetPreview = false;
       }
       if (selectedAccountTypePreview == 'cash' &&
           nextData.cashTotal.abs() <= _zeroEpsilon) {
@@ -327,16 +330,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (saved == true) {
       await loadDashboard();
     }
-  }
-
-  Future<void> _openMyAssets() async {
-    await Navigator.push<void>(
-      context,
-      MaterialPageRoute(
-        builder: (_) => const MyAssetsScreen(),
-      ),
-    );
-    await loadDashboard();
   }
 
   Future<void> _openQuickActionSheet() async {
@@ -580,6 +573,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
               if (assetPreviewRows.isNotEmpty) ...[
                 const SizedBox(height: 10),
                 _buildOwnedAssetsSection(),
+                if (showOwnedAssetPreview) ...[
+                  const SizedBox(height: 8),
+                  _buildOwnedAssetsPreviewCard(),
+                ],
               ],
               const SizedBox(height: 10),
               _buildCariAndTrackedRow(),
@@ -616,6 +613,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final hasAssets = cashTotal.abs() > _zeroEpsilon ||
         bankTotal.abs() > _zeroEpsilon ||
         investmentCurrentTotal.abs() > _zeroEpsilon;
+    final hasCariSummary = cariNetTotal.abs() > _zeroEpsilon;
+    final hasOwnedAssetSummary = activeAssetTotal.abs() > _zeroEpsilon;
+    final overallStatusTotal = totalBalance + cariNetTotal + activeAssetTotal;
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -667,43 +667,48 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ],
               ),
               const SizedBox(height: 8),
-              Text(
-                '${_fmtAmount(totalBalance)} TL',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 30,
-                  fontWeight: FontWeight.w800,
+              _buildHeroAmountLine(
+                label: 'Nakit Durum',
+                value: totalBalance,
+              ),
+              if (hasCariSummary) ...[
+                const SizedBox(height: 6),
+                _buildHeroAmountLine(
+                  label: 'Cari Durum',
+                  value: cariNetTotal,
+                ),
+              ],
+              if (hasOwnedAssetSummary) ...[
+                const SizedBox(height: 6),
+                _buildHeroAmountLine(
+                  label: 'Varliklarim',
+                  value: activeAssetTotal,
+                ),
+              ],
+              const SizedBox(height: 10),
+              Container(
+                width: double.infinity,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.16),
+                  ),
+                ),
+                child: _buildHeroAmountLine(
+                  label: 'Toplam Durum',
+                  value: overallStatusTotal,
+                  emphasized: true,
                 ),
               ),
               const SizedBox(height: 14),
-              Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                children: [
-                  _heroInfoChip(
-                    icon: Icons.account_balance_wallet_outlined,
-                    label: '$totalAccounts hesap',
-                  ),
-                  _heroInfoChip(
-                    icon: Icons.verified_outlined,
-                    label: 'Veriler güncel',
-                  ),
-                  if (dueSubscriptionCount > 0)
-                    _heroInfoChip(
-                      icon: Icons.payments_outlined,
-                      label: '$dueSubscriptionCount bugun odeme',
-                    ),
-                ],
-              ),
-              if (hasAssets) ...[
-                const SizedBox(height: 10),
+              if (dueSubscriptionCount > 0)
                 _heroInfoChip(
-                  icon: Icons.unfold_more_rounded,
-                  label: showAssetBreakdown
-                      ? 'Varlik kartlarini gizle'
-                      : 'Varlik dagilimini goster',
+                  icon: Icons.payments_outlined,
+                  label: '$dueSubscriptionCount bugun odeme',
                 ),
-              ],
               if (hasMissingInvestmentPrice) ...[
                 const SizedBox(height: 8),
                 const Text(
@@ -718,6 +723,45 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildHeroAmountLine({
+    required String label,
+    required double value,
+    bool emphasized = false,
+  }) {
+    final valueText =
+        '${value < 0 ? '-' : ''}${_fmtAmount(value.abs())} TL';
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            '$label:',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: emphasized ? Colors.white : Colors.white70,
+              fontSize: emphasized ? 16 : 14,
+              fontWeight: emphasized ? FontWeight.w800 : FontWeight.w600,
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Flexible(
+          child: Text(
+            valueText,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.end,
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: emphasized ? 20 : 18,
+              fontWeight: emphasized ? FontWeight.w800 : FontWeight.w700,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -758,14 +802,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
       color: Colors.transparent,
       child: InkWell(
         borderRadius: BorderRadius.circular(22),
-        onTap: _openMyAssets,
+        onTap: () {
+          setState(() {
+            showOwnedAssetPreview = !showOwnedAssetPreview;
+          });
+        },
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(22),
             border: Border.all(
-              color: Colors.brown.withValues(alpha: 0.18),
+              color: showOwnedAssetPreview
+                  ? Colors.brown.withValues(alpha: 0.45)
+                  : Colors.brown.withValues(alpha: 0.18),
+              width: showOwnedAssetPreview ? 1.4 : 1,
             ),
             boxShadow: [
               BoxShadow(
@@ -809,20 +860,105 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       color: Colors.brown,
                     ),
                   ),
+                  const SizedBox(width: 6),
+                  Icon(
+                    showOwnedAssetPreview
+                        ? Icons.keyboard_arrow_up_rounded
+                        : Icons.keyboard_arrow_down_rounded,
+                    color: Colors.brown,
+                  ),
                 ],
               ),
-              const SizedBox(height: 12),
-              ...assetPreviewRows.take(4).map(
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOwnedAssetsPreviewCard() {
+    final grouped = <String, List<AccountPreviewRow>>{};
+    for (final row in assetPreviewRows.where(
+      (entry) => entry.groupLabel != 'Demirbaşlar',
+    )) {
+      final key = row.groupLabel ?? 'Varlıklar';
+      grouped.putIfAbsent(key, () => []).add(row);
+    }
+    const orderedGroups = ['Varlıklar'];
+    final groupKeys = grouped.keys.toList()
+      ..sort((a, b) {
+        final aIndex = orderedGroups.indexOf(a);
+        final bIndex = orderedGroups.indexOf(b);
+        if (aIndex == -1 && bIndex == -1) return a.compareTo(b);
+        if (aIndex == -1) return 1;
+        if (bIndex == -1) return -1;
+        return aIndex.compareTo(bIndex);
+      });
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.brown.withValues(alpha: 0.22)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.inventory_2_outlined, color: Colors.brown, size: 18),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Varlık Bilgi Paneli',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          ...groupKeys.expand(
+            (group) => [
+              Padding(
+                padding: const EdgeInsets.only(top: 2, bottom: 6),
+                child: Text(
+                  group,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: Colors.black87,
+                  ),
+                ),
+              ),
+              ...grouped[group]!.map(
                 (row) => Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
-                        child: Text(
-                          row.name,
-                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              row.name,
+                              style: const TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                            if (row.subtitle?.isNotEmpty == true)
+                              Text(
+                                row.subtitle!,
+                                style: TextStyle(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                          ],
                         ),
                       ),
+                      const SizedBox(width: 12),
                       Text(
                         row.valueText,
                         style: const TextStyle(fontWeight: FontWeight.w700),
@@ -831,17 +967,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                 ),
               ),
-              if (assetPreviewRows.length > 4)
-                Text(
-                  '+${assetPreviewRows.length - 4} varlık daha',
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
             ],
           ),
-        ),
+        ],
       ),
     );
   }

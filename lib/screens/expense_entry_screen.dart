@@ -87,13 +87,57 @@ class _ExpenseEntryScreenState extends State<ExpenseEntryScreen> {
     super.dispose();
   }
 
+  List<Account> _uniqueAccountsById(List<Account> items) {
+    final byId = <int, Account>{};
+    for (final item in items) {
+      byId[item.id] = item;
+    }
+    return byId.values.toList();
+  }
+
+  List<Category> _uniqueCategoriesById(List<Category> items) {
+    final byId = <int, Category>{};
+    for (final item in items) {
+      byId[item.id] = item;
+    }
+    return byId.values.toList();
+  }
+
+  int? _singleMatchingValueOrNull(
+    int? selectedValue,
+    Iterable<int> itemValues,
+  ) {
+    if (selectedValue == null) return null;
+    final matchCount = itemValues.where((value) => value == selectedValue).length;
+    return matchCount == 1 ? selectedValue : null;
+  }
+
   // Form icin hesaplari, kategorileri ve varsa mevcut ekleri yukler.
   Future<void> _loadData() async {
     await CategoryService.seedExpenseDefaultsIfEmpty();
 
-    final accounts = await AccountService.getActiveExpenseAccounts();
-    final categories = await CategoryService.getActiveManualExpenseCategories();
+    final allExpenseCategories = await CategoryService.getAllExpenseCategories();
+    final accounts = _uniqueAccountsById(
+      await AccountService.getActiveExpenseAccounts(),
+    )..sort((a, b) => a.name.compareTo(b.name));
+    final categories = _uniqueCategoriesById(
+      await CategoryService.getActiveManualExpenseCategories(),
+    );
     final creditCardStatements = await CreditCardStatementService.getAll();
+    if (_isEditMode) {
+      final tx = widget.initialTransaction!;
+      final hasCurrentCategory = categories.any((c) => c.id == tx.categoryId);
+      if (!hasCurrentCategory) {
+        final currentCategory = allExpenseCategories.cast<Category?>().firstWhere(
+              (c) => c?.id == tx.categoryId,
+              orElse: () => null,
+            );
+        if (currentCategory != null) {
+          categories.add(currentCategory);
+        }
+      }
+    }
+    categories.sort((a, b) => a.name.compareTo(b.name));
 
     if (!mounted) return;
 
@@ -687,6 +731,14 @@ class _ExpenseEntryScreenState extends State<ExpenseEntryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final safeSelectedAccountId = _singleMatchingValueOrNull(
+      _selectedAccountId,
+      _accounts.map((item) => item.id),
+    );
+    final safeSelectedCategoryId = _singleMatchingValueOrNull(
+      _selectedCategoryId,
+      _categories.map((item) => item.id),
+    );
     return PopScope(
         canPop: !_hasUnsavedChanges(),
         onPopInvokedWithResult: (didPop, result) async {
@@ -726,7 +778,7 @@ class _ExpenseEntryScreenState extends State<ExpenseEntryScreen> {
                         padding: const EdgeInsets.all(16),
                         children: [
                           DropdownButtonFormField<int>(
-                            initialValue: _selectedAccountId,
+                            initialValue: safeSelectedAccountId,
                             decoration: const InputDecoration(
                               labelText: "Hesap",
                               border: OutlineInputBorder(),
@@ -758,7 +810,7 @@ class _ExpenseEntryScreenState extends State<ExpenseEntryScreen> {
                           ),
                           const SizedBox(height: 12),
                           DropdownButtonFormField<int>(
-                            initialValue: _selectedCategoryId,
+                            initialValue: safeSelectedCategoryId,
                             decoration: const InputDecoration(
                               labelText: "Gider Kategorisi",
                               border: OutlineInputBorder(),

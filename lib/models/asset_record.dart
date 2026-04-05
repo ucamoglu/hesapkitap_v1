@@ -14,6 +14,7 @@ class AssetRecord {
   String? address;
   String? brand;
   String? model;
+  String? plate;
   String? description;
   late double acquisitionValue;
   String? currentValueInput;
@@ -90,6 +91,7 @@ class AssetRecord {
     String? address,
     String? brand,
     String? model,
+    String? plate,
     String? description,
     double? acquisitionValue,
     String? currentValueInput,
@@ -121,6 +123,7 @@ class AssetRecord {
       ..address = address ?? this.address
       ..brand = brand ?? this.brand
       ..model = model ?? this.model
+      ..plate = plate ?? this.plate
       ..description = description ?? this.description
       ..acquisitionValue = acquisitionValue ?? this.acquisitionValue
       ..currentValueInput = currentValueInput ?? this.currentValueInput
@@ -161,6 +164,7 @@ class AssetRecord {
       'address': address,
       'brand': brand,
       'model': model,
+      'plate': plate,
       'description': description,
       'acquisitionValue': acquisitionValue,
       'currentValueInput': currentValueInput,
@@ -195,6 +199,7 @@ class AssetRecord {
       ..address = json['address'] as String?
       ..brand = json['brand'] as String?
       ..model = json['model'] as String?
+      ..plate = json['plate'] as String?
       ..description = json['description'] as String?
       ..acquisitionValue = (json['acquisitionValue'] as num).toDouble()
       ..currentValueInput = json['currentValueInput'] as String?

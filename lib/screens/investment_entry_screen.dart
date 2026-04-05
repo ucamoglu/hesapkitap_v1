@@ -389,15 +389,13 @@ class _InvestmentEntryScreenState extends State<InvestmentEntryScreen> {
     return _parseQuantity(_quantityController.text);
   }
 
-  bool get _isBalanceBackedBuy {
+  bool get _isBalanceBackedCashflow {
     final cashAccount = _selectedCashAccount();
-    return _txType == 'buy' &&
-        cashAccount != null &&
-        AccountService.isGhostAccount(cashAccount);
+    return cashAccount != null && AccountService.isGhostAccount(cashAccount);
   }
 
   void _syncAmountForBalanceAccount() {
-    if (!_isBalanceBackedBuy) return;
+    if (!_isBalanceBackedCashflow) return;
     final zeroAmount = _fmtMoney(0);
     if (_amountController.text != zeroAmount) {
       _amountController.text = zeroAmount;
@@ -415,7 +413,7 @@ class _InvestmentEntryScreenState extends State<InvestmentEntryScreen> {
   bool _hasValidInputsForPreview() {
     final amount = _liveAmount();
     final quantity = _liveQuantity();
-    if (_isBalanceBackedBuy) {
+    if (_isBalanceBackedCashflow) {
       return quantity != null && quantity > 0;
     }
     return amount != null && amount > 0 && quantity != null && quantity > 0;
@@ -434,7 +432,7 @@ class _InvestmentEntryScreenState extends State<InvestmentEntryScreen> {
     final cashAccount = _selectedCashAccount();
     final amount = _liveAmount();
     if (cashAccount == null || amount == null || amount < 0) return null;
-    if (_isBalanceBackedBuy) return cashAccount.balance;
+    if (_isBalanceBackedCashflow) return cashAccount.balance;
     if (amount <= 0) return null;
     if (_txType == 'buy') {
       return cashAccount.isCreditCard
@@ -456,13 +454,14 @@ class _InvestmentEntryScreenState extends State<InvestmentEntryScreen> {
         quantity <= 0) {
       return null;
     }
-    if (!_isBalanceBackedBuy && (amount == null || amount <= 0)) {
+    if (!_isBalanceBackedCashflow && (amount == null || amount <= 0)) {
       return null;
     }
     final effectiveAmount = amount!;
 
     if (_txType == 'buy' &&
         !cashAccount.isCreditCard &&
+        !AccountService.isGhostAccount(cashAccount) &&
         cashAccount.balance + 1e-9 < effectiveAmount) {
       return 'Kaynak hesap bakiyesi bu alış tutarını karşılamıyor.';
     }
@@ -543,7 +542,7 @@ class _InvestmentEntryScreenState extends State<InvestmentEntryScreen> {
 
     if (_txType != 'sell' ||
         amount == null ||
-        amount <= 0 ||
+        amount < 0 ||
         quantity == null ||
         quantity <= 0 ||
         account == null) {
@@ -604,7 +603,7 @@ class _InvestmentEntryScreenState extends State<InvestmentEntryScreen> {
     final cashAccount = _selectedCashAccount();
     final installmentCount = int.tryParse(_installmentCountController.text);
 
-    if ((_isBalanceBackedBuy
+    if ((_isBalanceBackedCashflow
             ? amount == null || amount < 0
             : amount == null || amount <= 0) ||
         quantity == null ||
@@ -635,7 +634,8 @@ class _InvestmentEntryScreenState extends State<InvestmentEntryScreen> {
     }
 
     final effectiveAmount = amount;
-    final double unitPrice = _isBalanceBackedBuy ? 0 : effectiveAmount / quantity;
+    final double unitPrice =
+        _isBalanceBackedCashflow ? 0 : effectiveAmount / quantity;
     final key = _buildCalculationKey(
       accountId: account.id,
       txType: _txType,
@@ -1146,7 +1146,7 @@ class _InvestmentEntryScreenState extends State<InvestmentEntryScreen> {
                               child: Text(_fmtDate(_selectedDate)),
                             ),
                           ),
-                          if (!_isBalanceBackedBuy) ...[
+                          if (!_isBalanceBackedCashflow) ...[
                             TextFormField(
                               controller: _amountController,
                               keyboardType: const TextInputType.numberWithOptions(

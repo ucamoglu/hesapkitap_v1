@@ -58,6 +58,7 @@ class _AssetOperationScreenState extends State<AssetOperationScreen> {
   final _addressController = TextEditingController();
   final _brandController = TextEditingController();
   final _modelController = TextEditingController();
+  final _plateController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _currentValueController = TextEditingController();
   final _amountController = TextEditingController();
@@ -109,6 +110,7 @@ class _AssetOperationScreenState extends State<AssetOperationScreen> {
     _addressController.dispose();
     _brandController.dispose();
     _modelController.dispose();
+    _plateController.dispose();
     _descriptionController.dispose();
     _currentValueController.dispose();
     _amountController.dispose();
@@ -145,6 +147,7 @@ class _AssetOperationScreenState extends State<AssetOperationScreen> {
       _addressController.text = initialAsset.address ?? '';
       _brandController.text = initialAsset.brand ?? '';
       _modelController.text = initialAsset.model ?? '';
+      _plateController.text = initialAsset.plate ?? '';
       _descriptionController.text = initialAsset.description ?? '';
       _currentValueController.text = initialAsset.currentValueInput ?? '';
       _selectedDate = _isSellMode
@@ -198,6 +201,7 @@ class _AssetOperationScreenState extends State<AssetOperationScreen> {
     _addressController.text = asset.address ?? '';
     _brandController.text = asset.brand ?? '';
     _modelController.text = asset.model ?? '';
+    _plateController.text = asset.plate ?? '';
     _currentValueController.text = asset.currentValueInput ?? '';
   }
 
@@ -295,6 +299,7 @@ class _AssetOperationScreenState extends State<AssetOperationScreen> {
           address: _normalizeText(_addressController.text),
           brand: _normalizeText(_brandController.text),
           model: _normalizeText(_modelController.text),
+          plate: _normalizeText(_plateController.text),
           description: _normalizeText(_descriptionController.text),
           currentValueInput: null,
           acquisitionValue: amount!,
@@ -343,8 +348,10 @@ class _AssetOperationScreenState extends State<AssetOperationScreen> {
           address: _normalizeText(_addressController.text),
           brand: _normalizeText(_brandController.text),
           model: _normalizeText(_modelController.text),
+          plate: _normalizeText(_plateController.text),
           description: _normalizeText(_descriptionController.text),
-          currentValueInput: _normalizeText(_currentValueController.text),
+          currentValueInput:
+              _isActive ? _normalizeText(_currentValueController.text) : null,
           isActive: _isActive,
         );
         await TransactionAttachmentService.replaceAll(
@@ -895,6 +902,9 @@ class _AssetOperationScreenState extends State<AssetOperationScreen> {
                             onChanged: (value) {
                               setState(() {
                                 _isActive = value;
+                                if (!value) {
+                                  _currentValueController.clear();
+                                }
                               });
                             },
                           ),
@@ -1073,6 +1083,7 @@ class _AssetOperationScreenState extends State<AssetOperationScreen> {
                 }
                 if (value != 'vehicle') {
                   _modelController.clear();
+                  _plateController.clear();
                 }
                 if (!_isRealEstateType) {
                   _areaController.clear();
@@ -1136,6 +1147,15 @@ class _AssetOperationScreenState extends State<AssetOperationScreen> {
           validator: (value) =>
               _normalizeText(value) == null ? 'Model giriniz.' : null,
         ),
+        const SizedBox(height: 12),
+        TextFormField(
+          controller: _plateController,
+          textCapitalization: TextCapitalization.characters,
+          inputFormatters: const [TurkishUpperCaseFormatter()],
+          decoration: const InputDecoration(labelText: 'Plaka'),
+          validator: (value) =>
+              _normalizeText(value) == null ? 'Plaka giriniz.' : null,
+        ),
       ];
     }
 
@@ -1191,10 +1211,14 @@ class _AssetOperationScreenState extends State<AssetOperationScreen> {
   Widget _buildCurrentValueField() {
     return TextFormField(
       controller: _currentValueController,
+      enabled: _isActive,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
       inputFormatters: const [TurkishMoneyInputFormatter()],
-      decoration: const InputDecoration(
+      decoration: InputDecoration(
         labelText: 'Güncel Değer (opsiyonel)',
+        helperText: _isActive
+            ? null
+            : 'Pasif varlık için güncel değer girilemez.',
       ),
     );
   }

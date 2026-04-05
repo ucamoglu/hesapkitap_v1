@@ -153,12 +153,16 @@ class DashboardLoader {
     var activeAssetTotal = 0.0;
     for (final asset in activeAssets) {
       final value = asset.effectiveDashboardValue;
-      activeAssetTotal += value;
+      if (asset.assetType != 'fixture') {
+        activeAssetTotal += value;
+      }
       assetRows.add(
         AccountPreviewRow(
           name: asset.displayName,
+          summaryName: _assetSummaryName(asset),
           valueText: '${_fmtAmount(value)} TL',
           subtitle: asset.currentValue != null ? 'Güncel değer' : 'Edinim değeri',
+          groupLabel: asset.assetType == 'fixture' ? 'Demirbaşlar' : 'Varlıklar',
           color: Colors.brown,
         ),
       );
@@ -616,6 +620,13 @@ Future<Map<String, double>> _loadRates({
     } catch (_) {}
   }
   return ratesByCode;
+}
+
+String _assetSummaryName(AssetRecord asset) {
+  final explicitName = asset.name.trim();
+  if (explicitName.isNotEmpty) return explicitName;
+  if (asset.assetType == 'vehicle') return asset.assetTypeLabel;
+  return asset.displayName;
 }
 
 String _fmtAmount(double value) {

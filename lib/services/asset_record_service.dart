@@ -41,6 +41,7 @@ class AssetRecordService {
     String? address,
     String? brand,
     String? model,
+    String? plate,
     String? description,
     String? currentValueInput,
     required double acquisitionValue,
@@ -148,6 +149,7 @@ class AssetRecordService {
       ..address = _normalize(address)
       ..brand = _normalize(brand)
       ..model = _normalize(model)
+      ..plate = _normalize(plate)
       ..description = _normalize(description)
       ..currentValueInput = _normalize(currentValueInput)
       ..paymentMethod = paymentMethod
@@ -232,6 +234,7 @@ class AssetRecordService {
     String? address,
     String? brand,
     String? model,
+    String? plate,
     String? description,
     String? currentValueInput,
     required bool isActive,
@@ -242,6 +245,10 @@ class AssetRecordService {
     if (current == null) {
       throw Exception('Varlık kaydı bulunamadı.');
     }
+    final normalizedCurrentValue = _normalize(currentValueInput);
+    if (!isActive && normalizedCurrentValue != null) {
+      throw Exception('Pasif varlık için güncel değer girilemez.');
+    }
     current
       ..assetType = assetType
       ..name = name.trim()
@@ -249,8 +256,9 @@ class AssetRecordService {
       ..address = _normalize(address)
       ..brand = _normalize(brand)
       ..model = _normalize(model)
+      ..plate = _normalize(plate)
       ..description = _normalize(description)
-      ..currentValueInput = _normalize(currentValueInput)
+      ..currentValueInput = normalizedCurrentValue
       ..isActive = isActive
       ..updatedAt = DateTime.now();
     await isar.writeTxn(() => isar.assetRecords.put(current));

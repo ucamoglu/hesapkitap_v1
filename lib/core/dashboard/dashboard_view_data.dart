@@ -107,15 +107,19 @@ class TrackedQuoteRow {
 
 class AccountPreviewRow {
   final String name;
+  final String? summaryName;
   final String valueText;
   final String? subtitle;
+  final String? groupLabel;
   final Color color;
 
   const AccountPreviewRow({
     required this.name,
+    this.summaryName,
     required this.valueText,
     required this.color,
     this.subtitle,
+    this.groupLabel,
   });
 }
 
