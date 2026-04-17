@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'dart:developer' as developer;
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -9,8 +10,6 @@ import '../models/finance_transaction.dart';
 import '../models/income_category.dart';
 import '../services/account_service.dart';
 import '../services/income_category_service.dart';
-import '../services/location_consent_service.dart';
-import '../services/transaction_location_service.dart';
 import '../services/transaction_attachment_service.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_theme_helpers.dart';
@@ -162,9 +161,10 @@ class _IncomeEntryScreenState extends State<IncomeEntryScreen> {
     });
 
     try {
-      final location = await _resolveLocationForSave();
+      developer.log('income_save:start', name: 'IncomeEntry');
       if (_isEditMode) {
         final tx = widget.initialTransaction!;
+        developer.log('income_save:update_transaction:start', name: 'IncomeEntry');
         await AppRuntime.dataLayer.finance.updateTransaction(
           transactionId: tx.id,
           accountId: _selectedAccountId!,
@@ -172,12 +172,12 @@ class _IncomeEntryScreenState extends State<IncomeEntryScreen> {
           type: 'income',
           amount: amount,
           date: _selectedDate,
-          latitude: location?.latitude,
-          longitude: location?.longitude,
           description: _descriptionController.text,
           incomePlanId: tx.incomePlanId,
           expensePlanId: null,
         );
+        developer.log('income_save:update_transaction:done', name: 'IncomeEntry');
+        developer.log('income_save:replace_attachments:start', name: 'IncomeEntry');
         await TransactionAttachmentService.replaceAll(
           ownerType: 'finance',
           ownerId: tx.id,
@@ -186,72 +186,41 @@ class _IncomeEntryScreenState extends State<IncomeEntryScreen> {
             ..._attachments.map((e) => e.toList()),
           ],
         );
+        developer.log('income_save:replace_attachments:done', name: 'IncomeEntry');
       } else {
+        developer.log('income_save:add_income:start', name: 'IncomeEntry');
         final txId = await AppRuntime.dataLayer.finance.addIncomeAndGetId(
           accountId: _selectedAccountId!,
           categoryId: _selectedCategoryId!,
           amount: amount,
           date: _selectedDate,
-          latitude: location?.latitude,
-          longitude: location?.longitude,
           description: _descriptionController.text,
         );
+        developer.log('income_save:add_income:done txId=$txId', name: 'IncomeEntry');
+        developer.log('income_save:add_attachments:start count=${_attachments.length}', name: 'IncomeEntry');
         await TransactionAttachmentService.addMany(
           ownerType: 'finance',
           ownerId: txId,
           images: _attachments.map((e) => e.toList()).toList(),
         );
+        developer.log('income_save:add_attachments:done', name: 'IncomeEntry');
       }
 
       if (!mounted) return;
+      developer.log('income_save:success_pop', name: 'IncomeEntry');
       _isEditMode ? AppFeedback.updated() : AppFeedback.saved();
       Navigator.pop(context, true);
     } catch (e) {
+      developer.log('income_save:error $e', name: 'IncomeEntry');
       _showSnack("Gelir kaydedilemedi: $e");
     } finally {
+      developer.log('income_save:finally', name: 'IncomeEntry');
       if (mounted) {
         setState(() {
           _isSaving = false;
         });
       }
     }
-  }
-
-  Future<TransactionLocationPoint?> _resolveLocationForSave() async {
-    final preference = await LocationConsentService.getPreference();
-    if (preference == null) {
-      if (!mounted) return null;
-      final approved = await showDialog<bool>(
-        context: context,
-        builder: (_) => AlertDialog(
-          title: const Text('Konum İlişkilendirilsin mi?'),
-          content: const Text(
-            'İstersen işlemler kaydedilirken bulunduğun konum otomatik ilişkilendirilebilir. Bu özellik daha sonra harita üzerinde harcamaları göstermemize yardımcı olur.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Şimdilik Kullanma'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Konumu Kullan'),
-            ),
-          ],
-        ),
-      );
-      final allowAutoCapture = approved == true;
-      await LocationConsentService.savePreference(
-        autoCaptureEnabled: allowAutoCapture,
-      );
-      if (!allowAutoCapture) return null;
-      return TransactionLocationService.tryGetCurrentLocation(
-        requestPermission: true,
-      );
-    }
-
-    if (!preference.autoCaptureEnabled) return null;
-    return TransactionLocationService.tryGetCurrentLocation();
   }
 
   // Edit modundaki gelir hareketini geri sararak siler.

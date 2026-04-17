@@ -29,6 +29,7 @@ class TransactionLocationService {
 
       final position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.medium,
+        timeLimit: const Duration(seconds: 6),
       );
       return TransactionLocationPoint(
         latitude: position.latitude,

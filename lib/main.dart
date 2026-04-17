@@ -55,7 +55,7 @@ class _MyAppState extends State<MyApp> {
       animation: AppThemeController.instance,
       builder: (context, _) {
         return MaterialApp(
-          title: 'HesapKitap',
+          title: 'Varlık360',
           scaffoldMessengerKey: appScaffoldMessengerKey,
           locale: const Locale('tr', 'TR'),
           supportedLocales: const [
