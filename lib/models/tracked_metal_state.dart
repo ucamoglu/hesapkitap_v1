@@ -6,6 +6,7 @@ part 'tracked_metal_state.g.dart';
 class TrackedMetalState {
   Id id = Isar.autoIncrement;
 
+  // State tablosu, maden tanimindan ayri olarak aktiflik durumunu tutar.
   @Index(unique: true, replace: true)
   late String code;
 

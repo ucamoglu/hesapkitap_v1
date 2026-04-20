@@ -5,6 +5,16 @@ import '../models/account.dart';
 import '../models/transfer_transaction.dart';
 
 class TransferTransactionService {
+  static void _validateTransferAccount(Account account) {
+    if (account.type == 'investment') {
+      throw Exception('Transfer yalnızca nakit hesaplar arasında yapılabilir.');
+    }
+    if (!account.isActive) {
+      throw Exception('Pasif hesapta transfer yapılamaz.');
+    }
+  }
+
+  /// Iki hesap arasinda transfer kaydi olusturur ve bakiyeleri ayni anda gunceller.
   static Future<int> addTransfer({
     required int fromAccountId,
     required int toAccountId,
@@ -28,6 +38,11 @@ class TransferTransactionService {
       if (from == null || to == null) {
         throw Exception('Hesap bulunamadı.');
       }
+      _validateTransferAccount(from);
+      _validateTransferAccount(to);
+      if (!from.canWithdraw(amount)) {
+        throw Exception('Gönderen hesap bakiyesi transfer için yetersiz.');
+      }
 
       from.balance -= amount;
       to.balance += amount;
@@ -50,10 +65,38 @@ class TransferTransactionService {
     return createdId;
   }
 
+  /// Transfer hareketlerini tarihe gore yeni->eski sirada getirir.
   static Future<List<TransferTransaction>> getAll() async {
     final isar = IsarService.isar;
     final items = await isar.transferTransactions.where().anyId().findAll();
     items.sort((a, b) => b.date.compareTo(a.date));
     return items;
+  }
+
+  /// Transferi silmeden once her iki hesap bakiyesini eski haline dondurur.
+  static Future<TransferTransaction> deleteAndReturn(int transactionId) async {
+    final isar = IsarService.isar;
+    late TransferTransaction deleted;
+
+    await isar.writeTxn(() async {
+      final tx = await isar.transferTransactions.get(transactionId);
+      if (tx == null) throw Exception('Transfer işlemi bulunamadı.');
+
+      final from = await isar.accounts.get(tx.fromAccountId);
+      final to = await isar.accounts.get(tx.toAccountId);
+      if (from == null || to == null) {
+        throw Exception('Transfer hesapları bulunamadı.');
+      }
+
+      from.balance += tx.amount;
+      to.balance -= tx.amount;
+
+      await isar.accounts.put(from);
+      await isar.accounts.put(to);
+      await isar.transferTransactions.delete(tx.id);
+      deleted = tx;
+    });
+
+    return deleted;
   }
 }

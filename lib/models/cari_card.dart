@@ -6,16 +6,27 @@ part 'cari_card.g.dart';
 class CariCard {
   Id id = Isar.autoIncrement;
 
-  late String type;
   // person / company
+  late String type;
 
+  // Kisi kayitlarinda gorunen ad soyad.
   String? fullName;
+  // Sirket kayitlarinda gorunen unvan.
   String? title;
 
   String? phone;
   String? email;
   String? note;
+  // Kart seviyesinde profil resmi/logo bytes verisini tutar.
   List<int>? photoBytes;
+
+  // tl / foreign
+  String currencyType = 'tl';
+
+  // currency / metal / crypto / stock
+  String? foreignMarketType;
+  String? foreignCode;
+  String? foreignName;
 
   bool isActive = true;
 

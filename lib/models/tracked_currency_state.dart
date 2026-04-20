@@ -6,6 +6,7 @@ part 'tracked_currency_state.g.dart';
 class TrackedCurrencyState {
   Id id = Isar.autoIncrement;
 
+  // State tablosu, dovizin tanimindan ayri olarak UI aktiflik durumunu tutar.
   @Index(unique: true, replace: true)
   late String code;
 

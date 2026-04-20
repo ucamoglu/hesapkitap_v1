@@ -1,0 +1,4 @@
+enum PlanTier {
+  free,
+  plus,
+}

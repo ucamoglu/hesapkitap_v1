@@ -59,6 +59,8 @@ class InstrumentTrackingScreen extends StatefulWidget {
   final Future<TrackingLinkStatus> Function(String code) linkStatusByCode;
   final Widget Function(MarketRateItem? rate) trailingBuilder;
   final Duration refreshInterval;
+  final MarketRateItem? Function(String rawQuery)? manualCandidateBuilder;
+  final String? manualCandidateLabel;
 
   const InstrumentTrackingScreen({
     required this.title,
@@ -80,6 +82,8 @@ class InstrumentTrackingScreen extends StatefulWidget {
     required this.linkStatusByCode,
     required this.trailingBuilder,
     this.refreshInterval = const Duration(hours: 1),
+    this.manualCandidateBuilder,
+    this.manualCandidateLabel,
     super.key,
   });
 
@@ -96,6 +100,13 @@ class _InstrumentTrackingScreenState extends State<InstrumentTrackingScreen> {
   String? _error;
   Timer? _timer;
 
+  void _showSnack(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -109,6 +120,7 @@ class _InstrumentTrackingScreenState extends State<InstrumentTrackingScreen> {
     super.dispose();
   }
 
+  // Genel takip ekraninin veri kaynagini tazeleyip kartlarin son halini kurar.
   Future<void> _load({bool silent = false}) async {
     if (!silent) {
       setState(() {
@@ -137,15 +149,13 @@ class _InstrumentTrackingScreenState extends State<InstrumentTrackingScreen> {
     }
   }
 
+  // Takip listesine yeni enstruman eklemek icin ortak secim arayuzunu acar.
   Future<void> _openAddDialog() async {
     if (_loading) return;
     final trackedCodes = _tracked.map((e) => e.code).toSet();
     final candidates = _allItems.where((e) => !trackedCodes.contains(e.code)).toList();
     if (candidates.isEmpty) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(widget.noCandidateMessage)),
-      );
+      _showSnack(widget.noCandidateMessage);
       return;
     }
 
@@ -161,6 +171,13 @@ class _InstrumentTrackingScreenState extends State<InstrumentTrackingScreen> {
             if (q.isEmpty) return true;
             return e.code.toLowerCase().contains(q) || e.name.toLowerCase().contains(q);
           }).toList();
+          final manualCandidate = widget.manualCandidateBuilder?.call(query);
+          final canAddManualCandidate =
+              manualCandidate != null &&
+              !trackedCodes.contains(manualCandidate.code) &&
+              !candidates.any(
+                (item) => item.code.toUpperCase() == manualCandidate.code.toUpperCase(),
+              );
 
           return SafeArea(
             child: SizedBox(
@@ -188,6 +205,17 @@ class _InstrumentTrackingScreenState extends State<InstrumentTrackingScreen> {
                     ),
                   ),
                   const Divider(height: 1),
+                  if (canAddManualCandidate)
+                    ListTile(
+                      leading: const Icon(Icons.add_circle_outline),
+                      title: Text(
+                        '${widget.manualCandidateLabel ?? 'Kodu ekle'}: '
+                        '${manualCandidate.code}',
+                      ),
+                      subtitle: Text(manualCandidate.name),
+                      onTap: () => Navigator.pop(ctx, manualCandidate),
+                    ),
+                  if (canAddManualCandidate) const Divider(height: 1),
                   Expanded(
                     child: ListView.separated(
                       itemCount: filtered.length,
@@ -210,31 +238,36 @@ class _InstrumentTrackingScreenState extends State<InstrumentTrackingScreen> {
     );
 
     if (selected == null) return;
-    await widget.addOrUpdate(selected);
-    await _load(silent: true);
+    try {
+      await widget.addOrUpdate(selected);
+      await _load(silent: true);
+      _showSnack('${selected.code} takibe eklendi.');
+    } catch (e) {
+      _showSnack('Kayıt hatası: $e');
+    }
   }
 
+  // Bagli hesap durumuna gore kaydi siler veya pasife alir.
   Future<void> _deleteOrPassive(TrackingItemView tracked) async {
-    final link = await widget.linkStatusByCode(tracked.code);
-    if (link.hasAny) {
-      if (link.hasActive) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(widget.blockedDeleteMessage)),
-        );
+    try {
+      final link = await widget.linkStatusByCode(tracked.code);
+      if (link.hasAny) {
+        if (link.hasActive) {
+          _showSnack(widget.blockedDeleteMessage);
+          return;
+        }
+        await widget.setActive(tracked.code, false);
+        await _load(silent: true);
+        _showSnack(widget.linkedPassiveMessage);
         return;
       }
-      await widget.setActive(tracked.code, false);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(widget.linkedPassiveMessage)),
-      );
-      await _load(silent: true);
-      return;
-    }
 
-    await widget.remove(tracked.code);
-    await _load(silent: true);
+      await widget.remove(tracked.code);
+      await _load(silent: true);
+      _showSnack('${tracked.code} takipten silindi.');
+    } catch (e) {
+      _showSnack('İşlem hatası: $e');
+    }
   }
 
   Future<void> _showActions(TrackingItemView tracked) async {
@@ -282,20 +315,27 @@ class _InstrumentTrackingScreenState extends State<InstrumentTrackingScreen> {
     );
 
     if (action == 'activate') {
-      await widget.setActive(latest.code, true);
-      await _load(silent: true);
+      try {
+        await widget.setActive(latest.code, true);
+        await _load(silent: true);
+        _showSnack('${latest.code} aktif yapıldı.');
+      } catch (e) {
+        _showSnack('İşlem hatası: $e');
+      }
       return;
     }
     if (action == 'deactivate') {
       if (link.hasActive) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(widget.blockedDeactivateMessage)),
-        );
+        _showSnack(widget.blockedDeactivateMessage);
         return;
       }
-      await widget.setActive(latest.code, false);
-      await _load(silent: true);
+      try {
+        await widget.setActive(latest.code, false);
+        await _load(silent: true);
+        _showSnack('${latest.code} pasif yapıldı.');
+      } catch (e) {
+        _showSnack('İşlem hatası: $e');
+      }
       return;
     }
     if (action == 'delete') {

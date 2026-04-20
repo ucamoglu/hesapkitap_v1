@@ -6,22 +6,34 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
+import '../core/runtime/app_runtime.dart';
+import '../models/account.dart';
+import '../models/cari_card.dart';
+import '../models/category.dart';
 import '../models/cari_transaction.dart';
+import '../models/credit_card_payment.dart';
+import '../models/credit_card_statement.dart';
 import '../models/finance_transaction.dart';
+import '../models/income_category.dart';
+import '../models/investment_transaction.dart';
+import 'cari_account_screen.dart';
+import 'expense_entry_screen.dart';
+import 'income_entry_screen.dart';
+import 'investment_entry_screen.dart';
 import '../services/account_service.dart';
 import '../services/cari_card_service.dart';
 import '../services/cari_transaction_service.dart';
+import '../services/credit_card_payment_service.dart';
+import '../services/credit_card_statement_service.dart';
 import '../services/category_service.dart';
 import '../services/finance_transaction_service.dart';
 import '../services/income_category_service.dart';
+import '../services/investment_transaction_service.dart';
 import '../services/transaction_attachment_service.dart';
 import '../theme/app_colors.dart';
 import '../utils/navigation_helpers.dart';
-import '../utils/turkish_money_input_formatter.dart';
-import '../utils/turkish_upper_case_formatter.dart';
 
-enum _TypeFilter { all, income, expense, incomeExpense, cari }
-enum _CariKindFilter { all, debt, collection }
+enum _TypeFilter { all, income, expense }
 
 enum _DatePreset { all, day, week, month, year, custom }
 
@@ -54,7 +66,14 @@ class _GroupedBucket {
 }
 
 class IncomeExpenseTransactionsScreen extends StatefulWidget {
-  const IncomeExpenseTransactionsScreen({super.key});
+  final bool onlyCariTransactions;
+  final String screenTitle;
+
+  const IncomeExpenseTransactionsScreen({
+    super.key,
+    this.onlyCariTransactions = false,
+    this.screenTitle = 'İşlem Geçmişi',
+  });
 
   @override
   State<IncomeExpenseTransactionsScreen> createState() =>
@@ -87,11 +106,15 @@ class _IncomeExpenseTransactionsScreenState
   Map<int, String> _expenseCategoryNames = {};
   Map<int, String> _cariCardNames = {};
   Map<int, String> _cariRawTypeByTxId = {};
+  Map<int, CariTransaction> _cariTxBySyntheticId = {};
+  Map<int, _InvestmentHistoryMeta> _investmentMetaByTxId = {};
+  Map<int, int> _investmentTxIdByFinanceTxId = {};
+  Map<int, InvestmentTransaction> _investmentById = {};
+  Map<int, CreditCardPayment> _creditCardPaymentBySyntheticId = {};
   Map<String, int> _attachmentCountMap = {};
   List<_CategoryOption> _categoryOptions = [];
 
   _TypeFilter _typeFilter = _TypeFilter.all;
-  _CariKindFilter _cariKindFilter = _CariKindFilter.all;
   _DatePreset _datePreset = _DatePreset.month;
   _GroupBy _groupBy = _GroupBy.day;
   int? _selectedAccountId;
@@ -105,6 +128,10 @@ class _IncomeExpenseTransactionsScreenState
   @override
   void initState() {
     super.initState();
+    if (widget.onlyCariTransactions) {
+      _groupBy = _GroupBy.none;
+      _filtersExpanded = true;
+    }
     _load();
   }
 
@@ -114,73 +141,170 @@ class _IncomeExpenseTransactionsScreenState
     super.dispose();
   }
 
+  // Liste, ozet kartlari ve filtreler icin gereken tum hareket verisini yukler.
   Future<void> _load() async {
+    final range = _resolveDateRange(_datePreset);
+
     setState(() {
       _loading = true;
       _error = null;
     });
 
     try {
-      final tx = await FinanceTransactionService.getAll();
-      final cariTx = await CariTransactionService.getAll();
-      final accounts = await AccountService.getAllAccounts();
-      final incomeCategories = await IncomeCategoryService.getAll();
-      final expenseCategories = await CategoryService.getAllExpenseCategories();
-      final manualIncomeCategories = await IncomeCategoryService.getAllManual();
-      final manualExpenseCategories =
-          await CategoryService.getAllManualExpenseCategories();
-      final cariCards = await CariCardService.getAll();
-      final attachmentCountMap = await TransactionAttachmentService.getCountMap();
+      final results = await Future.wait([
+        range == null
+            ? FinanceTransactionService.getAll()
+            : FinanceTransactionService.getByDateRange(
+                start: range.$1,
+                end: range.$2,
+              ),
+        range == null
+            ? CariTransactionService.getAll()
+            : CariTransactionService.getByDateRange(
+                start: range.$1,
+                end: range.$2,
+              ),
+        range == null
+            ? InvestmentTransactionService.getAll()
+            : InvestmentTransactionService.getByDateRange(
+                start: range.$1,
+                end: range.$2,
+              ),
+        AccountService.getAllAccounts(),
+        IncomeCategoryService.getAll(),
+        CategoryService.getAllExpenseCategories(),
+        IncomeCategoryService.getAllManual(),
+        CategoryService.getAllManualExpenseCategories(),
+        CariCardService.getAll(),
+        range == null
+            ? CreditCardPaymentService.getAll()
+            : CreditCardPaymentService.getByPaymentDateRange(
+                start: range.$1,
+                end: range.$2,
+              ),
+        CreditCardStatementService.getAll(),
+        TransactionAttachmentService.getCountMap(),
+      ]);
+
+      final tx = results[0] as List<FinanceTransaction>;
+      final cariTx = results[1] as List<CariTransaction>;
+      final investmentTx = results[2] as List<InvestmentTransaction>;
+      final accounts = results[3] as List<Account>;
+      final incomeCategories = results[4] as List<IncomeCategory>;
+      final expenseCategories = results[5] as List<Category>;
+      final manualIncomeCategories = results[6] as List<IncomeCategory>;
+      final manualExpenseCategories = results[7] as List<Category>;
+      final cariCards = results[8] as List<CariCard>;
+      final creditCardPayments = results[9] as List<CreditCardPayment>;
+      final creditCardStatements = results[10] as List<CreditCardStatement>;
+      final attachmentCountMap = results[11] as Map<String, int>;
 
       if (!mounted) return;
 
       final mappedCari = cariTx.map(_mapCariToFinanceLike).toList();
+      final mappedInvestment = _mapInvestmentToFinanceLike(
+        investmentTx,
+        {for (final a in accounts) a.id: a.name},
+      );
+      final mappedCreditCardPayments = _mapCreditCardPaymentsToFinanceLike(
+        creditCardPayments: creditCardPayments,
+        statementsById: {
+          for (final statement in creditCardStatements) statement.id: statement,
+        },
+        accountNames: {for (final a in accounts) a.id: a.name},
+      );
+      final investmentById = {
+        for (final it in investmentTx) it.id: it,
+      };
+      final investmentFinanceLinkMap = _buildInvestmentFinanceLinkMap(
+        financeTx: tx,
+        investmentTx: investmentTx,
+      );
       final cariTypeMap = <int, String>{
         for (final c in cariTx) -(c.id + 1): c.type,
       };
-      final merged = [...tx, ...mappedCari]
-        ..sort((a, b) => b.date.compareTo(a.date));
+      final cariTxBySyntheticId = <int, CariTransaction>{
+        for (final c in cariTx) -(c.id + 1): c,
+      };
+      final merged = widget.onlyCariTransactions
+          ? ([...mappedCari]..sort((a, b) => b.date.compareTo(a.date)))
+          : ([
+              ...tx,
+              ...mappedCari,
+              ...mappedInvestment.$1,
+              ...mappedCreditCardPayments.$1
+            ]..sort((a, b) => b.date.compareTo(a.date)));
+      final accountFilterMap = {
+        for (final a in accounts.where((a) => a.type != 'investment'))
+          a.id: a.name,
+      };
+      final cariCardNames = {
+        for (final c in cariCards)
+          c.id: (c.type == 'company'
+                  ? (c.title?.trim().isNotEmpty == true ? c.title! : null)
+                  : (c.fullName?.trim().isNotEmpty == true
+                      ? c.fullName!
+                      : null)) ??
+              'Cari #${c.id}',
+      };
+      final categoryOptions = widget.onlyCariTransactions
+          ? cariCards
+              .map(
+                (c) => _CategoryOption(
+                  key: 'cari:${c.id}',
+                  type: 'cari',
+                  id: c.id,
+                  label: 'Cari • ${cariCardNames[c.id] ?? 'Cari #${c.id}'}',
+                ),
+              )
+              .toList()
+          : [
+              ...manualIncomeCategories.map(
+                (c) => _CategoryOption(
+                  key: 'income:${c.id}',
+                  type: 'income',
+                  id: c.id,
+                  label: 'Gelir • ${c.name}',
+                ),
+              ),
+              ...manualExpenseCategories.map(
+                (c) => _CategoryOption(
+                  key: 'expense:${c.id}',
+                  type: 'expense',
+                  id: c.id,
+                  label: 'Gider • ${c.name}',
+                ),
+              ),
+              ...cariCards.map(
+                (c) => _CategoryOption(
+                  key: 'cari:${c.id}',
+                  type: 'cari',
+                  id: c.id,
+                  label: 'Cari • ${cariCardNames[c.id] ?? 'Cari #${c.id}'}',
+                ),
+              ),
+            ];
 
       setState(() {
         _all = merged;
-        _accountNames = {for (final a in accounts) a.id: a.name};
+        _accountNames = accountFilterMap;
+        if (_selectedAccountId != null &&
+            !_accountNames.containsKey(_selectedAccountId)) {
+          _selectedAccountId = null;
+        }
         _incomeCategoryNames = {for (final c in incomeCategories) c.id: c.name};
-        _expenseCategoryNames = {for (final c in expenseCategories) c.id: c.name};
-        _cariRawTypeByTxId = cariTypeMap;
-        _attachmentCountMap = attachmentCountMap;
-        _cariCardNames = {
-          for (final c in cariCards)
-            c.id: (c.type == 'company'
-                    ? (c.title?.trim().isNotEmpty == true ? c.title! : null)
-                    : (c.fullName?.trim().isNotEmpty == true ? c.fullName! : null)) ??
-                'Cari #${c.id}',
+        _expenseCategoryNames = {
+          for (final c in expenseCategories) c.id: c.name
         };
-        _categoryOptions = [
-          ...manualIncomeCategories.map(
-            (c) => _CategoryOption(
-              key: 'income:${c.id}',
-              type: 'income',
-              id: c.id,
-              label: 'Gelir • ${c.name}',
-            ),
-          ),
-          ...manualExpenseCategories.map(
-            (c) => _CategoryOption(
-              key: 'expense:${c.id}',
-              type: 'expense',
-              id: c.id,
-              label: 'Gider • ${c.name}',
-            ),
-          ),
-          ...cariCards.map(
-            (c) => _CategoryOption(
-              key: 'cari:${c.id}',
-              type: 'cari',
-              id: c.id,
-              label: 'Cari • ${_cariCardNames[c.id] ?? 'Cari #${c.id}'}',
-            ),
-          ),
-        ];
+        _cariRawTypeByTxId = cariTypeMap;
+        _cariTxBySyntheticId = cariTxBySyntheticId;
+        _investmentMetaByTxId = mappedInvestment.$2;
+        _investmentTxIdByFinanceTxId = investmentFinanceLinkMap;
+        _investmentById = investmentById;
+        _creditCardPaymentBySyntheticId = mappedCreditCardPayments.$2;
+        _attachmentCountMap = attachmentCountMap;
+        _cariCardNames = cariCardNames;
+        _categoryOptions = categoryOptions;
         _loading = false;
       });
     } catch (e) {
@@ -202,20 +326,6 @@ class _IncomeExpenseTransactionsScreenState
       }
       if (_typeFilter == _TypeFilter.expense && tx.type != 'expense') {
         return false;
-      }
-      if (_typeFilter == _TypeFilter.cari && !_isCariTx(tx)) {
-        return false;
-      }
-      if (_typeFilter == _TypeFilter.incomeExpense && _isCariTx(tx)) {
-        return false;
-      }
-      if (_typeFilter == _TypeFilter.cari) {
-        if (_cariKindFilter == _CariKindFilter.debt && !_isCariDebt(tx)) {
-          return false;
-        }
-        if (_cariKindFilter == _CariKindFilter.collection && !_isCariCollection(tx)) {
-          return false;
-        }
       }
 
       if (_selectedAccountId != null && tx.accountId != _selectedAccountId) {
@@ -247,7 +357,9 @@ class _IncomeExpenseTransactionsScreenState
         final desc = (tx.description ?? '').toLowerCase();
         final acc = (_accountNames[tx.accountId] ?? '').toLowerCase();
         final cat = _categoryName(tx).toLowerCase();
-        if (!desc.contains(query) && !acc.contains(query) && !cat.contains(query)) {
+        if (!desc.contains(query) &&
+            !acc.contains(query) &&
+            !cat.contains(query)) {
           return false;
         }
       }
@@ -296,7 +408,8 @@ class _IncomeExpenseTransactionsScreenState
 
     if (preset == _DatePreset.custom) {
       if (_customStart == null || _customEnd == null) return null;
-      start = DateTime(_customStart!.year, _customStart!.month, _customStart!.day);
+      start =
+          DateTime(_customStart!.year, _customStart!.month, _customStart!.day);
       end = DateTime(
         _customEnd!.year,
         _customEnd!.month,
@@ -343,7 +456,9 @@ class _IncomeExpenseTransactionsScreenState
   List<int> _availableYears() {
     final years = <int>{DateTime.now().year};
     for (final tx in _all) {
-      if (_selectedAccountId != null && tx.accountId != _selectedAccountId) continue;
+      if (_selectedAccountId != null && tx.accountId != _selectedAccountId) {
+        continue;
+      }
       years.add(tx.date.year);
     }
     final list = years.toList()..sort((a, b) => b.compareTo(a));
@@ -371,6 +486,7 @@ class _IncomeExpenseTransactionsScreenState
         _customEnd ??= DateTime.now();
       }
     });
+    _load();
   }
 
   List<_GroupedBucket> _grouped(List<FinanceTransaction> data) {
@@ -442,11 +558,17 @@ class _IncomeExpenseTransactionsScreenState
   }
 
   String _categoryName(FinanceTransaction tx) {
+    final invMeta = _investmentMetaByTxId[tx.id];
+    if (invMeta != null) return invMeta.symbol;
+    if (_creditCardPaymentBySyntheticId.containsKey(tx.id)) {
+      return 'Kredi Kartı Ödeme';
+    }
     if (_isCariTx(tx)) {
       return _cariCardNames[tx.categoryId] ?? 'Cari #${tx.categoryId}';
     }
     if (tx.type == 'income') {
-      return _incomeCategoryNames[tx.categoryId] ?? 'Kategori #${tx.categoryId}';
+      return _incomeCategoryNames[tx.categoryId] ??
+          'Kategori #${tx.categoryId}';
     }
     return _expenseCategoryNames[tx.categoryId] ?? 'Kategori #${tx.categoryId}';
   }
@@ -463,6 +585,23 @@ class _IncomeExpenseTransactionsScreenState
       b.write(intPart[i]);
       if (fromRight > 1 && fromRight % 3 == 1) b.write('.');
     }
+    return '${b.toString()},$decPart';
+  }
+
+  String _fmtQuantity(double value) {
+    final fixed = value.toStringAsFixed(4);
+    final normalized = fixed.replaceFirst(RegExp(r'([.,]?)0+$'), '');
+    final parts = normalized.split('.');
+    final intPart = parts[0];
+    final decPart = parts.length > 1 ? parts[1] : '';
+
+    final b = StringBuffer();
+    for (int i = 0; i < intPart.length; i++) {
+      final fromRight = intPart.length - i;
+      b.write(intPart[i]);
+      if (fromRight > 1 && fromRight % 3 == 1) b.write('.');
+    }
+    if (decPart.isEmpty) return b.toString();
     return '${b.toString()},$decPart';
   }
 
@@ -494,21 +633,13 @@ class _IncomeExpenseTransactionsScreenState
     String typeText = 'Tümü';
     if (_typeFilter == _TypeFilter.income) typeText = 'Gelir';
     if (_typeFilter == _TypeFilter.expense) typeText = 'Gider';
-    if (_typeFilter == _TypeFilter.incomeExpense) typeText = 'Gelir + Gider';
-    if (_typeFilter == _TypeFilter.cari) typeText = 'Cari Kart';
-    if (_typeFilter == _TypeFilter.cari) {
-      if (_cariKindFilter == _CariKindFilter.debt) {
-        typeText = 'Cari Kart (Borç Verme)';
-      } else if (_cariKindFilter == _CariKindFilter.collection) {
-        typeText = 'Cari Kart (Tahsilat)';
-      }
-    }
 
     final periodText = _periodLabel();
 
     final account = _selectedAccountId == null
         ? 'Tüm Hesaplar'
-        : (_accountNames[_selectedAccountId!] ?? 'Hesap #${_selectedAccountId!}');
+        : (_accountNames[_selectedAccountId!] ??
+            'Hesap #${_selectedAccountId!}');
 
     final category = _selectedCategoryKey == null
         ? 'Tüm Kategoriler'
@@ -653,6 +784,7 @@ class _IncomeExpenseTransactionsScreenState
     );
   }
 
+  // Ozel tarih filtresi icin baslangic/bitis secimini yonetir.
   Future<void> _pickCustomDate({required bool start}) async {
     final current = start ? _customStart : _customEnd;
     final picked = await showDatePicker(
@@ -669,8 +801,10 @@ class _IncomeExpenseTransactionsScreenState
         _customEnd = picked;
       }
     });
+    await _load();
   }
 
+  // Hafta/ay bazli filtrelerde referans gunu degistirir.
   Future<void> _pickReferenceDate() async {
     final picked = await showDatePicker(
       context: context,
@@ -682,6 +816,7 @@ class _IncomeExpenseTransactionsScreenState
     setState(() {
       _periodReferenceDate = picked;
     });
+    await _load();
   }
 
   @override
@@ -700,7 +835,7 @@ class _IncomeExpenseTransactionsScreenState
       drawer: buildAppMenuDrawer(),
       appBar: AppBar(
         leading: buildMenuLeading(),
-        title: const Text('İşlem Geçmişi'),
+        title: Text(widget.screenTitle),
         actions: [
           IconButton(
             icon: const Icon(Icons.picture_as_pdf),
@@ -725,11 +860,13 @@ class _IncomeExpenseTransactionsScreenState
                 )
               : Column(
                   children: [
-                    _buildSummary(totalIncome, totalExpense, net, filtered.length),
+                    _buildSummary(
+                        totalIncome, totalExpense, net, filtered.length),
                     _buildFilters(),
                     Expanded(
                       child: groups.isEmpty
-                          ? const Center(child: Text('Filtreye uygun işlem yok.'))
+                          ? const Center(
+                              child: Text('Filtreye uygun işlem yok.'))
                           : RefreshIndicator(
                               onRefresh: _load,
                               child: ListView.builder(
@@ -739,7 +876,11 @@ class _IncomeExpenseTransactionsScreenState
                                   final bucket = groups[index];
                                   final groupNet = bucket.items.fold<double>(
                                     0,
-                                    (s, e) => s + (e.type == 'income' ? e.amount : -e.amount),
+                                    (s, e) =>
+                                        s +
+                                        (e.type == 'income'
+                                            ? e.amount
+                                            : -e.amount),
                                   );
                                   return _buildGroup(bucket, groupNet);
                                 },
@@ -768,9 +909,11 @@ class _IncomeExpenseTransactionsScreenState
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _summaryMetricRow('Gelir', _fmtAmount(income), AppColors.income),
+                    _summaryMetricRow(
+                        'Gelir', _fmtAmount(income), AppColors.income),
                     const SizedBox(height: 8),
-                    _summaryMetricRow('Gider', _fmtAmount(expense), AppColors.expense),
+                    _summaryMetricRow(
+                        'Gider', _fmtAmount(expense), AppColors.expense),
                   ],
                 ),
               ),
@@ -809,7 +952,8 @@ class _IncomeExpenseTransactionsScreenState
     bool alignRight = false,
   }) {
     final textAlign = alignRight ? TextAlign.right : TextAlign.left;
-    final crossAlign = alignRight ? CrossAxisAlignment.end : CrossAxisAlignment.start;
+    final crossAlign =
+        alignRight ? CrossAxisAlignment.end : CrossAxisAlignment.start;
     return SizedBox(
       width: double.infinity,
       child: Column(
@@ -823,7 +967,8 @@ class _IncomeExpenseTransactionsScreenState
           const SizedBox(height: 2),
           FittedBox(
             fit: BoxFit.scaleDown,
-            alignment: alignRight ? Alignment.centerRight : Alignment.centerLeft,
+            alignment:
+                alignRight ? Alignment.centerRight : Alignment.centerLeft,
             child: Text(
               value,
               maxLines: 1,
@@ -840,8 +985,246 @@ class _IncomeExpenseTransactionsScreenState
   }
 
   Widget _buildFilters() {
-    final categories = _visibleCategoryOptions();
     final availableYears = _availableYears();
+    if (widget.onlyCariTransactions) {
+      return Card(
+        margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+        child: Column(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.filter_alt_outlined),
+              title: const Text(
+                'Filtreler',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              trailing: Icon(
+                _filtersExpanded ? Icons.expand_less : Icons.expand_more,
+              ),
+              onTap: () {
+                setState(() {
+                  _filtersExpanded = !_filtersExpanded;
+                });
+              },
+            ),
+            if (_filtersExpanded)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                child: Column(
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        'Aktif Dönem: ${_periodLabel()}',
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: DropdownButtonFormField<int?>(
+                            isExpanded: true,
+                            initialValue: _selectedAccountId,
+                            decoration:
+                                const InputDecoration(labelText: 'Hesap'),
+                            items: [
+                              const DropdownMenuItem<int?>(
+                                value: null,
+                                child: Text('Tüm Hesaplar'),
+                              ),
+                              ..._accountNames.entries.map(
+                                (e) => DropdownMenuItem<int?>(
+                                  value: e.key,
+                                  child: Text(
+                                    e.value,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ),
+                            ],
+                            onChanged: (v) {
+                              setState(() {
+                                _selectedAccountId = v;
+                              });
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: DropdownButtonFormField<_DatePreset>(
+                            isExpanded: true,
+                            initialValue: _datePreset,
+                            decoration:
+                                const InputDecoration(labelText: 'Dönem'),
+                            items: const [
+                              DropdownMenuItem(
+                                  value: _DatePreset.all, child: Text('Tümü')),
+                              DropdownMenuItem(
+                                  value: _DatePreset.day,
+                                  child: Text('Günlük')),
+                              DropdownMenuItem(
+                                  value: _DatePreset.week,
+                                  child: Text('Haftalık')),
+                              DropdownMenuItem(
+                                  value: _DatePreset.month,
+                                  child: Text('Aylık')),
+                              DropdownMenuItem(
+                                  value: _DatePreset.year,
+                                  child: Text('Yıllık')),
+                              DropdownMenuItem(
+                                  value: _DatePreset.custom,
+                                  child: Text('Özel')),
+                            ],
+                            onChanged: (v) {
+                              if (v == null) return;
+                              _onDatePresetChanged(v);
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (_datePreset != _DatePreset.all) ...[
+                      const SizedBox(height: 8),
+                      if (_datePreset == _DatePreset.day)
+                        const Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text('Referans gün: Bugün'),
+                        )
+                      else if (_datePreset == _DatePreset.week)
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: _pickReferenceDate,
+                                icon: const Icon(Icons.date_range),
+                                label: Text(
+                                    'Hafta: ${_weekRangeLabel(_periodReferenceDate)}'),
+                              ),
+                            ),
+                          ],
+                        )
+                      else if (_datePreset == _DatePreset.month)
+                        Row(
+                          children: [
+                            Expanded(
+                              child: DropdownButtonFormField<int>(
+                                isExpanded: true,
+                                initialValue: _periodReferenceDate.year,
+                                decoration:
+                                    const InputDecoration(labelText: 'Yıl'),
+                                items: availableYears
+                                    .map(
+                                      (y) => DropdownMenuItem<int>(
+                                        value: y,
+                                        child: Text(y.toString()),
+                                      ),
+                                    )
+                                    .toList(),
+                                onChanged: (v) {
+                                  if (v == null) return;
+                                  setState(() {
+                                    _periodReferenceDate = DateTime(
+                                      v,
+                                      _periodReferenceDate.month,
+                                      1,
+                                    );
+                                  });
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: DropdownButtonFormField<int>(
+                                isExpanded: true,
+                                initialValue: _periodReferenceDate.month,
+                                decoration:
+                                    const InputDecoration(labelText: 'Ay'),
+                                items: List.generate(
+                                  12,
+                                  (i) => DropdownMenuItem<int>(
+                                    value: i + 1,
+                                    child: Text(_monthNames[i]),
+                                  ),
+                                ),
+                                onChanged: (v) {
+                                  if (v == null) return;
+                                  setState(() {
+                                    _periodReferenceDate = DateTime(
+                                      _periodReferenceDate.year,
+                                      v,
+                                      1,
+                                    );
+                                  });
+                                },
+                              ),
+                            ),
+                          ],
+                        )
+                      else if (_datePreset == _DatePreset.year)
+                        DropdownButtonFormField<int>(
+                          isExpanded: true,
+                          initialValue: _periodReferenceDate.year,
+                          decoration: const InputDecoration(labelText: 'Yıl'),
+                          items: availableYears
+                              .map(
+                                (y) => DropdownMenuItem<int>(
+                                  value: y,
+                                  child: Text(y.toString()),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (v) {
+                            if (v == null) return;
+                            setState(() {
+                              _periodReferenceDate = DateTime(v, 1, 1);
+                            });
+                          },
+                        ),
+                    ],
+                    if (_datePreset == _DatePreset.custom) ...[
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () => _pickCustomDate(start: true),
+                              child: Text(
+                                _customStart == null
+                                    ? 'Başlangıç'
+                                    : _fmtDateOnly(_customStart!),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () => _pickCustomDate(start: false),
+                              child: Text(
+                                _customEnd == null
+                                    ? 'Bitiş'
+                                    : _fmtDateOnly(_customEnd!),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+          ],
+        ),
+      );
+    }
+
+    final categories = _visibleCategoryOptions();
 
     return Card(
       margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
@@ -870,7 +1253,8 @@ class _IncomeExpenseTransactionsScreenState
                   Container(
                     width: double.infinity,
                     margin: const EdgeInsets.only(bottom: 8),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 10),
                     decoration: BoxDecoration(
                       color: Colors.grey.shade100,
                       borderRadius: BorderRadius.circular(8),
@@ -888,26 +1272,20 @@ class _IncomeExpenseTransactionsScreenState
                           initialValue: _typeFilter,
                           decoration: const InputDecoration(labelText: 'Tür'),
                           items: const [
-                            DropdownMenuItem(value: _TypeFilter.all, child: Text('Tümü')),
-                            DropdownMenuItem(value: _TypeFilter.income, child: Text('Gelir')),
-                            DropdownMenuItem(value: _TypeFilter.expense, child: Text('Gider')),
                             DropdownMenuItem(
-                              value: _TypeFilter.incomeExpense,
-                              child: Text('Gelir + Gider'),
-                            ),
+                                value: _TypeFilter.all, child: Text('Tümü')),
                             DropdownMenuItem(
-                              value: _TypeFilter.cari,
-                              child: Text('Cari Kart'),
-                            ),
+                                value: _TypeFilter.income,
+                                child: Text('Gelir')),
+                            DropdownMenuItem(
+                                value: _TypeFilter.expense,
+                                child: Text('Gider')),
                           ],
                           onChanged: (v) {
                             if (v == null) return;
                             setState(() {
                               _typeFilter = v;
                               _selectedCategoryKey = null;
-                              if (_typeFilter != _TypeFilter.cari) {
-                                _cariKindFilter = _CariKindFilter.all;
-                              }
                             });
                           },
                         ),
@@ -919,12 +1297,19 @@ class _IncomeExpenseTransactionsScreenState
                           initialValue: _datePreset,
                           decoration: const InputDecoration(labelText: 'Dönem'),
                           items: const [
-                            DropdownMenuItem(value: _DatePreset.all, child: Text('Tümü')),
-                            DropdownMenuItem(value: _DatePreset.day, child: Text('Günlük')),
-                            DropdownMenuItem(value: _DatePreset.week, child: Text('Haftalık')),
-                            DropdownMenuItem(value: _DatePreset.month, child: Text('Aylık')),
-                            DropdownMenuItem(value: _DatePreset.year, child: Text('Yıllık')),
-                            DropdownMenuItem(value: _DatePreset.custom, child: Text('Özel')),
+                            DropdownMenuItem(
+                                value: _DatePreset.all, child: Text('Tümü')),
+                            DropdownMenuItem(
+                                value: _DatePreset.day, child: Text('Günlük')),
+                            DropdownMenuItem(
+                                value: _DatePreset.week,
+                                child: Text('Haftalık')),
+                            DropdownMenuItem(
+                                value: _DatePreset.month, child: Text('Aylık')),
+                            DropdownMenuItem(
+                                value: _DatePreset.year, child: Text('Yıllık')),
+                            DropdownMenuItem(
+                                value: _DatePreset.custom, child: Text('Özel')),
                           ],
                           onChanged: (v) {
                             if (v == null) return;
@@ -934,42 +1319,6 @@ class _IncomeExpenseTransactionsScreenState
                       ),
                     ],
                   ),
-                  if (_typeFilter == _TypeFilter.cari) ...[
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: DropdownButtonFormField<_CariKindFilter>(
-                            isExpanded: true,
-                            initialValue: _cariKindFilter,
-                            decoration: const InputDecoration(
-                              labelText: 'Cari İşlem Türü',
-                            ),
-                            items: const [
-                              DropdownMenuItem(
-                                value: _CariKindFilter.all,
-                                child: Text('Tümü'),
-                              ),
-                              DropdownMenuItem(
-                                value: _CariKindFilter.debt,
-                                child: Text('Borç Verme'),
-                              ),
-                              DropdownMenuItem(
-                                value: _CariKindFilter.collection,
-                                child: Text('Tahsilat'),
-                              ),
-                            ],
-                            onChanged: (v) {
-                              if (v == null) return;
-                              setState(() {
-                                _cariKindFilter = v;
-                              });
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
                   if (_datePreset != _DatePreset.all) ...[
                     const SizedBox(height: 8),
                     if (_datePreset == _DatePreset.day)
@@ -984,7 +1333,8 @@ class _IncomeExpenseTransactionsScreenState
                             child: OutlinedButton.icon(
                               onPressed: _pickReferenceDate,
                               icon: const Icon(Icons.date_range),
-                              label: Text('Hafta: ${_weekRangeLabel(_periodReferenceDate)}'),
+                              label: Text(
+                                  'Hafta: ${_weekRangeLabel(_periodReferenceDate)}'),
                             ),
                           ),
                         ],
@@ -996,7 +1346,8 @@ class _IncomeExpenseTransactionsScreenState
                             child: DropdownButtonFormField<int>(
                               isExpanded: true,
                               initialValue: _periodReferenceDate.year,
-                              decoration: const InputDecoration(labelText: 'Yıl'),
+                              decoration:
+                                  const InputDecoration(labelText: 'Yıl'),
                               items: availableYears
                                   .map(
                                     (y) => DropdownMenuItem<int>(
@@ -1022,7 +1373,8 @@ class _IncomeExpenseTransactionsScreenState
                             child: DropdownButtonFormField<int>(
                               isExpanded: true,
                               initialValue: _periodReferenceDate.month,
-                              decoration: const InputDecoration(labelText: 'Ay'),
+                              decoration:
+                                  const InputDecoration(labelText: 'Ay'),
                               items: List.generate(
                                 12,
                                 (i) => DropdownMenuItem<int>(
@@ -1084,7 +1436,9 @@ class _IncomeExpenseTransactionsScreenState
                           child: OutlinedButton(
                             onPressed: () => _pickCustomDate(start: false),
                             child: Text(
-                              _customEnd == null ? 'Bitiş' : _fmtDateOnly(_customEnd!),
+                              _customEnd == null
+                                  ? 'Bitiş'
+                                  : _fmtDateOnly(_customEnd!),
                             ),
                           ),
                         ),
@@ -1127,7 +1481,8 @@ class _IncomeExpenseTransactionsScreenState
                         child: DropdownButtonFormField<String?>(
                           isExpanded: true,
                           initialValue: _selectedCategoryKey,
-                          decoration: const InputDecoration(labelText: 'Kategori'),
+                          decoration:
+                              const InputDecoration(labelText: 'Kategori'),
                           items: [
                             const DropdownMenuItem<String?>(
                               value: null,
@@ -1160,18 +1515,25 @@ class _IncomeExpenseTransactionsScreenState
                         child: DropdownButtonFormField<_GroupBy>(
                           isExpanded: true,
                           initialValue: _groupBy,
-                          decoration: const InputDecoration(labelText: 'Gruplama'),
+                          decoration:
+                              const InputDecoration(labelText: 'Gruplama'),
                           items: const [
-                            DropdownMenuItem(value: _GroupBy.none, child: Text('Yok')),
-                            DropdownMenuItem(value: _GroupBy.day, child: Text('Gün')),
-                            DropdownMenuItem(value: _GroupBy.week, child: Text('Hafta')),
-                            DropdownMenuItem(value: _GroupBy.month, child: Text('Ay')),
-                            DropdownMenuItem(value: _GroupBy.year, child: Text('Yıl')),
+                            DropdownMenuItem(
+                                value: _GroupBy.none, child: Text('Yok')),
+                            DropdownMenuItem(
+                                value: _GroupBy.day, child: Text('Gün')),
+                            DropdownMenuItem(
+                                value: _GroupBy.week, child: Text('Hafta')),
+                            DropdownMenuItem(
+                                value: _GroupBy.month, child: Text('Ay')),
+                            DropdownMenuItem(
+                                value: _GroupBy.year, child: Text('Yıl')),
                             DropdownMenuItem(
                               value: _GroupBy.category,
                               child: Text('Kategori'),
                             ),
-                            DropdownMenuItem(value: _GroupBy.account, child: Text('Hesap')),
+                            DropdownMenuItem(
+                                value: _GroupBy.account, child: Text('Hesap')),
                           ],
                           onChanged: (v) {
                             if (v == null) return;
@@ -1208,12 +1570,6 @@ class _IncomeExpenseTransactionsScreenState
     }
     if (_typeFilter == _TypeFilter.expense) {
       return _categoryOptions.where((e) => e.type == 'expense').toList();
-    }
-    if (_typeFilter == _TypeFilter.incomeExpense) {
-      return _categoryOptions.where((e) => e.type != 'cari').toList();
-    }
-    if (_typeFilter == _TypeFilter.cari) {
-      return _categoryOptions.where((e) => e.type == 'cari').toList();
     }
     return _categoryOptions;
   }
@@ -1252,6 +1608,10 @@ class _IncomeExpenseTransactionsScreenState
     final isIncome = tx.type == 'income';
     final account = _accountNames[tx.accountId] ?? 'Hesap #${tx.accountId}';
     final category = _categoryName(tx);
+    final investmentTx = _linkedInvestmentTransaction(tx);
+    final isInvestmentLinked = investmentTx != null;
+    final isCreditCardPaymentSynthetic =
+        _creditCardPaymentBySyntheticId.containsKey(tx.id);
 
     final attachmentCount = _attachmentCount(tx);
     return ListTile(
@@ -1291,15 +1651,17 @@ class _IncomeExpenseTransactionsScreenState
                 await _deleteTransaction(tx);
               }
             },
-            itemBuilder: (_) => const [
-              PopupMenuItem<String>(
-                value: 'edit',
-                child: Text('Düzenle'),
-              ),
-              PopupMenuItem<String>(
-                value: 'delete',
-                child: Text('Sil'),
-              ),
+            itemBuilder: (_) => [
+              if (!isCreditCardPaymentSynthetic)
+                const PopupMenuItem<String>(
+                  value: 'edit',
+                  child: Text('Düzenle'),
+                ),
+              if (!isInvestmentLinked && !isCreditCardPaymentSynthetic)
+                const PopupMenuItem<String>(
+                  value: 'delete',
+                  child: Text('Sil'),
+                ),
             ],
           ),
         ],
@@ -1368,7 +1730,8 @@ class _IncomeExpenseTransactionsScreenState
                   ),
                   itemCount: attachments.length,
                   itemBuilder: (context, index) {
-                    final imageBytes = Uint8List.fromList(attachments[index].imageBytes);
+                    final imageBytes =
+                        Uint8List.fromList(attachments[index].imageBytes);
                     return ClipRRect(
                       borderRadius: BorderRadius.circular(8),
                       child: InkWell(
@@ -1389,14 +1752,14 @@ class _IncomeExpenseTransactionsScreenState
     );
   }
 
+  // Hareket ekini tam ekran onizleme modunda acar.
   Future<void> _openAttachmentFullscreen(Uint8List imageBytes) async {
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => Scaffold(
-          drawer: buildAppMenuDrawer(),
           backgroundColor: Colors.black,
           appBar: AppBar(
-            leading: buildMenuLeading(),
+            leading: const BackButton(),
             backgroundColor: Colors.black,
             foregroundColor: Colors.white,
             title: const Text('Ek Görsel'),
@@ -1413,15 +1776,64 @@ class _IncomeExpenseTransactionsScreenState
     );
   }
 
+  // Secili hareketi dogru forma acarak duzenleme akisina sokar.
   Future<void> _editTransaction(FinanceTransaction tx) async {
-    final changed = _isCariTx(tx)
-        ? await _editCariTransaction(tx)
-        : await _editFinanceTransaction(tx);
+    bool? changed;
+    final investmentTx = _linkedInvestmentTransaction(tx);
+    if (investmentTx != null) {
+      changed = await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(
+          builder: (_) =>
+              InvestmentEntryScreen(initialTransaction: investmentTx),
+        ),
+      );
+    } else if (_isCariTx(tx)) {
+      final originalCariTx = _cariTxBySyntheticId[tx.id];
+      final rawType =
+          originalCariTx?.type ?? _cariRawTypeByTxId[tx.id] ?? 'debt';
+      final cariTx = CariTransaction()
+        ..id = -tx.id - 1
+        ..cariCardId = tx.categoryId
+        ..accountId = tx.accountId
+        ..type = rawType
+        ..amount = tx.amount
+        ..quantity = originalCariTx?.quantity
+        ..unitPrice = originalCariTx?.unitPrice
+        ..description = tx.description
+        ..date = tx.date
+        ..createdAt = tx.createdAt;
+      changed = await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => CariAccountScreen(initialTransaction: cariTx),
+        ),
+      );
+    } else {
+      if (_creditCardPaymentBySyntheticId.containsKey(tx.id)) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Kredi kartı ödemeleri ekstre ekranından yönetilir.'),
+          ),
+        );
+        return;
+      }
+      changed = await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => tx.type == 'income'
+              ? IncomeEntryScreen(initialTransaction: tx)
+              : ExpenseEntryScreen(initialTransaction: tx),
+        ),
+      );
+    }
     if (changed == true && mounted) {
       await _load();
     }
   }
 
+  // Hareket tipine gore dogru silme akisina yonlendirir.
   Future<void> _deleteTransaction(FinanceTransaction tx) async {
     final ok = await showDialog<bool>(
       context: context,
@@ -1445,9 +1857,11 @@ class _IncomeExpenseTransactionsScreenState
     try {
       if (_isCariTx(tx)) {
         final cariId = -tx.id - 1;
-        await CariTransactionService.deleteAndReturn(cariId);
+        await AppRuntime.dataLayer.cariTransactions.deleteAndReturn(cariId);
+      } else if (_creditCardPaymentBySyntheticId.containsKey(tx.id)) {
+        throw Exception('Kredi kartı ödemeleri bu listeden silinemez.');
       } else {
-        await FinanceTransactionService.deleteAndReturn(tx.id);
+        await AppRuntime.dataLayer.finance.deleteAndReturn(tx.id);
       }
       if (!mounted) return;
       await _load();
@@ -1463,364 +1877,39 @@ class _IncomeExpenseTransactionsScreenState
     }
   }
 
-  Future<bool?> _editFinanceTransaction(FinanceTransaction tx) async {
-    final accounts = await AccountService.getAllAccounts();
-    final incomeCategories = await IncomeCategoryService.getAllManual();
-    final expenseCategories = await CategoryService.getAllManualExpenseCategories();
+  bool _isCariTx(FinanceTransaction tx) =>
+      _cariRawTypeByTxId.containsKey(tx.id);
 
-    if (!mounted) return false;
-
-    String type = tx.type;
-    int accountId = tx.accountId;
-    int categoryId = tx.categoryId;
-    DateTime date = tx.date;
-
-    final amountController = TextEditingController(text: _fmtAmount(tx.amount));
-    final descriptionController =
-        TextEditingController(text: tx.description ?? '');
-
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (ctx, setLocal) {
-            final categoryItems = type == 'income'
-                ? incomeCategories
-                    .map(
-                      (e) => DropdownMenuItem<int>(
-                        value: e.id,
-                        child: Text(e.name),
-                      ),
-                    )
-                    .toList()
-                : expenseCategories
-                    .map(
-                      (e) => DropdownMenuItem<int>(
-                        value: e.id,
-                        child: Text(e.name),
-                      ),
-                    )
-                    .toList();
-
-            if (!categoryItems.any((e) => e.value == categoryId) &&
-                categoryItems.isNotEmpty) {
-              categoryId = categoryItems.first.value!;
-            }
-
-            return AlertDialog(
-              title: const Text('İşlem Düzenle'),
-              content: SizedBox(
-                width: 420,
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      DropdownButtonFormField<String>(
-                        initialValue: type,
-                        decoration: const InputDecoration(labelText: 'Tür'),
-                        items: const [
-                          DropdownMenuItem(
-                            value: 'income',
-                            child: Text('Gelir'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'expense',
-                            child: Text('Gider'),
-                          ),
-                        ],
-                        onChanged: (v) {
-                          if (v == null) return;
-                          setLocal(() {
-                            type = v;
-                          });
-                        },
-                      ),
-                      const SizedBox(height: 8),
-                      DropdownButtonFormField<int>(
-                        initialValue: accountId,
-                        decoration: const InputDecoration(labelText: 'Hesap'),
-                        items: accounts
-                            .map(
-                              (a) => DropdownMenuItem<int>(
-                                value: a.id,
-                                child: Text(a.name),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (v) {
-                          if (v == null) return;
-                          setLocal(() {
-                            accountId = v;
-                          });
-                        },
-                      ),
-                      const SizedBox(height: 8),
-                      DropdownButtonFormField<int>(
-                        initialValue: categoryId,
-                        decoration: const InputDecoration(labelText: 'Kategori'),
-                        items: categoryItems,
-                        onChanged: (v) {
-                          if (v == null) return;
-                          setLocal(() {
-                            categoryId = v;
-                          });
-                        },
-                      ),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: amountController,
-                        keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true,
-                        ),
-                        inputFormatters: const [TurkishMoneyInputFormatter()],
-                        decoration: const InputDecoration(labelText: 'Tutar (TL)'),
-                      ),
-                      const SizedBox(height: 8),
-                      InkWell(
-                        onTap: () async {
-                          final picked = await showDatePicker(
-                            context: ctx,
-                            initialDate: date,
-                            firstDate: DateTime(2000),
-                            lastDate: DateTime(2100),
-                          );
-                          if (picked == null) return;
-                          setLocal(() {
-                            date = DateTime(
-                              picked.year,
-                              picked.month,
-                              picked.day,
-                              date.hour,
-                              date.minute,
-                            );
-                          });
-                        },
-                        child: InputDecorator(
-                          decoration: const InputDecoration(labelText: 'Tarih'),
-                          child: Text(_fmtDateTime(date)),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: descriptionController,
-                        inputFormatters: const [TurkishUpperCaseFormatter()],
-                        maxLines: 2,
-                        decoration:
-                            const InputDecoration(labelText: 'Açıklama'),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx, false),
-                  child: const Text('Vazgeç'),
-                ),
-                ElevatedButton(
-                  onPressed: () async {
-                    final amount =
-                        TurkishMoneyInputFormatter.parse(amountController.text);
-                    if (amount == null || amount <= 0) return;
-                    await FinanceTransactionService.updateTransaction(
-                      transactionId: tx.id,
-                      accountId: accountId,
-                      categoryId: categoryId,
-                      type: type,
-                      amount: amount,
-                      date: date,
-                      description: descriptionController.text,
-                      incomePlanId: type == 'income' ? tx.incomePlanId : null,
-                      expensePlanId: type == 'expense' ? tx.expensePlanId : null,
-                    );
-                    if (ctx.mounted) Navigator.pop(ctx, true);
-                  },
-                  child: const Text('Kaydet'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-
-    amountController.dispose();
-    descriptionController.dispose();
-    return result;
+  InvestmentTransaction? _linkedInvestmentTransaction(FinanceTransaction tx) {
+    final syntheticMeta = _investmentMetaByTxId[tx.id];
+    if (syntheticMeta != null) {
+      return _investmentById[syntheticMeta.investmentTransactionId];
+    }
+    final linkedId = _investmentTxIdByFinanceTxId[tx.id];
+    if (linkedId == null) return null;
+    return _investmentById[linkedId];
   }
-
-  Future<bool?> _editCariTransaction(FinanceTransaction tx) async {
-    final cariId = -tx.id - 1;
-    final accounts = await AccountService.getAllAccounts();
-    final cards = await CariCardService.getAll();
-
-    if (!mounted) return false;
-
-    String rawType = _cariRawTypeByTxId[tx.id] ?? 'debt';
-    int accountId = tx.accountId;
-    int cardId = tx.categoryId;
-    DateTime date = tx.date;
-
-    final amountController = TextEditingController(text: _fmtAmount(tx.amount));
-    final descriptionController =
-        TextEditingController(text: tx.description ?? '');
-
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setLocal) => AlertDialog(
-          title: const Text('Cari İşlem Düzenle'),
-          content: SizedBox(
-            width: 420,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  DropdownButtonFormField<String>(
-                    initialValue: rawType,
-                    decoration: const InputDecoration(labelText: 'Cari Türü'),
-                    items: const [
-                      DropdownMenuItem(
-                        value: 'debt',
-                        child: Text('Borç Verme (Ödeme)'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'collection',
-                        child: Text('Tahsilat'),
-                      ),
-                    ],
-                    onChanged: (v) {
-                      if (v == null) return;
-                      setLocal(() {
-                        rawType = v;
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  DropdownButtonFormField<int>(
-                    initialValue: accountId,
-                    decoration: const InputDecoration(labelText: 'Hesap'),
-                    items: accounts
-                        .map(
-                          (a) => DropdownMenuItem<int>(
-                            value: a.id,
-                            child: Text(a.name),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (v) {
-                      if (v == null) return;
-                      setLocal(() {
-                        accountId = v;
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  DropdownButtonFormField<int>(
-                    initialValue: cardId,
-                    decoration: const InputDecoration(labelText: 'Cari Kart'),
-                    items: cards
-                        .map(
-                          (c) => DropdownMenuItem<int>(
-                            value: c.id,
-                            child: Text(_cariCardNames[c.id] ?? 'Cari #${c.id}'),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (v) {
-                      if (v == null) return;
-                      setLocal(() {
-                        cardId = v;
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: amountController,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    inputFormatters: const [TurkishMoneyInputFormatter()],
-                    decoration: const InputDecoration(labelText: 'Tutar (TL)'),
-                  ),
-                  const SizedBox(height: 8),
-                  InkWell(
-                    onTap: () async {
-                      final picked = await showDatePicker(
-                        context: ctx,
-                        initialDate: date,
-                        firstDate: DateTime(2000),
-                        lastDate: DateTime(2100),
-                      );
-                      if (picked == null) return;
-                      setLocal(() {
-                        date = DateTime(
-                          picked.year,
-                          picked.month,
-                          picked.day,
-                          date.hour,
-                          date.minute,
-                        );
-                      });
-                    },
-                    child: InputDecorator(
-                      decoration: const InputDecoration(labelText: 'Tarih'),
-                      child: Text(_fmtDateTime(date)),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: descriptionController,
-                    inputFormatters: const [TurkishUpperCaseFormatter()],
-                    maxLines: 2,
-                    decoration: const InputDecoration(labelText: 'Açıklama'),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Vazgeç'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                final amount = TurkishMoneyInputFormatter.parse(amountController.text);
-                if (amount == null || amount <= 0) return;
-                await CariTransactionService.updateTransaction(
-                  transactionId: cariId,
-                  cariCardId: cardId,
-                  accountId: accountId,
-                  type: rawType,
-                  amount: amount,
-                  date: date,
-                  description: descriptionController.text,
-                );
-                if (ctx.mounted) Navigator.pop(ctx, true);
-              },
-              child: const Text('Kaydet'),
-            ),
-          ],
-        ),
-      ),
-    );
-
-    amountController.dispose();
-    descriptionController.dispose();
-    return result;
-  }
-
-  bool _isCariTx(FinanceTransaction tx) => tx.id < 0;
 
   String _txTypeLabel(FinanceTransaction tx) {
+    final invMeta = _investmentMetaByTxId[tx.id];
+    if (invMeta != null) {
+      return invMeta.rawType == 'buy'
+          ? 'Yatırım Alış (Nakit)'
+          : 'Yatırım Satış (Nakit)';
+    }
+    if (_creditCardPaymentBySyntheticId.containsKey(tx.id)) {
+      return 'Kredi Kartı Ödeme';
+    }
     if (_isCariTx(tx)) {
-      if (_isCariDebt(tx)) return 'Cari Kart (Borç Verme)';
-      if (_isCariCollection(tx)) return 'Cari Kart (Tahsilat)';
+      if (_isCariDebt(tx)) return 'Cari Kart (Giden)';
+      if (_isCariCollection(tx)) return 'Cari Kart (Gelen)';
       return 'Cari Kart';
     }
     return tx.type == 'income' ? 'Gelir' : 'Gider';
   }
 
-  bool _isCariDebt(FinanceTransaction tx) => _cariRawTypeByTxId[tx.id] == 'debt';
+  bool _isCariDebt(FinanceTransaction tx) =>
+      _cariRawTypeByTxId[tx.id] == 'debt';
   bool _isCariCollection(FinanceTransaction tx) =>
       _cariRawTypeByTxId[tx.id] == 'collection';
 
@@ -1829,10 +1918,144 @@ class _IncomeExpenseTransactionsScreenState
       ..id = -(c.id + 1)
       ..accountId = c.accountId
       ..categoryId = c.cariCardId
+      // Hesap bakisi: Gelen (collection) hesaba +, Giden (debt) hesaptan -.
       ..type = c.type == 'collection' ? 'income' : 'expense'
       ..amount = c.amount
       ..description = c.description
       ..date = c.date
       ..createdAt = c.createdAt;
   }
+
+  (List<FinanceTransaction>, Map<int, _InvestmentHistoryMeta>)
+      _mapInvestmentToFinanceLike(
+    List<InvestmentTransaction> items,
+    Map<int, String> accountNames,
+  ) {
+    final result = <FinanceTransaction>[];
+    final metaById = <int, _InvestmentHistoryMeta>{};
+
+    for (final it in items) {
+      final base = 2000000000 + (it.id * 10);
+      final cashId = -(base + 1);
+      final isBuy = it.type == 'buy';
+
+      final cash = FinanceTransaction()
+        ..id = cashId
+        ..accountId = it.cashAccountId
+        ..categoryId = 0
+        ..type = isBuy ? 'expense' : 'income'
+        ..amount = isBuy
+            ? it.total
+            : (it.costBasisTotal > 0
+                ? it.costBasisTotal
+                : (it.total - it.realizedPnl))
+        ..description =
+            'Yatırım: ${it.symbol} • Miktar: ${_fmtQuantity(it.quantity)} • Birim: ${_fmtAmount(it.unitPrice)} TL • Yatırım Hesabı: ${accountNames[it.investmentAccountId] ?? 'Yatırım #${it.investmentAccountId}'}'
+        ..date = it.date
+        ..createdAt = it.createdAt;
+      result.add(cash);
+      metaById[cashId] = _InvestmentHistoryMeta(
+        investmentTransactionId: it.id,
+        symbol: it.symbol,
+        rawType: it.type,
+      );
+    }
+
+    return (result, metaById);
+  }
+
+  (List<FinanceTransaction>, Map<int, CreditCardPayment>)
+      _mapCreditCardPaymentsToFinanceLike({
+    required List<CreditCardPayment> creditCardPayments,
+    required Map<int, CreditCardStatement> statementsById,
+    required Map<int, String> accountNames,
+  }) {
+    final result = <FinanceTransaction>[];
+    final metaById = <int, CreditCardPayment>{};
+
+    for (final payment in creditCardPayments) {
+      final syntheticId = -(300000000 + payment.id);
+      final statement = statementsById[payment.creditCardStatementId];
+      final cardName = accountNames[payment.creditCardAccountId] ??
+          'Kredi Kartı #${payment.creditCardAccountId}';
+      final statementLabel = statement == null
+          ? '-'
+          : '${_fmtDateOnly(statement.periodStart)} - ${_fmtDateOnly(statement.periodEnd)}';
+      final description = payment.note?.trim().isNotEmpty == true
+          ? 'Kredi Kartı: $cardName • Dönem: $statementLabel • Not: ${payment.note!.trim()}'
+          : 'Kredi Kartı: $cardName • Dönem: $statementLabel';
+
+      final synthetic = FinanceTransaction()
+        ..id = syntheticId
+        ..accountId = payment.bankAccountId
+        ..categoryId = 0
+        ..type = 'expense'
+        ..amount = payment.amount
+        ..description = description
+        ..date = payment.paymentDate
+        ..createdAt = payment.createdAt;
+      result.add(synthetic);
+      metaById[syntheticId] = payment;
+    }
+
+    return (result, metaById);
+  }
+
+  Map<int, int> _buildInvestmentFinanceLinkMap({
+    required List<FinanceTransaction> financeTx,
+    required List<InvestmentTransaction> investmentTx,
+  }) {
+    final linked = <int, int>{};
+    final usedFinanceIds = <int>{};
+
+    for (final it in investmentTx) {
+      if (it.type != 'sell' || it.realizedPnl.abs() <= 1e-9) continue;
+
+      final expectedType = it.realizedPnl >= 0 ? 'income' : 'expense';
+      final expectedAmount = it.realizedPnl.abs();
+      FinanceTransaction? bestCandidate;
+      var bestDelta = 1 << 62;
+
+      for (final ft in financeTx) {
+        if (usedFinanceIds.contains(ft.id)) continue;
+        if (ft.type != expectedType) continue;
+        if (ft.accountId != it.cashAccountId) continue;
+        if ((ft.amount - expectedAmount).abs() > 1e-6) continue;
+        final normalizedDesc = (ft.description ?? '').trim();
+        final upperSymbol = it.symbol.toUpperCase();
+        final matchesDesc =
+            normalizedDesc == 'Yatırım satış K/Z • $upperSymbol' ||
+                normalizedDesc == 'Yatirim satis K/Z • $upperSymbol';
+        if (!matchesDesc) continue;
+        if (!ft.date.isAtSameMomentAs(it.date)) continue;
+
+        final delta = (ft.createdAt.millisecondsSinceEpoch -
+                it.createdAt.millisecondsSinceEpoch)
+            .abs();
+        if (bestCandidate == null || delta < bestDelta) {
+          bestCandidate = ft;
+          bestDelta = delta;
+        }
+      }
+
+      if (bestCandidate != null) {
+        usedFinanceIds.add(bestCandidate.id);
+        linked[bestCandidate.id] = it.id;
+      }
+    }
+
+    return linked;
+  }
+}
+
+class _InvestmentHistoryMeta {
+  final int investmentTransactionId;
+  final String symbol;
+  final String rawType;
+
+  const _InvestmentHistoryMeta({
+    required this.investmentTransactionId,
+    required this.symbol,
+    required this.rawType,
+  });
 }

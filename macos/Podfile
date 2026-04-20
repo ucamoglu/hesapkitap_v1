@@ -28,6 +28,7 @@ flutter_macos_podfile_setup
 
 target 'Runner' do
   use_frameworks!
+  inhibit_all_warnings!
 
   flutter_install_all_macos_pods File.dirname(File.realpath(__FILE__))
   target 'RunnerTests' do
@@ -38,5 +39,26 @@ end
 post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_macos_build_settings(target)
+
+    target.build_configurations.each do |config|
+      warning_cflags = config.build_settings['WARNING_CFLAGS'] || ['$(inherited)']
+      warning_cflags = [warning_cflags] unless warning_cflags.is_a?(Array)
+      warning_cflags << '-w' unless warning_cflags.include?('-w')
+      config.build_settings['WARNING_CFLAGS'] = warning_cflags
+    end
+
+    next unless target.name.include?('in_app_purchase_storekit')
+
+    target.build_configurations.each do |config|
+      next unless config.name == 'Debug'
+
+      config.build_settings['GCC_WARN_INHIBIT_ALL_WARNINGS'] = 'YES'
+      other_cflags = config.build_settings['OTHER_CFLAGS'] || ['$(inherited)']
+      other_cflags = [other_cflags] unless other_cflags.is_a?(Array)
+      unless other_cflags.include?('-Wno-deprecated-declarations')
+        other_cflags << '-Wno-deprecated-declarations'
+      end
+      config.build_settings['OTHER_CFLAGS'] = other_cflags
+    end
   end
 end

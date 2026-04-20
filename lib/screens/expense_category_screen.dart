@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../core/runtime/app_runtime.dart';
 import '../models/category.dart';
 import '../services/category_service.dart';
+import '../theme/app_theme_helpers.dart';
 import '../utils/navigation_helpers.dart';
 import '../utils/turkish_upper_case_formatter.dart';
 
@@ -14,6 +16,13 @@ class ExpenseCategoryScreen extends StatefulWidget {
 
 class _ExpenseCategoryScreenState extends State<ExpenseCategoryScreen> {
   List<Category> categories = [];
+
+  void _showSnack(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
 
   void _showInfoDialog() {
     showDialog<void>(
@@ -41,11 +50,13 @@ class _ExpenseCategoryScreenState extends State<ExpenseCategoryScreen> {
     init();
   }
 
+  // Gerekirse varsayilan kategorileri olusturup listeyi ilk kez yukler.
   Future<void> init() async {
     await CategoryService.seedExpenseDefaultsIfEmpty();
     await loadCategories();
   }
 
+  // Gider kategori listesini veritabanindan tazeler.
   Future<void> loadCategories() async {
     final data = await CategoryService.getAllExpenseCategories();
     setState(() {
@@ -73,12 +84,20 @@ class _ExpenseCategoryScreenState extends State<ExpenseCategoryScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
-              if (controller.text.isNotEmpty) {
-                await CategoryService.addExpenseCategory(controller.text);
-                await loadCategories();
+              final name = controller.text.trim();
+              if (name.isEmpty) {
+                _showSnack('Kategori adı zorunludur.');
+                return;
               }
-              if (!mounted) return;
-              Navigator.pop(context);
+
+              try {
+                await AppRuntime.dataLayer.expenseCategories.add(name);
+                await loadCategories();
+                if (!mounted) return;
+                Navigator.pop(context);
+              } catch (e) {
+                _showSnack('Kayıt hatası: $e');
+              }
             },
             child: const Text("Kaydet"),
           ),
@@ -87,27 +106,26 @@ class _ExpenseCategoryScreenState extends State<ExpenseCategoryScreen> {
     );
   }
 
+  // Kategori kaydini silmeden aktif/pasif duruma getirir.
   Future<void> _toggleActive(Category category) async {
     if (category.isSystemGenerated) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Sistem kategorisi degistirilemez.'),
-        ),
-      );
+      _showSnack('Sistem kategorisi degistirilemez.');
       return;
     }
-    await CategoryService.setActive(category.id, !category.isActive);
-    await loadCategories();
+    try {
+      await AppRuntime.dataLayer.expenseCategories.setActive(
+        category.id,
+        !category.isActive,
+      );
+      await loadCategories();
+    } catch (e) {
+      _showSnack('İşlem hatası: $e');
+    }
   }
 
   void _editCategory(Category category) {
     if (category.isSystemGenerated) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Sistem kategorisi duzenlenemez.'),
-        ),
-      );
+      _showSnack('Sistem kategorisi duzenlenemez.');
       return;
     }
     final controller = TextEditingController(text: category.name);
@@ -129,13 +147,21 @@ class _ExpenseCategoryScreenState extends State<ExpenseCategoryScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
-              if (controller.text.isNotEmpty) {
-                category.name = controller.text;
-                await CategoryService.updateExpenseCategory(category);
-                await loadCategories();
+              final name = controller.text.trim();
+              if (name.isEmpty) {
+                _showSnack('Kategori adı zorunludur.');
+                return;
               }
-              if (!mounted) return;
-              Navigator.pop(context);
+
+              category.name = name;
+              try {
+                await AppRuntime.dataLayer.expenseCategories.update(category);
+                await loadCategories();
+                if (!mounted) return;
+                Navigator.pop(context);
+              } catch (e) {
+                _showSnack('Güncelleme hatası: $e');
+              }
             },
             child: const Text("Kaydet"),
           ),
@@ -144,41 +170,34 @@ class _ExpenseCategoryScreenState extends State<ExpenseCategoryScreen> {
     );
   }
 
+  // Kategoriyi kullanim durumuna gore kontrollu bicimde siler.
   Future<void> _deleteCategory(Category category) async {
     if (category.isSystemGenerated) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Sistem kategorisi silinemez.'),
-        ),
-      );
+      _showSnack('Sistem kategorisi silinemez.');
       return;
     }
-    final isUsed = await CategoryService.isExpenseCategoryUsed(category.id);
-    if (isUsed) {
-      await CategoryService.setActive(category.id, false);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            "Bu kategori işlemde kullanılmış. Silinmedi, pasife alındı.",
-          ),
-        ),
+    try {
+      final isUsed = await AppRuntime.dataLayer.expenseCategories.isUsed(
+        category.id,
       );
-    } else {
-      await CategoryService.deleteExpenseCategory(category.id);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Kategori silindi."),
-        ),
-      );
+      if (isUsed) {
+        await AppRuntime.dataLayer.expenseCategories.setActive(category.id, false);
+        _showSnack("Bu kategori işlemde kullanılmış. Silinmedi, pasife alındı.");
+      } else {
+        await AppRuntime.dataLayer.expenseCategories.delete(category.id);
+        _showSnack("Kategori silindi.");
+      }
+      await loadCategories();
+    } catch (e) {
+      _showSnack('Silme hatası: $e');
     }
-    await loadCategories();
   }
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final accent = Colors.redAccent;
+
     return Scaffold(
       drawer: buildAppMenuDrawer(),
       appBar: AppBar(
@@ -187,51 +206,82 @@ class _ExpenseCategoryScreenState extends State<ExpenseCategoryScreen> {
         actions: [buildHomeAction(context)],
       ),
       body: ListView.builder(
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 88),
         itemCount: categories.length,
         itemBuilder: (context, index) {
           final category = categories[index];
 
-          return ListTile(
-            title: Text(
-              category.name,
-              style: TextStyle(
-                decoration:
-                    category.isActive ? null : TextDecoration.lineThrough,
-              ),
+          return Container(
+            margin: const EdgeInsets.only(bottom: 10),
+            decoration: context.surfaceDecoration(
+              accent: accent,
+              fillColor: category.isActive
+                  ? context.softAccent(accent, 0.06)
+                  : Colors.white,
             ),
-            trailing: PopupMenuButton<String>(
-              onSelected: (value) async {
-                if (value == "edit") {
-                  _editCategory(category);
-                } else if (value == "delete") {
-                  await _deleteCategory(category);
-                } else if (value == "toggle") {
-                  await _toggleActive(category);
-                }
-              },
-              itemBuilder: (context) => [
-                if (!category.isSystemGenerated)
-                  const PopupMenuItem(
-                    value: "edit",
-                    child: Text("Düzenle"),
-                  ),
-                if (!category.isSystemGenerated)
-                  if (category.isActive)
+            child: ListTile(
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 10,
+              ),
+              leading: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: context.softAccent(accent),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(Icons.sell, color: accent, size: 20),
+              ),
+              title: Text(
+                category.name,
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  decoration:
+                      category.isActive ? null : TextDecoration.lineThrough,
+                ),
+              ),
+              subtitle: Text(
+                category.isSystemGenerated
+                    ? 'Sistem kategorisi'
+                    : (category.isActive ? 'Aktif' : 'Pasif'),
+                style: TextStyle(color: colorScheme.onSurfaceVariant),
+              ),
+              trailing: PopupMenuButton<String>(
+                icon: Icon(Icons.more_horiz, color: accent),
+                onSelected: (value) async {
+                  if (value == "edit") {
+                    _editCategory(category);
+                  } else if (value == "delete") {
+                    await _deleteCategory(category);
+                  } else if (value == "toggle") {
+                    await _toggleActive(category);
+                  }
+                },
+                itemBuilder: (context) => [
+                  if (!category.isSystemGenerated)
                     const PopupMenuItem(
-                      value: "toggle",
-                      child: Text("Pasif Yap"),
-                    )
-                  else
-                    const PopupMenuItem(
-                      value: "toggle",
-                      child: Text("Aktif Yap"),
+                      value: "edit",
+                      child: Text("Düzenle"),
                     ),
-                if (!category.isSystemGenerated)
-                  const PopupMenuItem(
-                    value: "delete",
-                    child: Text("Sil"),
-                  ),
-              ],
+                  if (!category.isSystemGenerated)
+                    if (category.isActive)
+                      const PopupMenuItem(
+                        value: "toggle",
+                        child: Text("Pasif Yap"),
+                      )
+                    else
+                      const PopupMenuItem(
+                        value: "toggle",
+                        child: Text("Aktif Yap"),
+                      ),
+                  if (!category.isSystemGenerated)
+                    const PopupMenuItem(
+                      value: "delete",
+                      child: Text("Sil"),
+                    ),
+                ],
+              ),
             ),
           );
         },

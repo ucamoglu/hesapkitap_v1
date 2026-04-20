@@ -5,13 +5,25 @@ import '../models/finance_transaction.dart';
 import '../models/income_category.dart';
 
 class IncomeCategoryService {
+  static const String assetSaleSystemKey = 'asset_sale';
 
+  static void _validateCategory(IncomeCategory category) {
+    final name = category.name.trim();
+    if (name.isEmpty) {
+      throw Exception('Kategori adı zorunludur.');
+    }
+
+    category.name = name;
+  }
+
+  /// Tum gelir kategorilerini getirir.
   static Future<List<IncomeCategory>> getAll() async {
     final isar = IsarService.isar;
 
     return await isar.incomeCategorys.where().findAll();
   }
 
+  /// Aktif gelir kategorilerini formlarda kullanmak icin filtreler.
   static Future<List<IncomeCategory>> getActive() async {
     final isar = IsarService.isar;
 
@@ -22,6 +34,7 @@ class IncomeCategoryService {
         .findAll();
   }
 
+  /// Sistem tarafindan uretilmeyen aktif gelir kategorilerini getirir.
   static Future<List<IncomeCategory>> getActiveManual() async {
     final isar = IsarService.isar;
 
@@ -34,6 +47,7 @@ class IncomeCategoryService {
         .findAll();
   }
 
+  /// Manuel tum gelir kategorilerini yonetim ekranina hazirlar.
   static Future<List<IncomeCategory>> getAllManual() async {
     final isar = IsarService.isar;
 
@@ -44,18 +58,21 @@ class IncomeCategoryService {
         .findAll();
   }
 
+  /// Yeni gelir kategorisi ekler.
   static Future<void> add(String name) async {
     final isar = IsarService.isar;
 
     final category = IncomeCategory()
       ..name = name
       ..createdAt = DateTime.now();
+    _validateCategory(category);
 
     await isar.writeTxn(() async {
       await isar.incomeCategorys.put(category);
     });
   }
 
+  /// Kategoriyi silmeden aktif/pasif hale getirir.
   static Future<void> setActive(int id, bool value) async {
     final isar = IsarService.isar;
 
@@ -71,17 +88,20 @@ class IncomeCategoryService {
     });
   }
 
+  /// Sistem kategorilerini koruyarak mevcut kaydi gunceller.
   static Future<void> update(IncomeCategory category) async {
     final isar = IsarService.isar;
     if (category.isSystemGenerated) {
       throw Exception('Sistem kategorisi duzenlenemez.');
     }
+    _validateCategory(category);
 
     await isar.writeTxn(() async {
       await isar.incomeCategorys.put(category);
     });
   }
 
+  /// Sistem kategorilerini koruyarak manuel kaydi siler.
   static Future<void> delete(int id) async {
     final isar = IsarService.isar;
     final existing = await isar.incomeCategorys.get(id);
@@ -94,6 +114,7 @@ class IncomeCategoryService {
     });
   }
 
+  /// Kategorinin mevcut gelir hareketlerinde kullanilip kullanilmadigini kontrol eder.
   static Future<bool> isCategoryUsed(int categoryId) async {
     final isar = IsarService.isar;
 
@@ -108,6 +129,7 @@ class IncomeCategoryService {
     return count > 0;
   }
 
+  /// Bos kurulumda varsayilan gelir kategorilerini olusturur.
   static Future<void> seedDefaultsIfEmpty() async {
     final isar = IsarService.isar;
 
@@ -134,5 +156,38 @@ class IncomeCategoryService {
         await isar.incomeCategorys.put(category);
       }
     });
+  }
+
+  static Future<IncomeCategory> ensureAssetSaleCategory() async {
+    final isar = IsarService.isar;
+    final existing = await isar.incomeCategorys
+        .where()
+        .filter()
+        .systemKeyEqualTo(assetSaleSystemKey)
+        .findFirst();
+    if (existing != null) {
+      if (!existing.isActive || !existing.isSystemGenerated) {
+        await isar.writeTxn(() async {
+          existing
+            ..name = 'Varlık Satışı'
+            ..isActive = true
+            ..isSystemGenerated = true
+            ..systemKey = assetSaleSystemKey;
+          await isar.incomeCategorys.put(existing);
+        });
+      }
+      return existing;
+    }
+
+    final category = IncomeCategory()
+      ..name = 'Varlık Satışı'
+      ..isActive = true
+      ..isSystemGenerated = true
+      ..systemKey = assetSaleSystemKey
+      ..createdAt = DateTime.now();
+    await isar.writeTxn(() async {
+      await isar.incomeCategorys.put(category);
+    });
+    return category;
   }
 }

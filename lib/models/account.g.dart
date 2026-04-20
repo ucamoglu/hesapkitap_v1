@@ -22,33 +22,98 @@ const AccountSchema = CollectionSchema(
       name: r'balance',
       type: IsarType.double,
     ),
-    r'createdAt': PropertySchema(
+    r'bankSubtype': PropertySchema(
       id: 1,
+      name: r'bankSubtype',
+      type: IsarType.string,
+    ),
+    r'createdAt': PropertySchema(
+      id: 2,
       name: r'createdAt',
       type: IsarType.dateTime,
     ),
+    r'effectiveBankSubtype': PropertySchema(
+      id: 3,
+      name: r'effectiveBankSubtype',
+      type: IsarType.string,
+    ),
+    r'effectiveOverdraftLimit': PropertySchema(
+      id: 4,
+      name: r'effectiveOverdraftLimit',
+      type: IsarType.double,
+    ),
     r'investmentSubtype': PropertySchema(
-      id: 2,
+      id: 5,
       name: r'investmentSubtype',
       type: IsarType.string,
     ),
     r'investmentSymbol': PropertySchema(
-      id: 3,
+      id: 6,
       name: r'investmentSymbol',
       type: IsarType.string,
     ),
+    r'isBalanceAccount': PropertySchema(
+      id: 7,
+      name: r'isBalanceAccount',
+      type: IsarType.bool,
+    ),
+    r'isBankAccount': PropertySchema(
+      id: 8,
+      name: r'isBankAccount',
+      type: IsarType.bool,
+    ),
+    r'isCreditCard': PropertySchema(
+      id: 9,
+      name: r'isCreditCard',
+      type: IsarType.bool,
+    ),
+    r'isSystemGenerated': PropertySchema(
+      id: 10,
+      name: r'isSystemGenerated',
+      type: IsarType.bool,
+    ),
+    r'linkedBankAccountId': PropertySchema(
+      id: 11,
+      name: r'linkedBankAccountId',
+      type: IsarType.long,
+    ),
     r'name': PropertySchema(
-      id: 4,
+      id: 12,
       name: r'name',
       type: IsarType.string,
     ),
+    r'overdraftLimit': PropertySchema(
+      id: 13,
+      name: r'overdraftLimit',
+      type: IsarType.double,
+    ),
+    r'paymentDueDay': PropertySchema(
+      id: 14,
+      name: r'paymentDueDay',
+      type: IsarType.long,
+    ),
+    r'statementDay': PropertySchema(
+      id: 15,
+      name: r'statementDay',
+      type: IsarType.long,
+    ),
+    r'supportsOverdraft': PropertySchema(
+      id: 16,
+      name: r'supportsOverdraft',
+      type: IsarType.bool,
+    ),
+    r'systemKey': PropertySchema(
+      id: 17,
+      name: r'systemKey',
+      type: IsarType.string,
+    ),
     r'type': PropertySchema(
-      id: 5,
+      id: 18,
       name: r'type',
       type: IsarType.string,
     ),
     r'zz_is_active': PropertySchema(
-      id: 6,
+      id: 19,
       name: r'zz_is_active',
       type: IsarType.bool,
     )
@@ -74,6 +139,13 @@ int _accountEstimateSize(
 ) {
   var bytesCount = offsets.last;
   {
+    final value = object.bankSubtype;
+    if (value != null) {
+      bytesCount += 3 + value.length * 3;
+    }
+  }
+  bytesCount += 3 + object.effectiveBankSubtype.length * 3;
+  {
     final value = object.investmentSubtype;
     if (value != null) {
       bytesCount += 3 + value.length * 3;
@@ -86,6 +158,12 @@ int _accountEstimateSize(
     }
   }
   bytesCount += 3 + object.name.length * 3;
+  {
+    final value = object.systemKey;
+    if (value != null) {
+      bytesCount += 3 + value.length * 3;
+    }
+  }
   bytesCount += 3 + object.type.length * 3;
   return bytesCount;
 }
@@ -97,12 +175,25 @@ void _accountSerialize(
   Map<Type, List<int>> allOffsets,
 ) {
   writer.writeDouble(offsets[0], object.balance);
-  writer.writeDateTime(offsets[1], object.createdAt);
-  writer.writeString(offsets[2], object.investmentSubtype);
-  writer.writeString(offsets[3], object.investmentSymbol);
-  writer.writeString(offsets[4], object.name);
-  writer.writeString(offsets[5], object.type);
-  writer.writeBool(offsets[6], object.isActive);
+  writer.writeString(offsets[1], object.bankSubtype);
+  writer.writeDateTime(offsets[2], object.createdAt);
+  writer.writeString(offsets[3], object.effectiveBankSubtype);
+  writer.writeDouble(offsets[4], object.effectiveOverdraftLimit);
+  writer.writeString(offsets[5], object.investmentSubtype);
+  writer.writeString(offsets[6], object.investmentSymbol);
+  writer.writeBool(offsets[7], object.isBalanceAccount);
+  writer.writeBool(offsets[8], object.isBankAccount);
+  writer.writeBool(offsets[9], object.isCreditCard);
+  writer.writeBool(offsets[10], object.isSystemGenerated);
+  writer.writeLong(offsets[11], object.linkedBankAccountId);
+  writer.writeString(offsets[12], object.name);
+  writer.writeDouble(offsets[13], object.overdraftLimit);
+  writer.writeLong(offsets[14], object.paymentDueDay);
+  writer.writeLong(offsets[15], object.statementDay);
+  writer.writeBool(offsets[16], object.supportsOverdraft);
+  writer.writeString(offsets[17], object.systemKey);
+  writer.writeString(offsets[18], object.type);
+  writer.writeBool(offsets[19], object.isActive);
 }
 
 Account _accountDeserialize(
@@ -113,13 +204,20 @@ Account _accountDeserialize(
 ) {
   final object = Account();
   object.balance = reader.readDouble(offsets[0]);
-  object.createdAt = reader.readDateTime(offsets[1]);
+  object.bankSubtype = reader.readStringOrNull(offsets[1]);
+  object.createdAt = reader.readDateTime(offsets[2]);
   object.id = id;
-  object.investmentSubtype = reader.readStringOrNull(offsets[2]);
-  object.investmentSymbol = reader.readStringOrNull(offsets[3]);
-  object.name = reader.readString(offsets[4]);
-  object.type = reader.readString(offsets[5]);
-  object.isActive = reader.readBool(offsets[6]);
+  object.investmentSubtype = reader.readStringOrNull(offsets[5]);
+  object.investmentSymbol = reader.readStringOrNull(offsets[6]);
+  object.isSystemGenerated = reader.readBool(offsets[10]);
+  object.linkedBankAccountId = reader.readLongOrNull(offsets[11]);
+  object.name = reader.readString(offsets[12]);
+  object.overdraftLimit = reader.readDouble(offsets[13]);
+  object.paymentDueDay = reader.readLongOrNull(offsets[14]);
+  object.statementDay = reader.readLongOrNull(offsets[15]);
+  object.systemKey = reader.readStringOrNull(offsets[17]);
+  object.type = reader.readString(offsets[18]);
+  object.isActive = reader.readBool(offsets[19]);
   return object;
 }
 
@@ -133,16 +231,42 @@ P _accountDeserializeProp<P>(
     case 0:
       return (reader.readDouble(offset)) as P;
     case 1:
-      return (reader.readDateTime(offset)) as P;
+      return (reader.readStringOrNull(offset)) as P;
     case 2:
-      return (reader.readStringOrNull(offset)) as P;
+      return (reader.readDateTime(offset)) as P;
     case 3:
-      return (reader.readStringOrNull(offset)) as P;
+      return (reader.readString(offset)) as P;
     case 4:
-      return (reader.readString(offset)) as P;
+      return (reader.readDouble(offset)) as P;
     case 5:
-      return (reader.readString(offset)) as P;
+      return (reader.readStringOrNull(offset)) as P;
     case 6:
+      return (reader.readStringOrNull(offset)) as P;
+    case 7:
+      return (reader.readBool(offset)) as P;
+    case 8:
+      return (reader.readBool(offset)) as P;
+    case 9:
+      return (reader.readBool(offset)) as P;
+    case 10:
+      return (reader.readBool(offset)) as P;
+    case 11:
+      return (reader.readLongOrNull(offset)) as P;
+    case 12:
+      return (reader.readString(offset)) as P;
+    case 13:
+      return (reader.readDouble(offset)) as P;
+    case 14:
+      return (reader.readLongOrNull(offset)) as P;
+    case 15:
+      return (reader.readLongOrNull(offset)) as P;
+    case 16:
+      return (reader.readBool(offset)) as P;
+    case 17:
+      return (reader.readStringOrNull(offset)) as P;
+    case 18:
+      return (reader.readString(offset)) as P;
+    case 19:
       return (reader.readBool(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -300,6 +424,153 @@ extension AccountQueryFilter
     });
   }
 
+  QueryBuilder<Account, Account, QAfterFilterCondition> bankSubtypeIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'bankSubtype',
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition> bankSubtypeIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'bankSubtype',
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition> bankSubtypeEqualTo(
+    String? value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'bankSubtype',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition> bankSubtypeGreaterThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'bankSubtype',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition> bankSubtypeLessThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'bankSubtype',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition> bankSubtypeBetween(
+    String? lower,
+    String? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'bankSubtype',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition> bankSubtypeStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'bankSubtype',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition> bankSubtypeEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'bankSubtype',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition> bankSubtypeContains(
+      String value,
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'bankSubtype',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition> bankSubtypeMatches(
+      String pattern,
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'bankSubtype',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition> bankSubtypeIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'bankSubtype',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition>
+      bankSubtypeIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'bankSubtype',
+        value: '',
+      ));
+    });
+  }
+
   QueryBuilder<Account, Account, QAfterFilterCondition> createdAtEqualTo(
       DateTime value) {
     return QueryBuilder.apply(this, (query) {
@@ -349,6 +620,208 @@ extension AccountQueryFilter
         includeLower: includeLower,
         upper: upper,
         includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition>
+      effectiveBankSubtypeEqualTo(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'effectiveBankSubtype',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition>
+      effectiveBankSubtypeGreaterThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'effectiveBankSubtype',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition>
+      effectiveBankSubtypeLessThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'effectiveBankSubtype',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition>
+      effectiveBankSubtypeBetween(
+    String lower,
+    String upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'effectiveBankSubtype',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition>
+      effectiveBankSubtypeStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'effectiveBankSubtype',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition>
+      effectiveBankSubtypeEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'effectiveBankSubtype',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition>
+      effectiveBankSubtypeContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'effectiveBankSubtype',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition>
+      effectiveBankSubtypeMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'effectiveBankSubtype',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition>
+      effectiveBankSubtypeIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'effectiveBankSubtype',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition>
+      effectiveBankSubtypeIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'effectiveBankSubtype',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition>
+      effectiveOverdraftLimitEqualTo(
+    double value, {
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'effectiveOverdraftLimit',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition>
+      effectiveOverdraftLimitGreaterThan(
+    double value, {
+    bool include = false,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'effectiveOverdraftLimit',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition>
+      effectiveOverdraftLimitLessThan(
+    double value, {
+    bool include = false,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'effectiveOverdraftLimit',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition>
+      effectiveOverdraftLimitBetween(
+    double lower,
+    double upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'effectiveOverdraftLimit',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        epsilon: epsilon,
       ));
     });
   }
@@ -712,6 +1185,120 @@ extension AccountQueryFilter
     });
   }
 
+  QueryBuilder<Account, Account, QAfterFilterCondition> isBalanceAccountEqualTo(
+      bool value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'isBalanceAccount',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition> isBankAccountEqualTo(
+      bool value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'isBankAccount',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition> isCreditCardEqualTo(
+      bool value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'isCreditCard',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition>
+      isSystemGeneratedEqualTo(bool value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'isSystemGenerated',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition>
+      linkedBankAccountIdIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'linkedBankAccountId',
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition>
+      linkedBankAccountIdIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'linkedBankAccountId',
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition>
+      linkedBankAccountIdEqualTo(int? value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'linkedBankAccountId',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition>
+      linkedBankAccountIdGreaterThan(
+    int? value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'linkedBankAccountId',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition>
+      linkedBankAccountIdLessThan(
+    int? value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'linkedBankAccountId',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition>
+      linkedBankAccountIdBetween(
+    int? lower,
+    int? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'linkedBankAccountId',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+      ));
+    });
+  }
+
   QueryBuilder<Account, Account, QAfterFilterCondition> nameEqualTo(
     String value, {
     bool caseSensitive = true,
@@ -837,6 +1424,366 @@ extension AccountQueryFilter
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.greaterThan(
         property: r'name',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition> overdraftLimitEqualTo(
+    double value, {
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'overdraftLimit',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition>
+      overdraftLimitGreaterThan(
+    double value, {
+    bool include = false,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'overdraftLimit',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition> overdraftLimitLessThan(
+    double value, {
+    bool include = false,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'overdraftLimit',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition> overdraftLimitBetween(
+    double lower,
+    double upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'overdraftLimit',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition> paymentDueDayIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'paymentDueDay',
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition>
+      paymentDueDayIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'paymentDueDay',
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition> paymentDueDayEqualTo(
+      int? value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'paymentDueDay',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition>
+      paymentDueDayGreaterThan(
+    int? value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'paymentDueDay',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition> paymentDueDayLessThan(
+    int? value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'paymentDueDay',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition> paymentDueDayBetween(
+    int? lower,
+    int? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'paymentDueDay',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition> statementDayIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'statementDay',
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition>
+      statementDayIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'statementDay',
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition> statementDayEqualTo(
+      int? value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'statementDay',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition> statementDayGreaterThan(
+    int? value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'statementDay',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition> statementDayLessThan(
+    int? value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'statementDay',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition> statementDayBetween(
+    int? lower,
+    int? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'statementDay',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition>
+      supportsOverdraftEqualTo(bool value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'supportsOverdraft',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition> systemKeyIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'systemKey',
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition> systemKeyIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'systemKey',
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition> systemKeyEqualTo(
+    String? value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'systemKey',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition> systemKeyGreaterThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'systemKey',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition> systemKeyLessThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'systemKey',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition> systemKeyBetween(
+    String? lower,
+    String? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'systemKey',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition> systemKeyStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'systemKey',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition> systemKeyEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'systemKey',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition> systemKeyContains(
+      String value,
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'systemKey',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition> systemKeyMatches(
+      String pattern,
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'systemKey',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition> systemKeyIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'systemKey',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterFilterCondition> systemKeyIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'systemKey',
         value: '',
       ));
     });
@@ -1002,6 +1949,18 @@ extension AccountQuerySortBy on QueryBuilder<Account, Account, QSortBy> {
     });
   }
 
+  QueryBuilder<Account, Account, QAfterSortBy> sortByBankSubtype() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'bankSubtype', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterSortBy> sortByBankSubtypeDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'bankSubtype', Sort.desc);
+    });
+  }
+
   QueryBuilder<Account, Account, QAfterSortBy> sortByCreatedAt() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'createdAt', Sort.asc);
@@ -1011,6 +1970,32 @@ extension AccountQuerySortBy on QueryBuilder<Account, Account, QSortBy> {
   QueryBuilder<Account, Account, QAfterSortBy> sortByCreatedAtDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'createdAt', Sort.desc);
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterSortBy> sortByEffectiveBankSubtype() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'effectiveBankSubtype', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterSortBy>
+      sortByEffectiveBankSubtypeDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'effectiveBankSubtype', Sort.desc);
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterSortBy> sortByEffectiveOverdraftLimit() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'effectiveOverdraftLimit', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterSortBy>
+      sortByEffectiveOverdraftLimitDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'effectiveOverdraftLimit', Sort.desc);
     });
   }
 
@@ -1038,6 +2023,66 @@ extension AccountQuerySortBy on QueryBuilder<Account, Account, QSortBy> {
     });
   }
 
+  QueryBuilder<Account, Account, QAfterSortBy> sortByIsBalanceAccount() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isBalanceAccount', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterSortBy> sortByIsBalanceAccountDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isBalanceAccount', Sort.desc);
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterSortBy> sortByIsBankAccount() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isBankAccount', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterSortBy> sortByIsBankAccountDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isBankAccount', Sort.desc);
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterSortBy> sortByIsCreditCard() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isCreditCard', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterSortBy> sortByIsCreditCardDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isCreditCard', Sort.desc);
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterSortBy> sortByIsSystemGenerated() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isSystemGenerated', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterSortBy> sortByIsSystemGeneratedDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isSystemGenerated', Sort.desc);
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterSortBy> sortByLinkedBankAccountId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'linkedBankAccountId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterSortBy> sortByLinkedBankAccountIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'linkedBankAccountId', Sort.desc);
+    });
+  }
+
   QueryBuilder<Account, Account, QAfterSortBy> sortByName() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'name', Sort.asc);
@@ -1047,6 +2092,66 @@ extension AccountQuerySortBy on QueryBuilder<Account, Account, QSortBy> {
   QueryBuilder<Account, Account, QAfterSortBy> sortByNameDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'name', Sort.desc);
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterSortBy> sortByOverdraftLimit() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'overdraftLimit', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterSortBy> sortByOverdraftLimitDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'overdraftLimit', Sort.desc);
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterSortBy> sortByPaymentDueDay() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'paymentDueDay', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterSortBy> sortByPaymentDueDayDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'paymentDueDay', Sort.desc);
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterSortBy> sortByStatementDay() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'statementDay', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterSortBy> sortByStatementDayDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'statementDay', Sort.desc);
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterSortBy> sortBySupportsOverdraft() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'supportsOverdraft', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterSortBy> sortBySupportsOverdraftDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'supportsOverdraft', Sort.desc);
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterSortBy> sortBySystemKey() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'systemKey', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterSortBy> sortBySystemKeyDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'systemKey', Sort.desc);
     });
   }
 
@@ -1089,6 +2194,18 @@ extension AccountQuerySortThenBy
     });
   }
 
+  QueryBuilder<Account, Account, QAfterSortBy> thenByBankSubtype() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'bankSubtype', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterSortBy> thenByBankSubtypeDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'bankSubtype', Sort.desc);
+    });
+  }
+
   QueryBuilder<Account, Account, QAfterSortBy> thenByCreatedAt() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'createdAt', Sort.asc);
@@ -1098,6 +2215,32 @@ extension AccountQuerySortThenBy
   QueryBuilder<Account, Account, QAfterSortBy> thenByCreatedAtDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'createdAt', Sort.desc);
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterSortBy> thenByEffectiveBankSubtype() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'effectiveBankSubtype', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterSortBy>
+      thenByEffectiveBankSubtypeDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'effectiveBankSubtype', Sort.desc);
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterSortBy> thenByEffectiveOverdraftLimit() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'effectiveOverdraftLimit', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterSortBy>
+      thenByEffectiveOverdraftLimitDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'effectiveOverdraftLimit', Sort.desc);
     });
   }
 
@@ -1137,6 +2280,66 @@ extension AccountQuerySortThenBy
     });
   }
 
+  QueryBuilder<Account, Account, QAfterSortBy> thenByIsBalanceAccount() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isBalanceAccount', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterSortBy> thenByIsBalanceAccountDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isBalanceAccount', Sort.desc);
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterSortBy> thenByIsBankAccount() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isBankAccount', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterSortBy> thenByIsBankAccountDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isBankAccount', Sort.desc);
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterSortBy> thenByIsCreditCard() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isCreditCard', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterSortBy> thenByIsCreditCardDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isCreditCard', Sort.desc);
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterSortBy> thenByIsSystemGenerated() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isSystemGenerated', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterSortBy> thenByIsSystemGeneratedDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isSystemGenerated', Sort.desc);
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterSortBy> thenByLinkedBankAccountId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'linkedBankAccountId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterSortBy> thenByLinkedBankAccountIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'linkedBankAccountId', Sort.desc);
+    });
+  }
+
   QueryBuilder<Account, Account, QAfterSortBy> thenByName() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'name', Sort.asc);
@@ -1146,6 +2349,66 @@ extension AccountQuerySortThenBy
   QueryBuilder<Account, Account, QAfterSortBy> thenByNameDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'name', Sort.desc);
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterSortBy> thenByOverdraftLimit() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'overdraftLimit', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterSortBy> thenByOverdraftLimitDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'overdraftLimit', Sort.desc);
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterSortBy> thenByPaymentDueDay() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'paymentDueDay', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterSortBy> thenByPaymentDueDayDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'paymentDueDay', Sort.desc);
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterSortBy> thenByStatementDay() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'statementDay', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterSortBy> thenByStatementDayDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'statementDay', Sort.desc);
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterSortBy> thenBySupportsOverdraft() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'supportsOverdraft', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterSortBy> thenBySupportsOverdraftDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'supportsOverdraft', Sort.desc);
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterSortBy> thenBySystemKey() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'systemKey', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Account, Account, QAfterSortBy> thenBySystemKeyDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'systemKey', Sort.desc);
     });
   }
 
@@ -1182,9 +2445,31 @@ extension AccountQueryWhereDistinct
     });
   }
 
+  QueryBuilder<Account, Account, QDistinct> distinctByBankSubtype(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'bankSubtype', caseSensitive: caseSensitive);
+    });
+  }
+
   QueryBuilder<Account, Account, QDistinct> distinctByCreatedAt() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'createdAt');
+    });
+  }
+
+  QueryBuilder<Account, Account, QDistinct> distinctByEffectiveBankSubtype(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'effectiveBankSubtype',
+          caseSensitive: caseSensitive);
+    });
+  }
+
+  QueryBuilder<Account, Account, QDistinct>
+      distinctByEffectiveOverdraftLimit() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'effectiveOverdraftLimit');
     });
   }
 
@@ -1204,10 +2489,71 @@ extension AccountQueryWhereDistinct
     });
   }
 
+  QueryBuilder<Account, Account, QDistinct> distinctByIsBalanceAccount() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'isBalanceAccount');
+    });
+  }
+
+  QueryBuilder<Account, Account, QDistinct> distinctByIsBankAccount() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'isBankAccount');
+    });
+  }
+
+  QueryBuilder<Account, Account, QDistinct> distinctByIsCreditCard() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'isCreditCard');
+    });
+  }
+
+  QueryBuilder<Account, Account, QDistinct> distinctByIsSystemGenerated() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'isSystemGenerated');
+    });
+  }
+
+  QueryBuilder<Account, Account, QDistinct> distinctByLinkedBankAccountId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'linkedBankAccountId');
+    });
+  }
+
   QueryBuilder<Account, Account, QDistinct> distinctByName(
       {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'name', caseSensitive: caseSensitive);
+    });
+  }
+
+  QueryBuilder<Account, Account, QDistinct> distinctByOverdraftLimit() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'overdraftLimit');
+    });
+  }
+
+  QueryBuilder<Account, Account, QDistinct> distinctByPaymentDueDay() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'paymentDueDay');
+    });
+  }
+
+  QueryBuilder<Account, Account, QDistinct> distinctByStatementDay() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'statementDay');
+    });
+  }
+
+  QueryBuilder<Account, Account, QDistinct> distinctBySupportsOverdraft() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'supportsOverdraft');
+    });
+  }
+
+  QueryBuilder<Account, Account, QDistinct> distinctBySystemKey(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'systemKey', caseSensitive: caseSensitive);
     });
   }
 
@@ -1239,9 +2585,29 @@ extension AccountQueryProperty
     });
   }
 
+  QueryBuilder<Account, String?, QQueryOperations> bankSubtypeProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'bankSubtype');
+    });
+  }
+
   QueryBuilder<Account, DateTime, QQueryOperations> createdAtProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'createdAt');
+    });
+  }
+
+  QueryBuilder<Account, String, QQueryOperations>
+      effectiveBankSubtypeProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'effectiveBankSubtype');
+    });
+  }
+
+  QueryBuilder<Account, double, QQueryOperations>
+      effectiveOverdraftLimitProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'effectiveOverdraftLimit');
     });
   }
 
@@ -1257,9 +2623,69 @@ extension AccountQueryProperty
     });
   }
 
+  QueryBuilder<Account, bool, QQueryOperations> isBalanceAccountProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'isBalanceAccount');
+    });
+  }
+
+  QueryBuilder<Account, bool, QQueryOperations> isBankAccountProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'isBankAccount');
+    });
+  }
+
+  QueryBuilder<Account, bool, QQueryOperations> isCreditCardProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'isCreditCard');
+    });
+  }
+
+  QueryBuilder<Account, bool, QQueryOperations> isSystemGeneratedProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'isSystemGenerated');
+    });
+  }
+
+  QueryBuilder<Account, int?, QQueryOperations> linkedBankAccountIdProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'linkedBankAccountId');
+    });
+  }
+
   QueryBuilder<Account, String, QQueryOperations> nameProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'name');
+    });
+  }
+
+  QueryBuilder<Account, double, QQueryOperations> overdraftLimitProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'overdraftLimit');
+    });
+  }
+
+  QueryBuilder<Account, int?, QQueryOperations> paymentDueDayProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'paymentDueDay');
+    });
+  }
+
+  QueryBuilder<Account, int?, QQueryOperations> statementDayProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'statementDay');
+    });
+  }
+
+  QueryBuilder<Account, bool, QQueryOperations> supportsOverdraftProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'supportsOverdraft');
+    });
+  }
+
+  QueryBuilder<Account, String?, QQueryOperations> systemKeyProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'systemKey');
     });
   }
 

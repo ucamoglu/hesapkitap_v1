@@ -1,2 +1,7 @@
 #include "../../Flutter/Flutter-Debug.xcconfig"
 #include "Warnings.xcconfig"
+
+GCC_WARN_INHIBIT_ALL_WARNINGS = YES
+WARNING_CFLAGS = $(inherited) -w
+OTHER_CFLAGS = $(inherited) -Wno-deprecated-declarations
+OTHER_SWIFT_FLAGS = $(inherited) -suppress-warnings

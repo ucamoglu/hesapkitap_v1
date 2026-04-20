@@ -3,8 +3,16 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 
+import '../core/runtime/app_runtime.dart';
 import '../models/cari_card.dart';
+import '../services/account_service.dart';
 import '../services/cari_card_service.dart';
+import '../services/cari_transaction_service.dart';
+import '../services/tracked_crypto_service.dart';
+import '../services/tracked_currency_service.dart';
+import '../services/tracked_metal_service.dart';
+import '../services/tracked_stock_service.dart';
+import '../theme/app_theme_helpers.dart';
 import '../utils/navigation_helpers.dart';
 import '../utils/turkish_upper_case_formatter.dart';
 
@@ -18,6 +26,13 @@ class CariCardsScreen extends StatefulWidget {
 class _CariCardsScreenState extends State<CariCardsScreen> {
   List<CariCard> cards = [];
 
+  void _showSnack(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
   void _showInfoDialog() {
     showDialog<void>(
       context: context,
@@ -25,8 +40,9 @@ class _CariCardsScreenState extends State<CariCardsScreen> {
         title: const Text('Cari Kartlar'),
         content: const Text(
           "Bu ekranda kişi ve firma bazlı cari kart tanımlamaları yapılır.\n\n"
-          "Cari kartlar, borç/alacak süreçlerinin düzenli ve izlenebilir şekilde yönetilebilmesi amacıyla kullanılır.\n\n"
-          "Örneğin bir kişiye borç verildiğinde, İşlem ekranında 'Giden' türünde kayıt oluşturularak ilgili cari hareket sisteme işlenir.\n\n"
+          "Cari kartlar, borç/alacak kalanlarını takip etmek için geliştirilmiştir.\n\n"
+          "Cari kart tanımlanırken, para birimini TL veya yabancı para olarak seçebilirsiniz. Yabancı para seçmek için önce yatırımcı menüsünden ilgili yabancı para birimini takibe alınız ve ardından, ilgili döviz, kıymetli maden, kripto para veya borsa enstrümanı ile ilişkilendirme yapabilirsiniz.\n\n"
+          "Örneğin bir kişiye borç verildiğinde, İşlem ekranında 'Giden' türünde kayıt oluşturular, tahsil edildiğinde gelen kaydı oluşturularak ilgili cari hareket sisteme işlenir. Veya Borç aldığınız da Gelen, Ödediğin de ise Giden olarak kaydı tamamlayabilirsiniz\n\n"
           "Bu sayede borç/alacak durumu cari kart bazında güvenli ve sürdürülebilir biçimde takip edilebilir.",
         ),
         actions: [
@@ -45,6 +61,7 @@ class _CariCardsScreenState extends State<CariCardsScreen> {
     loadCards();
   }
 
+  // Cari kart listesini ekrana tekrar yukler.
   Future<void> loadCards() async {
     final data = await CariCardService.getAll();
     setState(() {
@@ -72,8 +89,148 @@ class _CariCardsScreenState extends State<CariCardsScreen> {
     return card.fullName?.trim().isNotEmpty == true ? card.fullName! : '-';
   }
 
-  void _openDialog({CariCard? edit}) {
+  String _currencySummary(CariCard c) {
+    if (c.currencyType != 'foreign') return 'TL';
+    final market = switch ((c.foreignMarketType ?? '').trim()) {
+      'currency' => 'Döviz',
+      'metal' => 'Kıymetli Maden',
+      'crypto' => 'Kripto',
+      'stock' => 'Borsa',
+      _ => 'Yabancı Para',
+    };
+    final symbol = (c.foreignCode ?? '').trim();
+    return symbol.isEmpty ? market : '$market • $symbol';
+  }
+
+  String _fmtAmount(double value) => value.toStringAsFixed(2);
+
+  String _fmtDateTime(DateTime value) {
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${two(value.day)}.${two(value.month)}.${value.year} '
+        '${two(value.hour)}:${two(value.minute)}';
+  }
+
+  Future<void> _openMovements(CariCard card) async {
+    final transactions = (await CariTransactionService.getAll())
+        .where((tx) => tx.cariCardId == card.id)
+        .toList()
+      ..sort((a, b) => b.date.compareTo(a.date));
+    final accounts = await AccountService.getAllAccounts();
+    final accountNames = {for (final account in accounts) account.id: account.name};
+    if (!mounted) return;
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return SafeArea(
+          child: SizedBox(
+            height: MediaQuery.of(ctx).size.height * 0.72,
+            child: Column(
+              children: [
+                ListTile(
+                  title: Text(
+                    _label(card),
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  subtitle: Text('${transactions.length} hareket'),
+                ),
+                const Divider(height: 1),
+                Expanded(
+                  child: transactions.isEmpty
+                      ? const Center(
+                          child: Text('Bu cari kart için hareket bulunamadı.'),
+                        )
+                      : ListView.separated(
+                          itemCount: transactions.length,
+                          separatorBuilder: (_, __) => const Divider(height: 1),
+                          itemBuilder: (_, i) {
+                            final tx = transactions[i];
+                            final isCollection = tx.type == 'collection';
+                            final accountName =
+                                accountNames[tx.accountId] ?? 'Hesap #${tx.accountId}';
+
+                            return ListTile(
+                              leading: Icon(
+                                isCollection ? Icons.arrow_downward : Icons.arrow_upward,
+                                color: isCollection ? Colors.green : Colors.red,
+                              ),
+                              title: Text(isCollection ? 'Gelen' : 'Giden'),
+                              subtitle: Text(
+                                '${_fmtDateTime(tx.date)} • $accountName\n'
+                                'Açıklama: ${(tx.description ?? '').trim().isEmpty ? '-' : tx.description!.trim()}',
+                              ),
+                              isThreeLine: true,
+                              trailing: Text(
+                                '${isCollection ? '+' : '-'}${_fmtAmount(tx.amount)} TL',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: isCollection ? Colors.green : Colors.red,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // Ekleme ve duzenleme akislarini ayni dialog uzerinden yurutur.
+  Future<void> _openDialog({CariCard? edit}) async {
     String selectedType = edit?.type ?? 'person';
+    String selectedCurrencyType = edit?.currencyType ?? 'tl';
+    String selectedForeignMarketType = edit?.foreignMarketType ?? 'currency';
+    String? selectedForeignCode = edit?.foreignCode;
+    String? selectedForeignName = edit?.foreignName;
+
+    final trackedCurrencies = await TrackedCurrencyService.getAll();
+    final trackedMetals = await TrackedMetalService.getAll();
+    final trackedStocks = await TrackedStockService.getAll();
+    final trackedCryptos = await TrackedCryptoService.getAll();
+    if (!mounted) return;
+
+    final optionsByMarket = <String, List<(String, String)>>{
+      'currency': trackedCurrencies
+          .where((e) => e.isActive)
+          .map((e) => (e.code.toUpperCase(), e.name))
+          .toList()
+        ..sort((a, b) => a.$2.compareTo(b.$2)),
+      'metal': trackedMetals
+          .where((e) => e.isActive)
+          .map((e) => (e.code.toUpperCase(), e.name))
+          .toList()
+        ..sort((a, b) => a.$2.compareTo(b.$2)),
+      'stock': trackedStocks
+          .where((e) => e.isActive)
+          .map((e) => (e.code.toUpperCase(), e.name))
+          .toList()
+        ..sort((a, b) => a.$1.compareTo(b.$1)),
+      'crypto': trackedCryptos
+          .where((e) => e.isActive)
+          .map((e) => (e.code.toUpperCase(), e.name))
+          .toList()
+        ..sort((a, b) => a.$1.compareTo(b.$1)),
+    };
+
+    List<(String, String)> currentOptions() =>
+        optionsByMarket[selectedForeignMarketType] ?? const [];
+
+    if (selectedCurrencyType == 'foreign') {
+      final opts = currentOptions();
+      if (opts.isEmpty) {
+        selectedForeignCode = null;
+        selectedForeignName = null;
+      } else if (!opts.any((e) => e.$1 == selectedForeignCode)) {
+        selectedForeignCode = opts.first.$1;
+        selectedForeignName = opts.first.$2;
+      }
+    }
+
     final fullNameController = TextEditingController(text: edit?.fullName ?? '');
     final titleController = TextEditingController(text: edit?.title ?? '');
     final phoneController = TextEditingController(text: edit?.phone ?? '');
@@ -177,6 +334,111 @@ class _CariCardsScreenState extends State<CariCardsScreen> {
                   textCapitalization: TextCapitalization.sentences,
                   decoration: const InputDecoration(labelText: 'Not'),
                 ),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String>(
+                  initialValue: selectedCurrencyType,
+                  decoration: const InputDecoration(labelText: 'Para Birimi'),
+                  items: const [
+                    DropdownMenuItem(value: 'tl', child: Text('TL')),
+                    DropdownMenuItem(value: 'foreign', child: Text('Yabancı Para')),
+                  ],
+                  onChanged: (v) {
+                    if (v == null) return;
+                    setInnerState(() {
+                      selectedCurrencyType = v;
+                      if (v == 'tl') {
+                        selectedForeignCode = null;
+                        selectedForeignName = null;
+                        return;
+                      }
+                      final opts = currentOptions();
+                      if (opts.isEmpty) {
+                        selectedForeignCode = null;
+                        selectedForeignName = null;
+                      } else if (!opts.any((e) => e.$1 == selectedForeignCode)) {
+                        selectedForeignCode = opts.first.$1;
+                        selectedForeignName = opts.first.$2;
+                      }
+                    });
+                  },
+                ),
+                if (selectedCurrencyType == 'foreign') ...[
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedForeignMarketType,
+                    decoration: const InputDecoration(labelText: 'Yabancı Para Türü'),
+                    items: const [
+                      DropdownMenuItem(value: 'currency', child: Text('Döviz')),
+                      DropdownMenuItem(value: 'metal', child: Text('Kıymetli Maden')),
+                      DropdownMenuItem(value: 'crypto', child: Text('Kripto Para')),
+                      DropdownMenuItem(value: 'stock', child: Text('Borsa')),
+                    ],
+                    onChanged: (v) {
+                      if (v == null) return;
+                      setInnerState(() {
+                        selectedForeignMarketType = v;
+                        final opts = currentOptions();
+                        if (opts.isEmpty) {
+                          selectedForeignCode = null;
+                          selectedForeignName = null;
+                        } else {
+                          selectedForeignCode = opts.first.$1;
+                          selectedForeignName = opts.first.$2;
+                        }
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  Builder(
+                    builder: (_) {
+                      final opts = currentOptions();
+                      if (opts.isEmpty) {
+                        return const InputDecorator(
+                          decoration: InputDecoration(
+                            labelText: 'Takip Edilen Enstrüman',
+                            border: OutlineInputBorder(),
+                          ),
+                          child: Text(
+                            'Bu türde aktif takip bulunamadı.',
+                            style: TextStyle(color: Colors.black54),
+                          ),
+                        );
+                      }
+                      if (!opts.any((e) => e.$1 == selectedForeignCode)) {
+                        selectedForeignCode = opts.first.$1;
+                        selectedForeignName = opts.first.$2;
+                      }
+                      return DropdownButtonFormField<String>(
+                        initialValue: selectedForeignCode,
+                        decoration: const InputDecoration(
+                          labelText: 'Takip Edilen Enstrüman',
+                        ),
+                        items: opts
+                            .map(
+                              (e) => DropdownMenuItem(
+                                value: e.$1,
+                                child: Text('${e.$1} - ${e.$2}'),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (v) {
+                          if (v == null) return;
+                          setInnerState(() {
+                            selectedForeignCode = v;
+                            String? found;
+                            for (final e in opts) {
+                              if (e.$1 == v) {
+                                found = e.$2;
+                                break;
+                              }
+                            }
+                            selectedForeignName = found;
+                          });
+                        },
+                      );
+                    },
+                  ),
+                ],
               ],
             ),
           ),
@@ -189,8 +451,25 @@ class _CariCardsScreenState extends State<CariCardsScreen> {
               onPressed: () async {
                 final fullName = fullNameController.text.trim();
                 final title = titleController.text.trim();
-                if (selectedType == 'person' && fullName.isEmpty) return;
-                if (selectedType == 'company' && title.isEmpty) return;
+                if (selectedType == 'person' && fullName.isEmpty) {
+                  _showSnack('Kişi kartında isim soyisim zorunludur.');
+                  return;
+                }
+                if (selectedType == 'company' && title.isEmpty) {
+                  _showSnack('Firma kartında ünvan zorunludur.');
+                  return;
+                }
+                if (selectedCurrencyType == 'foreign') {
+                  final opts = currentOptions();
+                  if (opts.isEmpty) {
+                    _showSnack('Bu türde aktif takip bulunmadığı için kayıt yapılamaz.');
+                    return;
+                  }
+                  if (selectedForeignCode == null) {
+                    _showSnack('Takip edilen enstrümanı seçiniz.');
+                    return;
+                  }
+                }
 
                 final card = edit ?? CariCard()..createdAt = DateTime.now();
                 card.type = selectedType;
@@ -206,16 +485,30 @@ class _CariCardsScreenState extends State<CariCardsScreen> {
                     ? null
                     : noteController.text.trim();
                 card.photoBytes = selectedPhoto?.toList();
-
-                if (edit == null) {
-                  await CariCardService.add(card);
+                card.currencyType = selectedCurrencyType;
+                if (selectedCurrencyType == 'foreign') {
+                  card.foreignMarketType = selectedForeignMarketType;
+                  card.foreignCode = selectedForeignCode;
+                  card.foreignName = selectedForeignName;
                 } else {
-                  await CariCardService.update(card);
+                  card.foreignMarketType = null;
+                  card.foreignCode = null;
+                  card.foreignName = null;
                 }
 
-                if (!context.mounted) return;
-                Navigator.pop(context);
-                await loadCards();
+                try {
+                  if (edit == null) {
+                    await AppRuntime.dataLayer.cariCards.add(card);
+                  } else {
+                    await AppRuntime.dataLayer.cariCards.update(card);
+                  }
+
+                  if (!context.mounted) return;
+                  Navigator.pop(context);
+                  await loadCards();
+                } catch (e) {
+                  _showSnack('Kayıt hatası: $e');
+                }
               },
               child: const Text('Kaydet'),
             ),
@@ -225,13 +518,16 @@ class _CariCardsScreenState extends State<CariCardsScreen> {
     );
   }
 
+  // Karti silmeden aktif/pasif hale getirir.
   Future<void> _toggle(CariCard card) async {
-    await CariCardService.setActive(card.id, !card.isActive);
+    await AppRuntime.dataLayer.cariCards.setActive(card.id, !card.isActive);
     await loadCards();
   }
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    const accent = Colors.orange;
     return Scaffold(
       drawer: buildAppMenuDrawer(),
       appBar: AppBar(
@@ -240,42 +536,96 @@ class _CariCardsScreenState extends State<CariCardsScreen> {
         actions: [buildHomeAction(context)],
       ),
       body: cards.isEmpty
-          ? const Center(child: Text('Cari kart bulunamadı.'))
+          ? Center(
+              child: Text(
+                'Cari kart bulunamadı.',
+                style: TextStyle(
+                  color: colorScheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            )
           : ListView.builder(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 88),
               itemCount: cards.length,
               itemBuilder: (context, index) {
                 final c = cards[index];
-                return ListTile(
-                  leading: CircleAvatar(
-                    backgroundImage:
-                        c.photoBytes != null ? MemoryImage(Uint8List.fromList(c.photoBytes!)) : null,
-                    child: c.photoBytes == null ? Icon(_icon(c.type)) : null,
-                  ),
-                  title: Text(
-                    _label(c),
-                    style: TextStyle(
-                      decoration: c.isActive ? null : TextDecoration.lineThrough,
+                return Dismissible(
+                  key: ValueKey('cari-card-${c.id}'),
+                  direction: DismissDirection.endToStart,
+                  confirmDismiss: (_) async {
+                    await _openMovements(c);
+                    return false;
+                  },
+                  background: Container(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    alignment: Alignment.centerRight,
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    decoration: BoxDecoration(
+                      color: Colors.deepPurple.shade100,
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        Icon(Icons.chevron_left),
+                        SizedBox(width: 8),
+                        Text('Hareketleri Aç'),
+                      ],
                     ),
                   ),
-                  subtitle: Text(c.type == 'company' ? 'Firma' : 'Kişi'),
-                  trailing: PopupMenuButton<String>(
-                    onSelected: (value) async {
-                      if (value == 'edit') {
-                        _openDialog(edit: c);
-                      } else if (value == 'toggle') {
-                        await _toggle(c);
-                      }
-                    },
-                    itemBuilder: (_) => [
-                      const PopupMenuItem(
-                        value: 'edit',
-                        child: Text('Düzenle'),
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    decoration: context.surfaceDecoration(
+                      accent: accent,
+                      fillColor: c.isActive
+                          ? context.softAccent(accent, 0.06)
+                          : Colors.white,
+                    ),
+                    child: ListTile(
+                      onTap: () => _openMovements(c),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 10,
                       ),
-                      PopupMenuItem(
-                        value: 'toggle',
-                        child: Text(c.isActive ? 'Pasif Yap' : 'Aktif Yap'),
+                      leading: CircleAvatar(
+                        backgroundColor: context.softAccent(accent),
+                        backgroundImage:
+                            c.photoBytes != null ? MemoryImage(Uint8List.fromList(c.photoBytes!)) : null,
+                        child: c.photoBytes == null ? Icon(_icon(c.type), color: accent) : null,
                       ),
-                    ],
+                      title: Text(
+                        _label(c),
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          decoration: c.isActive ? null : TextDecoration.lineThrough,
+                        ),
+                      ),
+                      subtitle: Text(
+                        '${c.type == 'company' ? 'Firma' : 'Kişi'} • ${_currencySummary(c)}',
+                        style: TextStyle(color: colorScheme.onSurfaceVariant),
+                      ),
+                      trailing: PopupMenuButton<String>(
+                        icon: const Icon(Icons.more_horiz, color: accent),
+                        onSelected: (value) async {
+                          if (value == 'edit') {
+                            _openDialog(edit: c);
+                          } else if (value == 'toggle') {
+                            await _toggle(c);
+                          }
+                        },
+                        itemBuilder: (_) => [
+                          const PopupMenuItem(
+                            value: 'edit',
+                            child: Text('Düzenle'),
+                          ),
+                          PopupMenuItem(
+                            value: 'toggle',
+                            child: Text(c.isActive ? 'Pasif Yap' : 'Aktif Yap'),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 );
               },

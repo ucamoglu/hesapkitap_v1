@@ -47,10 +47,20 @@ const CariTransactionSchema = CollectionSchema(
       name: r'description',
       type: IsarType.string,
     ),
-    r'type': PropertySchema(
+    r'quantity': PropertySchema(
       id: 6,
+      name: r'quantity',
+      type: IsarType.double,
+    ),
+    r'type': PropertySchema(
+      id: 7,
       name: r'type',
       type: IsarType.string,
+    ),
+    r'unitPrice': PropertySchema(
+      id: 8,
+      name: r'unitPrice',
+      type: IsarType.double,
     )
   },
   estimateSize: _cariTransactionEstimateSize,
@@ -95,7 +105,9 @@ void _cariTransactionSerialize(
   writer.writeDateTime(offsets[3], object.createdAt);
   writer.writeDateTime(offsets[4], object.date);
   writer.writeString(offsets[5], object.description);
-  writer.writeString(offsets[6], object.type);
+  writer.writeDouble(offsets[6], object.quantity);
+  writer.writeString(offsets[7], object.type);
+  writer.writeDouble(offsets[8], object.unitPrice);
 }
 
 CariTransaction _cariTransactionDeserialize(
@@ -112,7 +124,9 @@ CariTransaction _cariTransactionDeserialize(
   object.date = reader.readDateTime(offsets[4]);
   object.description = reader.readStringOrNull(offsets[5]);
   object.id = id;
-  object.type = reader.readString(offsets[6]);
+  object.quantity = reader.readDoubleOrNull(offsets[6]);
+  object.type = reader.readString(offsets[7]);
+  object.unitPrice = reader.readDoubleOrNull(offsets[8]);
   return object;
 }
 
@@ -136,7 +150,11 @@ P _cariTransactionDeserializeProp<P>(
     case 5:
       return (reader.readStringOrNull(offset)) as P;
     case 6:
+      return (reader.readDoubleOrNull(offset)) as P;
+    case 7:
       return (reader.readString(offset)) as P;
+    case 8:
+      return (reader.readDoubleOrNull(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
   }
@@ -738,6 +756,90 @@ extension CariTransactionQueryFilter
   }
 
   QueryBuilder<CariTransaction, CariTransaction, QAfterFilterCondition>
+      quantityIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'quantity',
+      ));
+    });
+  }
+
+  QueryBuilder<CariTransaction, CariTransaction, QAfterFilterCondition>
+      quantityIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'quantity',
+      ));
+    });
+  }
+
+  QueryBuilder<CariTransaction, CariTransaction, QAfterFilterCondition>
+      quantityEqualTo(
+    double? value, {
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'quantity',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<CariTransaction, CariTransaction, QAfterFilterCondition>
+      quantityGreaterThan(
+    double? value, {
+    bool include = false,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'quantity',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<CariTransaction, CariTransaction, QAfterFilterCondition>
+      quantityLessThan(
+    double? value, {
+    bool include = false,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'quantity',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<CariTransaction, CariTransaction, QAfterFilterCondition>
+      quantityBetween(
+    double? lower,
+    double? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'quantity',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<CariTransaction, CariTransaction, QAfterFilterCondition>
       typeEqualTo(
     String value, {
     bool caseSensitive = true,
@@ -872,6 +974,90 @@ extension CariTransactionQueryFilter
       ));
     });
   }
+
+  QueryBuilder<CariTransaction, CariTransaction, QAfterFilterCondition>
+      unitPriceIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'unitPrice',
+      ));
+    });
+  }
+
+  QueryBuilder<CariTransaction, CariTransaction, QAfterFilterCondition>
+      unitPriceIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'unitPrice',
+      ));
+    });
+  }
+
+  QueryBuilder<CariTransaction, CariTransaction, QAfterFilterCondition>
+      unitPriceEqualTo(
+    double? value, {
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'unitPrice',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<CariTransaction, CariTransaction, QAfterFilterCondition>
+      unitPriceGreaterThan(
+    double? value, {
+    bool include = false,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'unitPrice',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<CariTransaction, CariTransaction, QAfterFilterCondition>
+      unitPriceLessThan(
+    double? value, {
+    bool include = false,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'unitPrice',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<CariTransaction, CariTransaction, QAfterFilterCondition>
+      unitPriceBetween(
+    double? lower,
+    double? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'unitPrice',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        epsilon: epsilon,
+      ));
+    });
+  }
 }
 
 extension CariTransactionQueryObject
@@ -964,6 +1150,20 @@ extension CariTransactionQuerySortBy
     });
   }
 
+  QueryBuilder<CariTransaction, CariTransaction, QAfterSortBy>
+      sortByQuantity() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'quantity', Sort.asc);
+    });
+  }
+
+  QueryBuilder<CariTransaction, CariTransaction, QAfterSortBy>
+      sortByQuantityDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'quantity', Sort.desc);
+    });
+  }
+
   QueryBuilder<CariTransaction, CariTransaction, QAfterSortBy> sortByType() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'type', Sort.asc);
@@ -974,6 +1174,20 @@ extension CariTransactionQuerySortBy
       sortByTypeDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'type', Sort.desc);
+    });
+  }
+
+  QueryBuilder<CariTransaction, CariTransaction, QAfterSortBy>
+      sortByUnitPrice() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'unitPrice', Sort.asc);
+    });
+  }
+
+  QueryBuilder<CariTransaction, CariTransaction, QAfterSortBy>
+      sortByUnitPriceDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'unitPrice', Sort.desc);
     });
   }
 }
@@ -1074,6 +1288,20 @@ extension CariTransactionQuerySortThenBy
     });
   }
 
+  QueryBuilder<CariTransaction, CariTransaction, QAfterSortBy>
+      thenByQuantity() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'quantity', Sort.asc);
+    });
+  }
+
+  QueryBuilder<CariTransaction, CariTransaction, QAfterSortBy>
+      thenByQuantityDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'quantity', Sort.desc);
+    });
+  }
+
   QueryBuilder<CariTransaction, CariTransaction, QAfterSortBy> thenByType() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'type', Sort.asc);
@@ -1084,6 +1312,20 @@ extension CariTransactionQuerySortThenBy
       thenByTypeDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'type', Sort.desc);
+    });
+  }
+
+  QueryBuilder<CariTransaction, CariTransaction, QAfterSortBy>
+      thenByUnitPrice() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'unitPrice', Sort.asc);
+    });
+  }
+
+  QueryBuilder<CariTransaction, CariTransaction, QAfterSortBy>
+      thenByUnitPriceDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'unitPrice', Sort.desc);
     });
   }
 }
@@ -1130,10 +1372,24 @@ extension CariTransactionQueryWhereDistinct
     });
   }
 
+  QueryBuilder<CariTransaction, CariTransaction, QDistinct>
+      distinctByQuantity() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'quantity');
+    });
+  }
+
   QueryBuilder<CariTransaction, CariTransaction, QDistinct> distinctByType(
       {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'type', caseSensitive: caseSensitive);
+    });
+  }
+
+  QueryBuilder<CariTransaction, CariTransaction, QDistinct>
+      distinctByUnitPrice() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'unitPrice');
     });
   }
 }
@@ -1184,9 +1440,21 @@ extension CariTransactionQueryProperty
     });
   }
 
+  QueryBuilder<CariTransaction, double?, QQueryOperations> quantityProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'quantity');
+    });
+  }
+
   QueryBuilder<CariTransaction, String, QQueryOperations> typeProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'type');
+    });
+  }
+
+  QueryBuilder<CariTransaction, double?, QQueryOperations> unitPriceProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'unitPrice');
     });
   }
 }

@@ -10,6 +10,7 @@ import '../models/account.dart';
 import '../models/investment_transaction.dart';
 import '../services/account_service.dart';
 import '../services/investment_transaction_service.dart';
+import '../services/market_rate_service.dart';
 import '../utils/navigation_helpers.dart';
 
 class InvestmentTrackingScreen extends StatefulWidget {
@@ -25,6 +26,10 @@ class _InvestmentTrackingScreenState extends State<InvestmentTrackingScreen> {
 
   List<InvestmentTransaction> _items = [];
   Map<int, String> _accountNames = {};
+  Map<int, Account> _accountsById = {};
+  Map<String, double> _livePriceBySymbol = {};
+  DateTime? _priceFetchedAt;
+  final Set<String> _expandedPortfolioKeys = <String>{};
 
   @override
   void initState() {
@@ -32,6 +37,7 @@ class _InvestmentTrackingScreenState extends State<InvestmentTrackingScreen> {
     _load();
   }
 
+  // Portfoy ekraninda kullanilan yatirim hareketlerini ve canli fiyatlari toplar.
   Future<void> _load() async {
     setState(() {
       _loading = true;
@@ -45,18 +51,80 @@ class _InvestmentTrackingScreenState extends State<InvestmentTrackingScreen> {
       ]);
       final items = results[0] as List<InvestmentTransaction>;
       final accounts = results[1] as List<Account>;
+      final accountsById = {for (final a in accounts) a.id: a};
+
+      final currencySymbols = <String>{};
+      final metalSymbols = <String>{};
+      final stockSymbols = <String>{};
+      final cryptoSymbols = <String>{};
+      for (final a in accounts) {
+        if (a.type != 'investment' || !a.isActive) continue;
+        final symbol = (a.investmentSymbol ?? '').trim().toUpperCase();
+        if (symbol.isEmpty) continue;
+        final subtype = (a.investmentSubtype ?? '').trim().toLowerCase();
+        if (subtype == 'currency') {
+          currencySymbols.add(symbol);
+        } else if (subtype == 'metal') {
+          metalSymbols.add(symbol);
+        } else if (subtype == 'stock') {
+          stockSymbols.add(symbol);
+        } else if (subtype == 'crypto') {
+          cryptoSymbols.add(symbol);
+        }
+      }
+
+      final livePriceBySymbol = <String, double>{};
+      try {
+        final currencies = await MarketRateService.fetchAllCurrencies();
+        for (final r in currencies.items) {
+          final code = r.code.toUpperCase();
+          if (!currencySymbols.contains(code)) continue;
+          final price = r.sell > 0 ? r.sell : r.buy;
+          if (price > 0) livePriceBySymbol[code] = price;
+        }
+      } catch (_) {}
+      try {
+        final metals = await MarketRateService.fetchAllMetals();
+        for (final r in metals.items) {
+          final code = r.code.toUpperCase();
+          if (!metalSymbols.contains(code)) continue;
+          final price = r.sell > 0 ? r.sell : r.buy;
+          if (price > 0) livePriceBySymbol[code] = price;
+        }
+      } catch (_) {}
+      if (stockSymbols.isNotEmpty) {
+        try {
+          final stocks = await MarketRateService.fetchStocksByCodes(stockSymbols.toList());
+          for (final r in stocks) {
+            final price = r.sell > 0 ? r.sell : r.buy;
+            if (price > 0) livePriceBySymbol[r.code.toUpperCase()] = price;
+          }
+        } catch (_) {}
+      }
+      if (cryptoSymbols.isNotEmpty) {
+        try {
+          final cryptos = await MarketRateService.fetchCryptosByCodes(cryptoSymbols.toList());
+          for (final r in cryptos) {
+            final price = r.sell > 0 ? r.sell : r.buy;
+            if (price > 0) livePriceBySymbol[r.code.toUpperCase()] = price;
+          }
+        } catch (_) {}
+      }
 
       if (!mounted) return;
       setState(() {
         _items = items;
         _accountNames = {for (final a in accounts) a.id: a.name};
+        _accountsById = accountsById;
+        _livePriceBySymbol = livePriceBySymbol;
+        _priceFetchedAt = DateTime.now();
         _loading = false;
       });
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _error = 'Yatırım takip verileri yüklenemedi: $e';
+        _error = 'Yatırım portföyü verileri yüklenemedi: $e';
       });
     }
   }
@@ -94,7 +162,40 @@ class _InvestmentTrackingScreenState extends State<InvestmentTrackingScreen> {
     return '${b.toString()},$decPart';
   }
 
-  String _fmtQty(double q) => q.toStringAsFixed(4);
+  String _fmtQty(double value) {
+    final fixed = value.toStringAsFixed(4);
+    final normalized = fixed.replaceFirst(RegExp(r'([.,]?)0+$'), '');
+    final parts = normalized.split('.');
+    final intPart = parts[0];
+    final decPart = parts.length > 1 ? parts[1] : '';
+
+    final b = StringBuffer();
+    for (int i = 0; i < intPart.length; i++) {
+      final fromRight = intPart.length - i;
+      b.write(intPart[i]);
+      if (fromRight > 1 && fromRight % 3 == 1) b.write('.');
+    }
+    if (decPart.isEmpty) return b.toString();
+    return '${b.toString()},$decPart';
+  }
+
+  String _fmtSignedMoney(double value) {
+    final sign = value >= 0 ? '+' : '-';
+    return '$sign${_fmtMoney(value.abs())}';
+  }
+
+  String _fmtRateDate() {
+    final d = _priceFetchedAt ?? DateTime.now();
+    return _fmtDate(d);
+  }
+
+  Color _sentimentColor(double value) {
+    return value >= 0 ? Colors.green : Colors.red;
+  }
+
+  String _sentimentLabel(double value) {
+    return value >= 0 ? 'Olumlu' : 'Olumsuz';
+  }
 
   Future<Uint8List> _buildPdf(PdfPageFormat format) async {
     final font = pw.Font.ttf(
@@ -110,6 +211,26 @@ class _InvestmentTrackingScreenState extends State<InvestmentTrackingScreen> {
       grouped.putIfAbsent(key, () => []).add(tx);
     }
     final orderedKeys = grouped.keys.toList()..sort();
+    final lotRowsByKey = <String, List<_LotView>>{};
+    double currentValueTotal = 0;
+    double openCostTotal = 0;
+    double realizedPnlTotal = 0;
+    for (final key in orderedKeys) {
+      final rows = _buildLotRows(grouped[key]!);
+      lotRowsByKey[key] = rows;
+      final symbol = key.split('|')[1].toUpperCase();
+      final rate = _livePriceBySymbol[symbol];
+      realizedPnlTotal += rows.fold<double>(0, (sum, row) => sum + row.lotPnl);
+      for (final row in rows) {
+        if (row.remainingQty <= 0) continue;
+        openCostTotal += row.remainingQty * row.buyUnitPrice;
+        if (rate != null && rate > 0) {
+          currentValueTotal += row.remainingQty * rate;
+        }
+      }
+    }
+    final summaryUnrealizedPnl = currentValueTotal - openCostTotal;
+    final summaryTotalPnl = realizedPnlTotal + summaryUnrealizedPnl;
 
     final doc = pw.Document(
       theme: pw.ThemeData.withFont(base: font, bold: bold),
@@ -121,9 +242,22 @@ class _InvestmentTrackingScreenState extends State<InvestmentTrackingScreen> {
         margin: const pw.EdgeInsets.all(20),
         build: (_) {
           final widgets = <pw.Widget>[
-            pw.Text('Yatirim Takip', style: pw.TextStyle(font: bold, fontSize: 18)),
+            pw.Text('Yatırım Portföyü', style: pw.TextStyle(font: bold, fontSize: 18)),
             pw.SizedBox(height: 6),
-            pw.Text('Olusturma: ${_fmtDate(DateTime.now())}'),
+            pw.Text('Oluşturma: ${_fmtDate(DateTime.now())}'),
+            pw.SizedBox(height: 8),
+            pw.Text('Portföy Değeri: ${_fmtMoney(currentValueTotal)} TL'),
+            pw.Text('Açık Maliyet: ${_fmtMoney(openCostTotal)} TL'),
+            pw.Text(
+              'Gerç. K/Z: ${realizedPnlTotal >= 0 ? '+' : '-'}${_fmtMoney(realizedPnlTotal.abs())} TL',
+            ),
+            pw.Text(
+              'Açık Pozisyon K/Z: ${summaryUnrealizedPnl >= 0 ? '+' : '-'}${_fmtMoney(summaryUnrealizedPnl.abs())} TL',
+            ),
+            pw.Text(
+              'Toplam K/Z: ${summaryTotalPnl >= 0 ? '+' : '-'}${_fmtMoney(summaryTotalPnl.abs())} TL',
+              style: pw.TextStyle(font: bold),
+            ),
             pw.SizedBox(height: 12),
           ];
 
@@ -132,7 +266,7 @@ class _InvestmentTrackingScreenState extends State<InvestmentTrackingScreen> {
             final accountId = int.parse(parts[0]);
             final symbol = parts[1];
             final accountName = _accountNames[accountId] ?? 'Hesap #$accountId';
-            final rows = _buildLotRows(grouped[key]!);
+            final rows = lotRowsByKey[key] ?? const <_LotView>[];
 
             widgets.add(
               pw.Text(
@@ -144,13 +278,13 @@ class _InvestmentTrackingScreenState extends State<InvestmentTrackingScreen> {
             widgets.add(
               pw.TableHelper.fromTextArray(
                 headers: const [
-                  'Alis #',
+                  'Alış #',
                   'Tarih',
-                  'Giris',
-                  'Alis Tutar',
-                  'Alis Birim',
-                  'Cikan',
-                  'Satis Tutar',
+                  'Giriş',
+                  'Alış Tutar',
+                  'Alış Birim',
+                  'Çıkan',
+                  'Satış Tutar',
                   'Kalan',
                   'Lot K/Z',
                 ],
@@ -193,7 +327,7 @@ class _InvestmentTrackingScreenState extends State<InvestmentTrackingScreen> {
           drawer: buildAppMenuDrawer(),
           appBar: AppBar(
             leading: const BackButton(),
-            title: const Text('Yatirim Takip - PDF'),
+            title: const Text('Yatırım Portföyü - PDF'),
             actions: [buildHomeAction(context)],
           ),
           body: PdfPreview(
@@ -203,7 +337,7 @@ class _InvestmentTrackingScreenState extends State<InvestmentTrackingScreen> {
             canDebug: false,
             allowPrinting: true,
             allowSharing: true,
-            pdfFileName: 'yatirim_takip.pdf',
+            pdfFileName: 'yatirim_portfoyu.pdf',
           ),
         ),
       ),
@@ -284,22 +418,35 @@ class _InvestmentTrackingScreenState extends State<InvestmentTrackingScreen> {
         if (byName != 0) return byName;
         return a.compareTo(b);
       });
-    final sells = _items.where((e) => _isSell(e.type));
-    final positiveTotal = sells
-        .map((e) => e.realizedPnl)
-        .where((v) => v > 0)
-        .fold<double>(0, (s, v) => s + v);
-    final negativeTotal = sells
-        .map((e) => e.realizedPnl)
-        .where((v) => v < 0)
-        .fold<double>(0, (s, v) => s + v.abs());
-    final netPnl = positiveTotal - negativeTotal;
+    final lotRowsByKey = <String, List<_LotView>>{};
+    for (final key in orderedKeys) {
+      lotRowsByKey[key] = _buildLotRows(grouped[key]!);
+    }
+    double currentValueTotal = 0;
+    double openCostTotal = 0;
+    double realizedPnlTotal = 0;
+    for (final key in orderedKeys) {
+      final parts = key.split('|');
+      final symbol = parts[1].toUpperCase();
+      final rate = _livePriceBySymbol[symbol];
+      final rows = lotRowsByKey[key] ?? const <_LotView>[];
+      realizedPnlTotal += rows.fold<double>(0, (sum, row) => sum + row.lotPnl);
+      for (final row in rows) {
+        if (row.remainingQty <= 0) continue;
+        openCostTotal += row.remainingQty * row.buyUnitPrice;
+        if (rate != null && rate > 0) {
+          currentValueTotal += row.remainingQty * rate;
+        }
+      }
+    }
+    final summaryUnrealizedPnl = currentValueTotal - openCostTotal;
+    final summaryTotalPnl = realizedPnlTotal + summaryUnrealizedPnl;
 
     return Scaffold(
       drawer: buildAppMenuDrawer(),
       appBar: AppBar(
         leading: buildMenuLeading(),
-        title: const Text('Yatırım Takip'),
+        title: const Text('Yatırım Portföyü'),
         actions: [
           IconButton(
             onPressed: _items.isEmpty ? null : _openPdfPreview,
@@ -339,23 +486,37 @@ class _InvestmentTrackingScreenState extends State<InvestmentTrackingScreen> {
                                 runSpacing: 8,
                                 children: [
                                   Text(
-                                    'Toplam Olumlu: ${_fmtMoney(positiveTotal)} TL',
+                                    'Portföy Değeri: ${_fmtMoney(currentValueTotal)} TL',
+                                    style: const TextStyle(
+                                      color: Colors.blue,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Açık Maliyet: ${_fmtMoney(openCostTotal)} TL',
+                                    style: const TextStyle(
+                                      color: Colors.black87,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Gerç. K/Z: ${realizedPnlTotal >= 0 ? '+' : '-'}${_fmtMoney(realizedPnlTotal.abs())} TL',
                                     style: const TextStyle(
                                       color: Colors.green,
                                       fontWeight: FontWeight.w700,
                                     ),
                                   ),
                                   Text(
-                                    'Toplam Olumsuz: ${_fmtMoney(negativeTotal)} TL',
+                                    'Açık Pozisyon K/Z: ${summaryUnrealizedPnl >= 0 ? '+' : '-'}${_fmtMoney(summaryUnrealizedPnl.abs())} TL',
                                     style: const TextStyle(
-                                      color: Colors.red,
+                                      color: Colors.orange,
                                       fontWeight: FontWeight.w700,
                                     ),
                                   ),
                                   Text(
-                                    'Net K/Z: ${netPnl >= 0 ? '+' : '-'}${_fmtMoney(netPnl.abs())} TL',
+                                    'Toplam K/Z: ${summaryTotalPnl >= 0 ? '+' : '-'}${_fmtMoney(summaryTotalPnl.abs())} TL',
                                     style: TextStyle(
-                                      color: netPnl >= 0 ? Colors.green : Colors.red,
+                                      color: summaryTotalPnl >= 0 ? Colors.green : Colors.red,
                                       fontWeight: FontWeight.w800,
                                     ),
                                   ),
@@ -370,7 +531,42 @@ class _InvestmentTrackingScreenState extends State<InvestmentTrackingScreen> {
                         final accountId = int.parse(parts[0]);
                         final symbol = parts[1];
                         final accountName = _accountNames[accountId] ?? 'Hesap #$accountId';
-                        final lotRows = _buildLotRows(grouped[key]!);
+                        final account = _accountsById[accountId];
+                        final lotRows = lotRowsByKey[key] ?? const <_LotView>[];
+                        final remainingTotal = lotRows.fold<double>(
+                          0,
+                          (sum, row) => sum + row.remainingQty,
+                        );
+                        final lotPnlTotal = lotRows.fold<double>(
+                          0,
+                          (sum, row) => sum + row.lotPnl,
+                        );
+                        final openCost = lotRows.fold<double>(
+                          0,
+                          (sum, row) => sum + (row.remainingQty * row.buyUnitPrice),
+                        );
+                        final rate = _livePriceBySymbol[symbol.toUpperCase()];
+                        final currentValue = rate == null ? null : (remainingTotal * rate);
+                        final unrealizedPnl =
+                            currentValue == null ? null : (currentValue - openCost);
+                        final totalPnl = lotPnlTotal + (unrealizedPnl ?? 0);
+                        final sentimentValue = unrealizedPnl ?? lotPnlTotal;
+                        final isExpanded = _expandedPortfolioKeys.contains(key);
+                        final subtype = (account?.investmentSubtype ?? '').trim().toLowerCase();
+                        final kindLabel = subtype == 'currency'
+                            ? 'Döviz'
+                            : subtype == 'metal'
+                                ? 'Kıymetli Maden'
+                                : subtype == 'stock'
+                                    ? 'Borsa'
+                                    : subtype == 'crypto'
+                                        ? 'Kripto'
+                                        : 'Yatırım';
+                        final amountText = currentValue == null
+                            ? 'Portföy Değeri: veri yok'
+                            : 'Portföy Değeri: ${_fmtMoney(currentValue)} TL';
+                        final rateText =
+                            rate == null ? 'veri yok' : '${_fmtMoney(rate)} TL';
 
                         return Card(
                           margin: const EdgeInsets.only(bottom: 12),
@@ -379,57 +575,127 @@ class _InvestmentTrackingScreenState extends State<InvestmentTrackingScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  '$accountName • $symbol',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 16,
+                                InkWell(
+                                  onTap: () {
+                                    setState(() {
+                                      if (isExpanded) {
+                                        _expandedPortfolioKeys.remove(key);
+                                      } else {
+                                        _expandedPortfolioKeys.add(key);
+                                      }
+                                    });
+                                  },
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              '$accountName • $symbol',
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.w700,
+                                                fontSize: 16,
+                                              ),
+                                            ),
+                                          ),
+                                          Icon(
+                                            isExpanded
+                                                ? Icons.keyboard_arrow_up
+                                                : Icons.chevron_left,
+                                            color: Colors.black45,
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text('Cins: $kindLabel ($symbol)'),
+                                      Text('Kalan Toplam: ${_fmtQty(remainingTotal)}'),
+                                      Text('Güncel Kur (${_fmtRateDate()}): $rateText'),
+                                      Text('Açık Maliyet: ${_fmtMoney(openCost)} TL'),
+                                      Text(
+                                        'Açık Pozisyon: ${_sentimentLabel(sentimentValue)}',
+                                        style: TextStyle(
+                                          color: _sentimentColor(sentimentValue),
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                      Text(
+                                        amountText,
+                                        style: const TextStyle(
+                                          color: Colors.blue,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                      Text(
+                                        'Açık Pozisyon K/Z: ${unrealizedPnl == null ? 'veri yok' : _fmtSignedMoney(unrealizedPnl)} TL',
+                                        style: TextStyle(
+                                          color: _sentimentColor(sentimentValue),
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                      Text(
+                                        'Gerç. K/Z: ${_fmtSignedMoney(lotPnlTotal)} TL',
+                                        style: TextStyle(
+                                          color: _sentimentColor(lotPnlTotal),
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                      Text(
+                                        'Toplam K/Z: ${_fmtSignedMoney(totalPnl)} TL',
+                                        style: TextStyle(
+                                          color: _sentimentColor(totalPnl),
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
-                                const SizedBox(height: 8),
-                                SingleChildScrollView(
-                                  scrollDirection: Axis.horizontal,
-                                  child: DataTable(
-                                    columns: const [
-                                      DataColumn(label: Text('Alış #')),
-                                      DataColumn(label: Text('Tarih')),
-                                      DataColumn(label: Text('Giriş Adet')),
-                                      DataColumn(label: Text('Alış Tutarı')),
-                                      DataColumn(label: Text('Alış Birim')),
-                                      DataColumn(label: Text('Çıkan Adet')),
-                                      DataColumn(label: Text('Satış Tutarı')),
-                                      DataColumn(label: Text('Kalan Adet')),
-                                      DataColumn(label: Text('Lot K/Z')),
-                                    ],
-                                    rows: lotRows
-                                        .map(
-                                          (r) => DataRow(
-                                            cells: [
-                                              DataCell(Text(r.buyTxId.toString())),
-                                              DataCell(Text(_fmtDate(r.buyDate))),
-                                              DataCell(Text(_fmtQty(r.buyQty))),
-                                              DataCell(Text('${_fmtMoney(r.buyTotal)} TL')),
-                                              DataCell(Text('${_fmtMoney(r.buyUnitPrice)} TL')),
-                                              DataCell(Text(_fmtQty(r.soldQty))),
-                                              DataCell(Text('${_fmtMoney(r.soldTotal)} TL')),
-                                              DataCell(Text(_fmtQty(r.remainingQty))),
-                                              DataCell(
-                                                Text(
-                                                  '${r.lotPnl >= 0 ? '+' : '-'}${_fmtMoney(r.lotPnl.abs())} TL',
-                                                  style: TextStyle(
-                                                    color: r.lotPnl >= 0
-                                                        ? Colors.green
-                                                        : Colors.red,
-                                                    fontWeight: FontWeight.w700,
+                                if (isExpanded) ...[
+                                  const SizedBox(height: 8),
+                                  SingleChildScrollView(
+                                    scrollDirection: Axis.horizontal,
+                                    child: DataTable(
+                                      columns: const [
+                                        DataColumn(label: Text('Alış #')),
+                                        DataColumn(label: Text('Tarih')),
+                                        DataColumn(label: Text('Giriş Adet')),
+                                        DataColumn(label: Text('Alış Tutarı')),
+                                        DataColumn(label: Text('Alış Birim')),
+                                        DataColumn(label: Text('Çıkan Adet')),
+                                        DataColumn(label: Text('Satış Tutarı')),
+                                        DataColumn(label: Text('Kalan Adet')),
+                                        DataColumn(label: Text('Lot K/Z')),
+                                      ],
+                                      rows: lotRows
+                                          .map(
+                                            (r) => DataRow(
+                                              cells: [
+                                                DataCell(Text(r.buyTxId.toString())),
+                                                DataCell(Text(_fmtDate(r.buyDate))),
+                                                DataCell(Text(_fmtQty(r.buyQty))),
+                                                DataCell(Text('${_fmtMoney(r.buyTotal)} TL')),
+                                                DataCell(Text('${_fmtMoney(r.buyUnitPrice)} TL')),
+                                                DataCell(Text(_fmtQty(r.soldQty))),
+                                                DataCell(Text('${_fmtMoney(r.soldTotal)} TL')),
+                                                DataCell(Text(_fmtQty(r.remainingQty))),
+                                                DataCell(
+                                                  Text(
+                                                    '${r.lotPnl >= 0 ? '+' : '-'}${_fmtMoney(r.lotPnl.abs())} TL',
+                                                    style: TextStyle(
+                                                      color: r.lotPnl >= 0
+                                                          ? Colors.green
+                                                          : Colors.red,
+                                                      fontWeight: FontWeight.w700,
+                                                    ),
                                                   ),
                                                 ),
-                                              ),
-                                            ],
-                                          ),
-                                        )
-                                        .toList(),
+                                              ],
+                                            ),
+                                          )
+                                          .toList(),
+                                    ),
                                   ),
-                                ),
+                                ],
                               ],
                             ),
                           ),

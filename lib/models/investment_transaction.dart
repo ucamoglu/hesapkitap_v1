@@ -6,8 +6,10 @@ part 'investment_transaction.g.dart';
 class InvestmentTransaction {
   Id id = Isar.autoIncrement;
 
+  // Varligin tutuldugu yatirim hesabi.
   late int investmentAccountId;
 
+  // Nakit hareketinin yansidigi hesap.
   late int cashAccountId;
 
   late String symbol; 

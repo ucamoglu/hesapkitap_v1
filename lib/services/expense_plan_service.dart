@@ -6,6 +6,7 @@ import 'finance_transaction_service.dart';
 import 'local_notification_service.dart';
 
 class ExpensePlanService {
+  /// Gider planlarini yaklasan tarihe gore siralar.
   static Future<List<ExpensePlan>> getAll() async {
     final isar = IsarService.isar;
     final items = await isar.expensePlans.where().anyId().findAll();
@@ -13,6 +14,7 @@ class ExpensePlanService {
     return items;
   }
 
+  /// Gider planini kaydeder ve bildirim zamanlamasini es zamanli gunceller.
   static Future<void> save(ExpensePlan plan) async {
     final isar = IsarService.isar;
     await isar.writeTxn(() async {
@@ -21,6 +23,7 @@ class ExpensePlanService {
     await LocalNotificationService.scheduleOrCancelExpensePlan(plan);
   }
 
+  /// Gider planini ve ona ait bildirimi birlikte siler.
   static Future<void> delete(int id) async {
     await LocalNotificationService.cancelExpensePlan(id);
     final isar = IsarService.isar;
@@ -29,19 +32,22 @@ class ExpensePlanService {
     });
   }
 
+  /// Bugun gerceklesmesi gereken aktif gider planlarini bulur.
   static Future<List<ExpensePlan>> getDuePlans(DateTime now) async {
     final plans = await getAll();
     final dayStart = DateTime(now.year, now.month, now.day);
     final dayEnd = DateTime(now.year, now.month, now.day, 23, 59, 59, 999);
     return plans
         .where((p) => p.isActive)
-        .where((p) => !p.nextDueDate.isBefore(dayStart) && !p.nextDueDate.isAfter(dayEnd))
+        .where((p) =>
+            !p.nextDueDate.isBefore(dayStart) && !p.nextDueDate.isAfter(dayEnd))
         .where((p) => p.endDate == null || !p.nextDueDate.isAfter(p.endDate!))
         .toList();
   }
 
-  static Future<void> markCompleted(ExpensePlan plan) async {
-    await FinanceTransactionService.addExpense(
+  /// Plani gercek hareket olarak isler, sonraki tarihi hesaplar ve gerekirse pasife alir.
+  static Future<int> markCompleted(ExpensePlan plan) async {
+    final transactionId = await FinanceTransactionService.addExpenseAndGetId(
       accountId: plan.accountId,
       categoryId: plan.expenseCategoryId,
       amount: plan.amount,
@@ -50,39 +56,61 @@ class ExpensePlanService {
       expensePlanId: plan.id,
     );
 
-    final next = _nextByPlan(plan.nextDueDate, plan.periodType, plan.frequency);
-    plan.nextDueDate = next;
-
-    if (plan.endDate != null && plan.nextDueDate.isAfter(plan.endDate!)) {
+    if (plan.periodType == 'once') {
       plan.isActive = false;
+    } else {
+      final next =
+          _nextByPlan(plan.nextDueDate, plan.periodType, plan.frequency);
+      plan.nextDueDate = next;
+
+      if (plan.endDate != null && plan.nextDueDate.isAfter(plan.endDate!)) {
+        plan.isActive = false;
+      }
     }
 
     await save(plan);
+    return transactionId;
   }
 
+  /// Planin bir sonraki tarihini kullanicinin sectigi gune tasir.
   static Future<void> postpone(ExpensePlan plan, DateTime newDate) async {
-    plan.nextDueDate = DateTime(newDate.year, newDate.month, newDate.day);
+    plan.nextDueDate = DateTime(
+      newDate.year,
+      newDate.month,
+      newDate.day,
+      plan.nextDueDate.hour,
+      plan.nextDueDate.minute,
+      plan.nextDueDate.second,
+      plan.nextDueDate.millisecond,
+      plan.nextDueDate.microsecond,
+    );
     await save(plan);
   }
 
+  /// Plani silmeden pasife alir.
   static Future<void> cancel(ExpensePlan plan) async {
     plan.isActive = false;
     await save(plan);
   }
 
+  /// Plan kaynakli finans hareketlerini ayirt etmek icin standart aciklama uretir.
   static String _buildDescription(String? description) {
     final trimmed = description?.trim() ?? '';
     if (trimmed.isEmpty) return 'GIDER PLANLAMASI';
     return 'PLAN: $trimmed';
   }
 
+  /// Tekrarlayan planin bir sonraki vadesini period tipine gore hesaplar.
   static DateTime _nextByPlan(DateTime from, String periodType, int frequency) {
     final f = frequency < 1 ? 1 : frequency;
+    if (periodType == 'once') {
+      return from;
+    }
     if (periodType == 'daily') {
-      return DateTime(from.year, from.month, from.day + f);
+      return from.add(Duration(days: f));
     }
     if (periodType == 'weekly') {
-      return DateTime(from.year, from.month, from.day + (7 * f));
+      return from.add(Duration(days: 7 * f));
     }
     if (periodType == 'yearly') {
       return _addYearsSafe(from, f);
@@ -90,6 +118,7 @@ class ExpensePlanService {
     return _addMonthsSafe(from, f);
   }
 
+  /// Aylik tekrarlarda 31/30/28 gun farklarini guvenli bicimde ele alir.
   static DateTime _addMonthsSafe(DateTime date, int monthsToAdd) {
     final totalMonths = date.month + monthsToAdd;
     final targetYear = date.year + ((totalMonths - 1) ~/ 12);
@@ -108,6 +137,7 @@ class ExpensePlanService {
     );
   }
 
+  /// Yillik tekrarlarda subat gibi sinir durumlari bozulmadan tarih ilerletir.
   static DateTime _addYearsSafe(DateTime date, int yearsToAdd) {
     final targetYear = date.year + yearsToAdd;
     final maxDay = _daysInMonth(targetYear, date.month);

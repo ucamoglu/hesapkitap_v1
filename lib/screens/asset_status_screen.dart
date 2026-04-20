@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../models/account.dart';
 import '../models/investment_transaction.dart';
+import '../models/market_rate_item.dart';
 import '../services/account_service.dart';
 import '../services/investment_transaction_service.dart';
+import '../services/market_rate_service.dart';
 import '../utils/navigation_helpers.dart';
 
 class AssetStatusScreen extends StatefulWidget {
@@ -21,6 +23,7 @@ class _AssetStatusScreenState extends State<AssetStatusScreen> {
   final Map<String, _InvestmentTotals> _investmentTotalsBySymbol = {};
   final Map<int, double> _realizedPnlByAccountId = {};
   final Map<String, double> _realizedPnlBySymbol = {};
+  final Map<String, double> _livePriceBySymbol = {};
 
   @override
   void initState() {
@@ -28,6 +31,7 @@ class _AssetStatusScreenState extends State<AssetStatusScreen> {
     _load();
   }
 
+  // Varlik ozet ekraninda kullanilan tum kaynak verileri toplayip hesaplar.
   Future<void> _load() async {
     setState(() {
       _loading = true;
@@ -41,6 +45,81 @@ class _AssetStatusScreenState extends State<AssetStatusScreen> {
       ]);
       final accounts = results[0] as List<Account>;
       final investmentTx = results[1] as List<InvestmentTransaction>;
+      final livePriceBySymbol = <String, double>{};
+      final stockSymbols = accounts
+          .where(
+            (account) =>
+                account.type == 'investment' &&
+                account.investmentSubtype == 'stock' &&
+                (account.investmentSymbol?.trim().isNotEmpty ?? false),
+          )
+          .map((account) => account.investmentSymbol!.trim().toUpperCase())
+          .toSet()
+          .toList();
+      final cryptoSymbols = accounts
+          .where(
+            (account) =>
+                account.type == 'investment' &&
+                account.investmentSubtype == 'crypto' &&
+                (account.investmentSymbol?.trim().isNotEmpty ?? false),
+          )
+          .map((account) => account.investmentSymbol!.trim().toUpperCase())
+          .toSet()
+          .toList();
+      try {
+        final rateResults = await Future.wait<Object?>([
+          (() async {
+            try {
+              return await MarketRateService.fetchAllCurrencies();
+            } catch (_) {
+              return null;
+            }
+          })(),
+          (() async {
+            try {
+              return await MarketRateService.fetchAllMetals();
+            } catch (_) {
+              return null;
+            }
+          })(),
+          (() async {
+            if (stockSymbols.isEmpty) return const <MarketRateItem>[];
+            try {
+              return await MarketRateService.fetchStocksByCodes(stockSymbols);
+            } catch (_) {
+              return const <MarketRateItem>[];
+            }
+          })(),
+          (() async {
+            if (cryptoSymbols.isEmpty) return const <MarketRateItem>[];
+            try {
+              return await MarketRateService.fetchCryptosByCodes(cryptoSymbols);
+            } catch (_) {
+              return const <MarketRateItem>[];
+            }
+          })(),
+        ]);
+        final currencyRates =
+            (rateResults[0] as CurrencyRateListResult?)?.items ?? const <MarketRateItem>[];
+        final metalRates =
+            (rateResults[1] as MetalRateListResult?)?.items ?? const <MarketRateItem>[];
+        final stockRates = rateResults[2] as List<MarketRateItem>;
+        final cryptoRates = rateResults[3] as List<MarketRateItem>;
+        final allRates = <MarketRateItem>[
+          ...currencyRates,
+          ...metalRates,
+          ...stockRates,
+          ...cryptoRates,
+        ];
+        for (final item in allRates) {
+          final price = item.sell > 0 ? item.sell : item.buy;
+          if (price > 0) {
+            livePriceBySymbol[item.code.toUpperCase()] = price;
+          }
+        }
+      } catch (_) {
+        // Keep summary visible when live market data is unavailable.
+      }
       final grouped = <String, List<Account>>{};
       for (final a in accounts) {
         grouped.putIfAbsent(a.type, () => []).add(a);
@@ -101,6 +180,9 @@ class _AssetStatusScreenState extends State<AssetStatusScreen> {
         _realizedPnlBySymbol
           ..clear()
           ..addAll(realizedBySymbol);
+        _livePriceBySymbol
+          ..clear()
+          ..addAll(livePriceBySymbol);
         _loading = false;
       });
     } catch (e) {
@@ -125,6 +207,7 @@ class _AssetStatusScreenState extends State<AssetStatusScreen> {
     }
   }
 
+  // Parasal degerleri sabit bir para formatinda gosterir.
   String _fmtMoney(double value) {
     final fixed = value.toStringAsFixed(2);
     final parts = fixed.split('.');
@@ -137,6 +220,24 @@ class _AssetStatusScreenState extends State<AssetStatusScreen> {
       b.write(intPart[i]);
       if (fromRight > 1 && fromRight % 3 == 1) b.write('.');
     }
+    return '${b.toString()},$decPart';
+  }
+
+  // Yatirim miktarlarinda daha hassas bir gorunum kullanir.
+  String _fmtQuantity(double value) {
+    final fixed = value.toStringAsFixed(4);
+    final normalized = fixed.replaceFirst(RegExp(r'([.,]?)0+$'), '');
+    final parts = normalized.split('.');
+    final intPart = parts[0];
+    final decPart = parts.length > 1 ? parts[1] : '';
+
+    final b = StringBuffer();
+    for (int i = 0; i < intPart.length; i++) {
+      final fromRight = intPart.length - i;
+      b.write(intPart[i]);
+      if (fromRight > 1 && fromRight % 3 == 1) b.write('.');
+    }
+    if (decPart.isEmpty) return b.toString();
     return '${b.toString()},$decPart';
   }
 
@@ -165,6 +266,28 @@ class _AssetStatusScreenState extends State<AssetStatusScreen> {
       return '${_fmtMoney(net)} TL';
     }
     return '${_fmtMoney(account.balance)} TL';
+  }
+
+  double? _currentUnitPrice(Account account) {
+    final symbol = (account.investmentSymbol ?? '').trim().toUpperCase();
+    if (symbol.isEmpty) return null;
+    return _livePriceBySymbol[symbol];
+  }
+
+  double? _currentInvestmentValue(Account account) {
+    if (account.type != 'investment') return null;
+    final unitPrice = _currentUnitPrice(account);
+    if (unitPrice == null) return null;
+    return account.balance * unitPrice;
+  }
+
+  String _trailingValueText(Account account) {
+    if (account.type != 'investment') {
+      return _acquisitionValueText(account);
+    }
+    final currentValue = _currentInvestmentValue(account);
+    if (currentValue == null) return _acquisitionValueText(account);
+    return '${_fmtMoney(currentValue)} TL';
   }
 
   IconData _typeIcon(String type) {
@@ -265,8 +388,13 @@ class _AssetStatusScreenState extends State<AssetStatusScreen> {
                                     final realized = a.type == 'investment'
                                         ? _realizedPnlForInvestmentAccount(a)
                                         : 0.0;
+                                    final currentValue = a.type == 'investment'
+                                        ? _currentInvestmentValue(a)
+                                        : null;
                                     final subtitle = a.type == 'investment'
-                                        ? 'Edinim Değeri (Bakiye)\nAlış: ${_fmtMoney(totals!.buy)} TL • Satış: ${_fmtMoney(totals.sell)} TL'
+                                        ? 'Miktar: ${_fmtQuantity(a.balance)} ${(a.investmentSymbol ?? '-').toUpperCase()}'
+                                          '\nGüncel Değer: ${currentValue == null ? 'Veri yok' : '${_fmtMoney(currentValue)} TL'}'
+                                          '\nEdinim Değeri (Bakiye)\nAlış: ${_fmtMoney(totals!.buy)} TL • Satış: ${_fmtMoney(totals.sell)} TL'
                                           '\nGerç. K/Z: ${_fmtMoney(realized.abs())} TL ${realized >= 0 ? '(Kar)' : '(Zarar)'}'
                                         : 'Edinim Değeri (Bakiye)';
                                     return ListTile(
@@ -283,7 +411,7 @@ class _AssetStatusScreenState extends State<AssetStatusScreen> {
                                       subtitle: Text(subtitle),
                                       isThreeLine: a.type == 'investment',
                                       trailing: Text(
-                                        _acquisitionValueText(a),
+                                        _trailingValueText(a),
                                         style: const TextStyle(
                                           fontWeight: FontWeight.w700,
                                         ),

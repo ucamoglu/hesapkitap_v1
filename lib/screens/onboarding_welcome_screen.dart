@@ -11,6 +11,7 @@ class OnboardingWelcomeScreen extends StatelessWidget {
   final Future<void> Function() onCompleted;
 
   @override
+  // Uygulamaya ilk giriste kullaniciyi profil olusturma akimina yonlendirir.
   Widget build(BuildContext context) {
     return PopScope(
       canPop: false,
@@ -38,7 +39,7 @@ class OnboardingWelcomeScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 14),
                         const Text(
-                          'Bu uygulama UC Digital Studio ürünüdür.\n'
+                          'Bu uygulama Pagumex Teknoloji ürünüdür.\n'
                           'Bireysel finans yönetiminizi sağlıklı bir şekilde takip edebilmeniz amacı ile hazırlanmıştır.',
                           style: TextStyle(
                             fontSize: 16,

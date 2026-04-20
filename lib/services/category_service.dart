@@ -5,6 +5,22 @@ import '../models/category.dart';
 import '../models/finance_transaction.dart';
 
 class CategoryService {
+  static const String assetPurchaseSystemKey = 'asset_purchase';
+
+  static void _validateExpenseCategory(Category category) {
+    final name = category.name.trim();
+    if (name.isEmpty) {
+      throw Exception('Kategori adı zorunludur.');
+    }
+
+    if (category.type != 'expense') {
+      throw Exception('Geçersiz gider kategori türü.');
+    }
+
+    category.name = name;
+  }
+
+  /// Tum gider kategorilerini getirir.
   static Future<List<Category>> getAllExpenseCategories() async {
     final isar = IsarService.isar;
 
@@ -15,6 +31,7 @@ class CategoryService {
         .findAll();
   }
 
+  /// Aktif gider kategorilerini form ekranlari icin filtreler.
   static Future<List<Category>> getActiveExpenseCategories() async {
     final isar = IsarService.isar;
 
@@ -27,6 +44,7 @@ class CategoryService {
         .findAll();
   }
 
+  /// Sistem tarafindan olusturulmamis aktif gider kategorilerini getirir.
   static Future<List<Category>> getActiveManualExpenseCategories() async {
     final isar = IsarService.isar;
 
@@ -41,6 +59,7 @@ class CategoryService {
         .findAll();
   }
 
+  /// Manuel tum gider kategorilerini yonetim ekranlari icin dondurur.
   static Future<List<Category>> getAllManualExpenseCategories() async {
     final isar = IsarService.isar;
 
@@ -53,6 +72,7 @@ class CategoryService {
         .findAll();
   }
 
+  /// Yeni manuel gider kategorisi olusturur.
   static Future<void> addExpenseCategory(String name) async {
     final isar = IsarService.isar;
 
@@ -61,23 +81,27 @@ class CategoryService {
       ..type = "expense"
       ..isActive = true
       ..createdAt = DateTime.now();
+    _validateExpenseCategory(category);
 
     await isar.writeTxn(() async {
       await isar.categorys.put(category);
     });
   }
 
+  /// Sistem kategorilerinin duzenlenmesini engelleyerek mevcut kaydi gunceller.
   static Future<void> updateExpenseCategory(Category category) async {
     final isar = IsarService.isar;
     if (category.isSystemGenerated) {
       throw Exception('Sistem kategorisi duzenlenemez.');
     }
+    _validateExpenseCategory(category);
 
     await isar.writeTxn(() async {
       await isar.categorys.put(category);
     });
   }
 
+  /// Sistem kategorilerinin silinmesini engelleyerek kaydi kaldirir.
   static Future<void> deleteExpenseCategory(int id) async {
     final isar = IsarService.isar;
     final existing = await isar.categorys.get(id);
@@ -90,6 +114,7 @@ class CategoryService {
     });
   }
 
+  /// Bir gider kategorisinin hareketlerde kullanilip kullanilmadigini denetler.
   static Future<bool> isExpenseCategoryUsed(int categoryId) async {
     final isar = IsarService.isar;
 
@@ -104,6 +129,7 @@ class CategoryService {
     return count > 0;
   }
 
+  /// Kategoriyi ekrandan gizlemek icin aktiflik bayragini degistirir.
   static Future<void> setActive(int id, bool value) async {
     final isar = IsarService.isar;
     final category = await isar.categorys.get(id);
@@ -118,6 +144,7 @@ class CategoryService {
     });
   }
 
+  /// Uygulama ilk acildiginda temel gider kategorilerini bos veritabanina ekler.
   static Future<void> seedExpenseDefaultsIfEmpty() async {
     final isar = IsarService.isar;
     final existing = await isar.categorys
@@ -147,5 +174,41 @@ class CategoryService {
         await isar.categorys.put(category);
       }
     });
+  }
+
+  static Future<Category> ensureAssetPurchaseCategory() async {
+    final isar = IsarService.isar;
+    final existing = await isar.categorys
+        .where()
+        .filter()
+        .typeEqualTo('expense')
+        .and()
+        .systemKeyEqualTo(assetPurchaseSystemKey)
+        .findFirst();
+    if (existing != null) {
+      if (!existing.isActive || !existing.isSystemGenerated) {
+        await isar.writeTxn(() async {
+          existing
+            ..name = 'Varlık Alımı'
+            ..isActive = true
+            ..isSystemGenerated = true
+            ..systemKey = assetPurchaseSystemKey;
+          await isar.categorys.put(existing);
+        });
+      }
+      return existing;
+    }
+
+    final category = Category()
+      ..name = 'Varlık Alımı'
+      ..type = 'expense'
+      ..isActive = true
+      ..isSystemGenerated = true
+      ..systemKey = assetPurchaseSystemKey
+      ..createdAt = DateTime.now();
+    await isar.writeTxn(() async {
+      await isar.categorys.put(category);
+    });
+    return category;
   }
 }
