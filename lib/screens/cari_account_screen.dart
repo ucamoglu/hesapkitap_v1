@@ -246,7 +246,7 @@ class _CariAccountScreenState extends State<CariAccountScreen> {
                       ),
                       const SizedBox(height: 12),
                       DropdownButtonFormField<int>(
-                        initialValue: _selectedCardId,
+                        value: _selectedCardId,
                         decoration: const InputDecoration(
                           labelText: 'Cari Kart',
                           border: OutlineInputBorder(),
@@ -264,7 +264,7 @@ class _CariAccountScreenState extends State<CariAccountScreen> {
                       ),
                       const SizedBox(height: 12),
                       DropdownButtonFormField<int>(
-                        initialValue: _selectedAccountId,
+                        value: _selectedAccountId,
                         decoration: const InputDecoration(
                           labelText: 'Hesap',
                           border: OutlineInputBorder(),

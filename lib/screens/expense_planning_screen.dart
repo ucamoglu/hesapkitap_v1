@@ -328,7 +328,7 @@ class _ExpensePlanningScreenState extends State<ExpensePlanningScreen> {
                                 child: Column(
                                   children: [
                               DropdownButtonFormField<int>(
-                                initialValue: _selectedCategoryId,
+                                value: _selectedCategoryId,
                                 decoration: const InputDecoration(
                                   labelText: 'Gider Tipi',
                                 ),
@@ -345,7 +345,7 @@ class _ExpensePlanningScreenState extends State<ExpensePlanningScreen> {
                               ),
                               const SizedBox(height: 10),
                               DropdownButtonFormField<int>(
-                                initialValue: _selectedAccountId,
+                                value: _selectedAccountId,
                                 decoration: const InputDecoration(
                                   labelText: 'Hangi Hesaptan Çıkacak',
                                 ),
@@ -377,7 +377,7 @@ class _ExpensePlanningScreenState extends State<ExpensePlanningScreen> {
                                 children: [
                                   Expanded(
                                     child: DropdownButtonFormField<String>(
-                                      initialValue: _periodType,
+                                      value: _periodType,
                                       decoration: const InputDecoration(
                                         labelText: 'Plan Dönemi',
                                       ),
@@ -391,7 +391,7 @@ class _ExpensePlanningScreenState extends State<ExpensePlanningScreen> {
                                   const SizedBox(width: 8),
                                   Expanded(
                                     child: DropdownButtonFormField<int>(
-                                      initialValue: _frequency,
+                                      value: _frequency,
                                       decoration: const InputDecoration(
                                         labelText: 'Sıklık',
                                       ),

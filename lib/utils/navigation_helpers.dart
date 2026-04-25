@@ -485,7 +485,7 @@ class _AppMenuDrawerState extends State<_AppMenuDrawer> {
             leading: const Icon(Icons.calendar_month, color: AppColors.info),
             title: const Text('Takvim'),
             selected: _lastSelectedMenuItem == _MenuItem.calendar,
-            selectedTileColor: Colors.black.withValues(alpha: 0.05),
+            selectedTileColor: Colors.black.withOpacity(0.05),
             onTap: () {
               _rememberSelection(item: _MenuItem.calendar);
               _openScreen(const CalendarTransactionsScreen());
@@ -562,7 +562,7 @@ class _AppMenuDrawerState extends State<_AppMenuDrawer> {
             leading: const Icon(Icons.info_outline),
             title: const Text('Hakkında'),
             selected: _lastSelectedMenuItem == _MenuItem.about,
-            selectedTileColor: Colors.black.withValues(alpha: 0.05),
+            selectedTileColor: Colors.black.withOpacity(0.05),
             onTap: _openAbout,
           ),
         ],
@@ -582,7 +582,7 @@ Widget _menuItem({
     leading: Icon(icon, color: color),
     title: Text(title),
     selected: _lastSelectedMenuItem == item,
-    selectedTileColor: Colors.black.withValues(alpha: 0.05),
+    selectedTileColor: Colors.black.withOpacity(0.05),
     onTap: onTap,
   );
 }

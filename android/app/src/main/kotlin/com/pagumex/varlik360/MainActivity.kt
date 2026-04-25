@@ -1,4 +1,4 @@
-package com.example.hesapkitap_v1
+package com.pagumex.varlik360
 
 import io.flutter.embedding.android.FlutterActivity
 
