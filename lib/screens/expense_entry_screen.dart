@@ -226,7 +226,7 @@ class _ExpenseEntryScreenState extends State<ExpenseEntryScreen> {
                     padding: const EdgeInsets.all(16),
                     children: [
                       DropdownButtonFormField<int>(
-                        initialValue: _selectedAccountId,
+                        value: _selectedAccountId,
                         decoration: const InputDecoration(
                           labelText: "Hesap",
                           border: OutlineInputBorder(),
@@ -249,7 +249,7 @@ class _ExpenseEntryScreenState extends State<ExpenseEntryScreen> {
                       ),
                       const SizedBox(height: 12),
                       DropdownButtonFormField<int>(
-                        initialValue: _selectedCategoryId,
+                        value: _selectedCategoryId,
                         decoration: const InputDecoration(
                           labelText: "Gider Kategorisi",
                           border: OutlineInputBorder(),

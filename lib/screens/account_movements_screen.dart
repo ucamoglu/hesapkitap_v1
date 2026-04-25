@@ -607,7 +607,7 @@ class _AccountMovementsScreenState extends State<AccountMovementsScreen> {
                               child: Column(
                                 children: [
                                   DropdownButtonFormField<int>(
-                                    initialValue: _selectedAccountId,
+                                    value: _selectedAccountId,
                                     decoration: const InputDecoration(
                                       labelText: 'Hesap Seç',
                                       border: OutlineInputBorder(),
@@ -632,7 +632,7 @@ class _AccountMovementsScreenState extends State<AccountMovementsScreen> {
                                   ),
                                   const SizedBox(height: 10),
                                   DropdownButtonFormField<_DatePreset>(
-                                    initialValue: _datePreset,
+                                    value: _datePreset,
                                     decoration: const InputDecoration(
                                       labelText: 'Dönem',
                                       border: OutlineInputBorder(),
@@ -667,7 +667,7 @@ class _AccountMovementsScreenState extends State<AccountMovementsScreen> {
                                         children: [
                                           Expanded(
                                             child: DropdownButtonFormField<int>(
-                                              initialValue: _periodReferenceDate.year,
+                                              value: _periodReferenceDate.year,
                                               decoration: const InputDecoration(
                                                 labelText: 'Yıl',
                                                 border: OutlineInputBorder(),
@@ -696,7 +696,7 @@ class _AccountMovementsScreenState extends State<AccountMovementsScreen> {
                                           const SizedBox(width: 8),
                                           Expanded(
                                             child: DropdownButtonFormField<int>(
-                                              initialValue: _periodReferenceDate.month,
+                                              value: _periodReferenceDate.month,
                                               decoration: const InputDecoration(
                                                 labelText: 'Ay',
                                                 border: OutlineInputBorder(),
@@ -725,7 +725,7 @@ class _AccountMovementsScreenState extends State<AccountMovementsScreen> {
                                       )
                                     else if (_datePreset == _DatePreset.year)
                                       DropdownButtonFormField<int>(
-                                        initialValue: _periodReferenceDate.year,
+                                        value: _periodReferenceDate.year,
                                         decoration: const InputDecoration(
                                           labelText: 'Yıl',
                                           border: OutlineInputBorder(),

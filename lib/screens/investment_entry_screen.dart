@@ -342,7 +342,7 @@ class _InvestmentEntryScreenState extends State<InvestmentEntryScreen> {
                       ),
                       const SizedBox(height: 12),
                       DropdownButtonFormField<int>(
-                        initialValue: _selectedAccountId,
+                        value: _selectedAccountId,
                         isExpanded: true,
                         decoration: const InputDecoration(
                           labelText: 'Yatırım Hesabı',
@@ -370,7 +370,7 @@ class _InvestmentEntryScreenState extends State<InvestmentEntryScreen> {
                       ),
                       const SizedBox(height: 12),
                       DropdownButtonFormField<int>(
-                        initialValue: _selectedCashAccountId,
+                        value: _selectedCashAccountId,
                         isExpanded: true,
                         decoration: InputDecoration(
                           labelText: _txType == 'buy' ? 'Kaynak Hesap' : 'Hedef Hesap',

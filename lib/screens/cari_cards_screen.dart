@@ -131,7 +131,7 @@ class _CariCardsScreenState extends State<CariCardsScreen> {
                 ),
                 const SizedBox(height: 8),
                 DropdownButtonFormField<String>(
-                  initialValue: selectedType,
+                  value: selectedType,
                   decoration: const InputDecoration(labelText: 'Kart Türü'),
                   items: const [
                     DropdownMenuItem(value: 'person', child: Text('Kişi')),

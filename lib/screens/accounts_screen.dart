@@ -210,7 +210,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
-                    initialValue: selectedType,
+                    value: selectedType,
                     items: const [
                       DropdownMenuItem(
                         value: "cash",
@@ -240,7 +240,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
                   ),
                   if (selectedType == "investment")
                     DropdownButtonFormField<String>(
-                      initialValue: selectedInvestmentSubtype,
+                      value: selectedInvestmentSubtype,
                       items: const [
                         DropdownMenuItem(
                           value: "currency",
@@ -272,7 +272,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
                   if (selectedType == "investment" &&
                       selectedInvestmentSubtype == "currency")
                     DropdownButtonFormField<String>(
-                      initialValue: selectedSymbol,
+                      value: selectedSymbol,
                       items: trackedCurrencies
                           .map(
                             (e) => DropdownMenuItem(
@@ -293,7 +293,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
                   if (selectedType == "investment" &&
                       selectedInvestmentSubtype == "metal")
                     DropdownButtonFormField<String>(
-                      initialValue: selectedSymbol,
+                      value: selectedSymbol,
                       items: trackedMetals
                           .map(
                             (e) => DropdownMenuItem(

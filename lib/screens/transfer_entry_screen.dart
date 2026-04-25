@@ -170,7 +170,7 @@ class _TransferEntryScreenState extends State<TransferEntryScreen> {
                     padding: const EdgeInsets.all(16),
                     children: [
                       DropdownButtonFormField<int>(
-                        initialValue: _fromAccountId,
+                        value: _fromAccountId,
                         decoration: const InputDecoration(
                           labelText: 'Gönderen Hesap (-)',
                           border: OutlineInputBorder(),
@@ -193,7 +193,7 @@ class _TransferEntryScreenState extends State<TransferEntryScreen> {
                       ),
                       const SizedBox(height: 12),
                       DropdownButtonFormField<int>(
-                        initialValue: _toAccountId,
+                        value: _toAccountId,
                         decoration: const InputDecoration(
                           labelText: 'Alan Hesap (+)',
                           border: OutlineInputBorder(),
