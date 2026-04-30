@@ -99,6 +99,8 @@ class LocalNotificationService {
       'Planlı gelir zamanı geldi. Gerçekleşti mi kontrol edin.',
       tzTarget,
       details,
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.absoluteTime,
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
       matchDateTimeComponents: null,
     );
@@ -151,6 +153,8 @@ class LocalNotificationService {
       'Planlı gider zamanı geldi. Gerçekleşti mi kontrol edin.',
       tzTarget,
       details,
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.absoluteTime,
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
       matchDateTimeComponents: null,
     );

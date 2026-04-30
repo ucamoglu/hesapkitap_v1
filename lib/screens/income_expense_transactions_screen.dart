@@ -885,7 +885,7 @@ class _IncomeExpenseTransactionsScreenState
                       Expanded(
                         child: DropdownButtonFormField<_TypeFilter>(
                           isExpanded: true,
-                          initialValue: _typeFilter,
+                          value: _typeFilter,
                           decoration: const InputDecoration(labelText: 'Tür'),
                           items: const [
                             DropdownMenuItem(value: _TypeFilter.all, child: Text('Tümü')),
@@ -916,7 +916,7 @@ class _IncomeExpenseTransactionsScreenState
                       Expanded(
                         child: DropdownButtonFormField<_DatePreset>(
                           isExpanded: true,
-                          initialValue: _datePreset,
+                          value: _datePreset,
                           decoration: const InputDecoration(labelText: 'Dönem'),
                           items: const [
                             DropdownMenuItem(value: _DatePreset.all, child: Text('Tümü')),
@@ -941,7 +941,7 @@ class _IncomeExpenseTransactionsScreenState
                         Expanded(
                           child: DropdownButtonFormField<_CariKindFilter>(
                             isExpanded: true,
-                            initialValue: _cariKindFilter,
+                            value: _cariKindFilter,
                             decoration: const InputDecoration(
                               labelText: 'Cari İşlem Türü',
                             ),
@@ -995,7 +995,7 @@ class _IncomeExpenseTransactionsScreenState
                           Expanded(
                             child: DropdownButtonFormField<int>(
                               isExpanded: true,
-                              initialValue: _periodReferenceDate.year,
+                              value: _periodReferenceDate.year,
                               decoration: const InputDecoration(labelText: 'Yıl'),
                               items: availableYears
                                   .map(
@@ -1021,7 +1021,7 @@ class _IncomeExpenseTransactionsScreenState
                           Expanded(
                             child: DropdownButtonFormField<int>(
                               isExpanded: true,
-                              initialValue: _periodReferenceDate.month,
+                              value: _periodReferenceDate.month,
                               decoration: const InputDecoration(labelText: 'Ay'),
                               items: List.generate(
                                 12,
@@ -1047,7 +1047,7 @@ class _IncomeExpenseTransactionsScreenState
                     else if (_datePreset == _DatePreset.year)
                       DropdownButtonFormField<int>(
                         isExpanded: true,
-                        initialValue: _periodReferenceDate.year,
+                        value: _periodReferenceDate.year,
                         decoration: const InputDecoration(labelText: 'Yıl'),
                         items: availableYears
                             .map(
@@ -1097,7 +1097,7 @@ class _IncomeExpenseTransactionsScreenState
                       Expanded(
                         child: DropdownButtonFormField<int?>(
                           isExpanded: true,
-                          initialValue: _selectedAccountId,
+                          value: _selectedAccountId,
                           decoration: const InputDecoration(labelText: 'Hesap'),
                           items: [
                             const DropdownMenuItem<int?>(
@@ -1126,7 +1126,7 @@ class _IncomeExpenseTransactionsScreenState
                       Expanded(
                         child: DropdownButtonFormField<String?>(
                           isExpanded: true,
-                          initialValue: _selectedCategoryKey,
+                          value: _selectedCategoryKey,
                           decoration: const InputDecoration(labelText: 'Kategori'),
                           items: [
                             const DropdownMenuItem<String?>(
@@ -1159,7 +1159,7 @@ class _IncomeExpenseTransactionsScreenState
                       Expanded(
                         child: DropdownButtonFormField<_GroupBy>(
                           isExpanded: true,
-                          initialValue: _groupBy,
+                          value: _groupBy,
                           decoration: const InputDecoration(labelText: 'Gruplama'),
                           items: const [
                             DropdownMenuItem(value: _GroupBy.none, child: Text('Yok')),
@@ -1516,7 +1516,7 @@ class _IncomeExpenseTransactionsScreenState
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       DropdownButtonFormField<String>(
-                        initialValue: type,
+                        value: type,
                         decoration: const InputDecoration(labelText: 'Tür'),
                         items: const [
                           DropdownMenuItem(
@@ -1537,7 +1537,7 @@ class _IncomeExpenseTransactionsScreenState
                       ),
                       const SizedBox(height: 8),
                       DropdownButtonFormField<int>(
-                        initialValue: accountId,
+                        value: accountId,
                         decoration: const InputDecoration(labelText: 'Hesap'),
                         items: accounts
                             .map(
@@ -1556,7 +1556,7 @@ class _IncomeExpenseTransactionsScreenState
                       ),
                       const SizedBox(height: 8),
                       DropdownButtonFormField<int>(
-                        initialValue: categoryId,
+                        value: categoryId,
                         decoration: const InputDecoration(labelText: 'Kategori'),
                         items: categoryItems,
                         onChanged: (v) {
@@ -1677,7 +1677,7 @@ class _IncomeExpenseTransactionsScreenState
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   DropdownButtonFormField<String>(
-                    initialValue: rawType,
+                    value: rawType,
                     decoration: const InputDecoration(labelText: 'Cari Türü'),
                     items: const [
                       DropdownMenuItem(
@@ -1698,7 +1698,7 @@ class _IncomeExpenseTransactionsScreenState
                   ),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<int>(
-                    initialValue: accountId,
+                    value: accountId,
                     decoration: const InputDecoration(labelText: 'Hesap'),
                     items: accounts
                         .map(
@@ -1717,7 +1717,7 @@ class _IncomeExpenseTransactionsScreenState
                   ),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<int>(
-                    initialValue: cardId,
+                    value: cardId,
                     decoration: const InputDecoration(labelText: 'Cari Kart'),
                     items: cards
                         .map(
